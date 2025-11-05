@@ -1,0 +1,1192 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>TwelveLabs AI Platform with Oracle Vector Database</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 0.75in;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 9pt;
+                color: #666;
+            }
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.6;
+            color: #333;
+            max-width: 100%;
+        }
+        
+        h1 {
+            color: #0066cc;
+            font-size: 24pt;
+            border-bottom: 3px solid #0066cc;
+            padding-bottom: 10px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            page-break-after: avoid;
+        }
+        
+        h2 {
+            color: #0066cc;
+            font-size: 18pt;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 8px;
+            margin-top: 18px;
+            margin-bottom: 12px;
+            page-break-after: avoid;
+        }
+        
+        h3 {
+            color: #003366;
+            font-size: 14pt;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            page-break-after: avoid;
+        }
+        
+        h4 {
+            color: #003366;
+            font-size: 12pt;
+            margin-top: 12px;
+            margin-bottom: 8px;
+            page-break-after: avoid;
+        }
+        
+        p {
+            margin: 8px 0;
+            text-align: justify;
+        }
+        
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        code {
+            background-color: #f5f5f5;
+            color: #d63384;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 9pt;
+        }
+        
+        pre {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-left: 4px solid #0066cc;
+            padding: 12px;
+            overflow-x: auto;
+            border-radius: 4px;
+            margin: 12px 0;
+            page-break-inside: avoid;
+        }
+        
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: #333;
+            font-size: 8pt;
+        }
+        
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+            font-size: 9pt;
+            page-break-inside: avoid;
+        }
+        
+        table th {
+            background-color: #0066cc;
+            color: white;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+            border: 1px solid #0052a3;
+        }
+        
+        table td {
+            padding: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        table tr:hover {
+            background-color: #e9ecef;
+        }
+        
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        
+        li {
+            margin: 5px 0;
+        }
+        
+        blockquote {
+            border-left: 4px solid #0066cc;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #666;
+            font-style: italic;
+        }
+        
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 15px auto;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        
+        hr {
+            border: none;
+            border-top: 2px solid #dee2e6;
+            margin: 20px 0;
+        }
+        
+        .toc {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+            page-break-after: always;
+        }
+        
+        .toc h2 {
+            margin-top: 0;
+            color: #0066cc;
+            border-bottom: 2px solid #0066cc;
+        }
+        
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .toc li {
+            margin: 8px 0;
+        }
+        
+        .toc a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: #0066cc;
+            color: white;
+            border-radius: 3px;
+            font-size: 8pt;
+            font-weight: bold;
+            margin: 2px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #0066cc;
+            font-size: 28pt;
+            margin-bottom: 10px;
+            border-bottom: none;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 12pt;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>TwelveLabs AI Platform with Oracle Vector Database</h1>
+        <p>Advanced Media Intelligence Platform powered by Oracle Cloud Infrastructure</p>
+    </div>
+    
+    <div class="toc"><h2>Table of Contents</h2><div class="toc">
+<ul>
+<li><a href="#media-intelligence-platform-with-oracle-cloud-infrastructure">Media Intelligence Platform with Oracle Cloud Infrastructure</a><ul>
+<li><a href="#why-oracle-cloud-infrastructure">🏆 Why Oracle Cloud Infrastructure?</a><ul>
+<li><a href="#enterprise-grade-security">Enterprise-Grade Security</a></li>
+<li><a href="#performance-reliability">Performance &amp; Reliability</a></li>
+<li><a href="#cost-efficiency">Cost Efficiency</a></li>
+<li><a href="#developer-experience">Developer Experience</a></li>
+</ul>
+</li>
+<li><a href="#complete-feature-set">✨ Complete Feature Set</a><ul>
+<li><a href="#ai-powered-search-analysis">AI-Powered Search &amp; Analysis</a></li>
+<li><a href="#media-management">Media Management</a></li>
+<li><a href="#location-intelligence">Location Intelligence</a></li>
+<li><a href="#advanced-ai-features">Advanced AI Features</a></li>
+<li><a href="#modern-web-interface">Modern Web Interface</a></li>
+<li><a href="#database-storage">Database &amp; Storage</a></li>
+</ul>
+</li>
+<li><a href="#architecture-overview">🏗️ Architecture Overview</a><ul>
+<li><a href="#data-flow">Data Flow</a></li>
+</ul>
+</li>
+<li><a href="#security-architecture">🔐 Security Architecture</a><ul>
+<li><a href="#defense-in-depth">Defense in Depth</a><ul>
+<li><a href="#network-security">Network Security</a></li>
+<li><a href="#identity-access-management">Identity &amp; Access Management</a></li>
+<li><a href="#data-security">Data Security</a></li>
+<li><a href="#application-security">Application Security</a></li>
+<li><a href="#compliance-governance">Compliance &amp; Governance</a></li>
+</ul>
+</li>
+<li><a href="#why-oci-is-more-secure">Why OCI is More Secure</a></li>
+</ul>
+</li>
+<li><a href="#quick-start">🚀 Quick Start</a><ul>
+<li><a href="#1-install-dependencies">1. Install Dependencies</a></li>
+<li><a href="#2-configure-environment">2. Configure Environment</a><ul>
+<li><a href="#oci-setup-guide">OCI Setup Guide</a></li>
+</ul>
+</li>
+<li><a href="#3-create-database-schemas">3. Create Database Schemas</a></li>
+<li><a href="#4-start-flask-server">4. Start Flask Server</a></li>
+<li><a href="#5-open-web-ui">5. Open Web UI</a></li>
+</ul>
+</li>
+<li><a href="#project-structure">Project Structure</a></li>
+<li><a href="#usage-examples">Usage Examples</a><ul>
+<li><a href="#upload-and-search-photos">Upload and Search Photos</a></li>
+<li><a href="#unified-search-photos-videos">Unified Search (Photos + Videos)</a></li>
+<li><a href="#video-embeddings">Video Embeddings</a></li>
+</ul>
+</li>
+<li><a href="#use-cases-benefits">🎯 Use Cases &amp; Benefits</a><ul>
+<li><a href="#media-companies-content-creators">Media Companies &amp; Content Creators</a></li>
+<li><a href="#enterprise-organizations">Enterprise Organizations</a></li>
+<li><a href="#healthcare-research">Healthcare &amp; Research</a></li>
+<li><a href="#e-commerce-retail">E-commerce &amp; Retail</a></li>
+<li><a href="#education-training">Education &amp; Training</a></li>
+</ul>
+</li>
+<li><a href="#performance-benchmarks">📊 Performance Benchmarks</a><ul>
+<li><a href="#search-performance">Search Performance</a></li>
+<li><a href="#scalability">Scalability</a></li>
+</ul>
+</li>
+<li><a href="#documentation-resources">📚 Documentation &amp; Resources</a></li>
+<li><a href="#api-endpoints">🌐 API Endpoints</a><ul>
+<li><a href="#core-operations">Core Operations</a></li>
+<li><a href="#upload-processing">Upload &amp; Processing</a></li>
+<li><a href="#search-operations">Search Operations</a></li>
+<li><a href="#delete-operations-new">Delete Operations (NEW)</a></li>
+<li><a href="#utility-endpoints">Utility Endpoints</a></li>
+</ul>
+</li>
+<li><a href="#advanced-configuration">🔧 Advanced Configuration</a><ul>
+<li><a href="#oci-configuration-precedence">OCI Configuration Precedence</a></li>
+<li><a href="#database-connection-pooling">Database Connection Pooling</a></li>
+<li><a href="#twelvelabs-api-configuration">TwelveLabs API Configuration</a></li>
+</ul>
+</li>
+<li><a href="#oci-vs-other-cloud-providers">🆚 OCI vs Other Cloud Providers</a><ul>
+<li><a href="#cost-comparison-1tb-storage-100gb-db">Cost Comparison (1TB storage + 100GB DB)</a></li>
+<li><a href="#security-comparison">Security Comparison</a></li>
+<li><a href="#performance-comparison-vector-search">Performance Comparison (Vector Search)</a></li>
+</ul>
+</li>
+<li><a href="#learning-resources">🎓 Learning Resources</a><ul>
+<li><a href="#oci-training">OCI Training</a></li>
+<li><a href="#twelvelabs-resources">TwelveLabs Resources</a></li>
+<li><a href="#oracle-database">Oracle Database</a></li>
+</ul>
+</li>
+<li><a href="#contributing">🤝 Contributing</a></li>
+<li><a href="#license">📄 License</a></li>
+<li><a href="#acknowledgments">🙏 Acknowledgments</a></li>
+<li><a href="#support-contact">📞 Support &amp; Contact</a></li>
+<li><a href="#testing">Testing</a></li>
+<li><a href="#utilities">Utilities</a></li>
+<li><a href="#notes">Notes</a></li>
+<li><a href="#production-deployment-on-oci">🚀 Production Deployment on OCI</a><ul>
+<li><a href="#recommended-oci-architecture">Recommended OCI Architecture</a></li>
+<li><a href="#production-checklist">Production Checklist</a><ul>
+<li><a href="#security-hardening">Security Hardening</a></li>
+<li><a href="#performance-optimization">Performance Optimization</a></li>
+<li><a href="#reliability-monitoring">Reliability &amp; Monitoring</a></li>
+<li><a href="#cost-optimization">Cost Optimization</a></li>
+</ul>
+</li>
+<li><a href="#deployment-steps">Deployment Steps</a></li>
+<li><a href="#estimated-costs-production">Estimated Costs (Production)</a></li>
+</ul>
+</li>
+<li><a href="#advanced-configuration_1">🔧 Advanced Configuration</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+    
+    <h1 id="media-intelligence-platform-with-oracle-cloud-infrastructure">Media Intelligence Platform with Oracle Cloud Infrastructure</h1>
+<p><strong>Last Updated:</strong> November 6, 2025</p>
+<p>Enterprise-grade AI-powered media management platform built on <strong>Oracle Cloud Infrastructure (OCI)</strong>, featuring TwelveLabs Marengo AI embeddings, natural language search, and secure cloud storage. Combines the power of TwelveLabs' multimodal AI with Oracle's world-class database and object storage for unmatched performance, security, and scalability.</p>
+<h2 id="why-oracle-cloud-infrastructure">🏆 Why Oracle Cloud Infrastructure?</h2>
+<h3 id="enterprise-grade-security"><strong>Enterprise-Grade Security</strong></h3>
+<ul>
+<li>🔒 <strong>Autonomous Database Security</strong>: Automatic encryption at rest and in transit</li>
+<li>🛡️ <strong>Always-Free Tier</strong>: Enterprise features without enterprise costs</li>
+<li>🔐 <strong>IAM Integration</strong>: Fine-grained access control and identity management</li>
+<li>📜 <strong>Compliance</strong>: GDPR, HIPAA, SOC 2, ISO 27001 certified infrastructure</li>
+<li>🔑 <strong>Wallet-Based Authentication</strong>: Secure mTLS connections to database</li>
+<li>🌐 <strong>Network Isolation</strong>: Virtual Cloud Networks (VCN) with security lists and NSGs</li>
+</ul>
+<h3 id="performance-reliability"><strong>Performance &amp; Reliability</strong></h3>
+<ul>
+<li>⚡ <strong>Oracle Autonomous Database</strong>: Self-driving, self-securing, self-repairing</li>
+<li>🚀 <strong>Vector Search Native</strong>: Built-in VECTOR datatype for AI embeddings (1024D, FLOAT32)</li>
+<li>💾 <strong>Object Storage</strong>: 99.9% availability with 11 9's durability (99.999999999%)</li>
+<li>📈 <strong>Auto-Scaling</strong>: Automatic resource scaling based on demand</li>
+<li>🔄 <strong>Multi-Region</strong>: Global availability with automatic failover</li>
+<li>⚙️ <strong>Zero Downtime</strong>: Patching and maintenance without service interruption</li>
+</ul>
+<h3 id="cost-efficiency"><strong>Cost Efficiency</strong></h3>
+<ul>
+<li>💰 <strong>Always-Free Tier</strong>: 2 Autonomous Databases, 20GB storage each</li>
+<li>📦 <strong>Free Object Storage</strong>: 10GB free storage, 50,000 API calls/month</li>
+<li>💵 <strong>Pay-As-You-Go</strong>: No upfront costs, only pay for what you use</li>
+<li>🎯 <strong>Resource Optimization</strong>: Automatic workload optimization reduces costs</li>
+<li>📊 <strong>Cost Analytics</strong>: Built-in cost tracking and optimization recommendations</li>
+</ul>
+<h3 id="developer-experience"><strong>Developer Experience</strong></h3>
+<ul>
+<li>🛠️ <strong>Python SDK</strong>: Native OCI SDK with comprehensive documentation</li>
+<li>📚 <strong>Oracle Database</strong>: Industry-leading SQL database with JSON, vector, and spatial support</li>
+<li>� <strong>REST APIs</strong>: Simple PAR (Pre-Authenticated Request) URLs for secure file access</li>
+<li>📦 <strong>Easy Integration</strong>: Drop-in replacement for other cloud providers</li>
+<li>🧪 <strong>Local Development</strong>: Free local Docker containers for testing</li>
+</ul>
+<h2 id="complete-feature-set">✨ Complete Feature Set</h2>
+<h3 id="ai-powered-search-analysis"><strong>AI-Powered Search &amp; Analysis</strong></h3>
+<ul>
+<li>🎥 <strong>Video Intelligence</strong>: TwelveLabs Marengo video embeddings with temporal segmentation</li>
+<li>📷 <strong>Photo Recognition</strong>: Marengo image embeddings for visual search</li>
+<li>🔍 <strong>Natural Language Search</strong>: Search photos and videos using everyday language</li>
+<li>Example: "sunset on the beach", "birthday party", "red car"</li>
+<li>🎯 <strong>Unified Search</strong>: Search across photos and videos simultaneously</li>
+<li>📊 <strong>Similarity Scoring</strong>: Ranked results with confidence scores</li>
+<li>🧠 <strong>Semantic Understanding</strong>: AI understands context, objects, actions, and scenes</li>
+</ul>
+<h3 id="media-management"><strong>Media Management</strong></h3>
+<ul>
+<li>📁 <strong>Album Organization</strong>: Create and manage photo/video albums</li>
+<li>☁️ <strong>Cloud Upload</strong>: Direct upload to OCI Object Storage with multipart support</li>
+<li>🗑️ <strong>Delete Operations</strong>: Remove individual media items or entire albums</li>
+<li>📊 <strong>Real-time Progress</strong>: Live upload tracking with Server-Sent Events (SSE)</li>
+<li>�️ <strong>Thumbnail Generation</strong>: Automatic preview images for media cards</li>
+<li>🎬 <strong>Video Compression</strong>: Built-in ffmpeg compression for large videos</li>
+</ul>
+<h3 id="location-intelligence"><strong>Location Intelligence</strong></h3>
+<ul>
+<li>� <strong>GPS Metadata Extraction</strong>: Automatic EXIF/GPS data parsing</li>
+<li>🗺️ <strong>Reverse Geocoding</strong>: City, state, country from coordinates</li>
+<li>🌍 <strong>Map Visualization</strong>: Interactive Leaflet map with cluster markers</li>
+<li>📌 <strong>Location Search</strong>: Find media by geographic location</li>
+<li>🧭 <strong>Spatial Queries</strong>: Distance-based search and filtering</li>
+</ul>
+<h3 id="advanced-ai-features"><strong>Advanced AI Features</strong></h3>
+<ul>
+<li>🎬 <strong>Pegasus Integration</strong>: AI-powered video editing plans and summaries</li>
+<li>🤖 <strong>TwelveLabs Marengo-2.7</strong>: State-of-the-art multimodal AI</li>
+<li>� <strong>Video Analysis</strong>: Generate titles, topics, hashtags, summaries, chapters</li>
+<li>🎯 <strong>Scene Detection</strong>: Automatic video segmentation by scene</li>
+<li>🔄 <strong>Embedding Generation</strong>: 1024-dimensional float32 vectors per segment</li>
+</ul>
+<h3 id="modern-web-interface"><strong>Modern Web Interface</strong></h3>
+<ul>
+<li>🌐 <strong>Responsive UI</strong>: Bootstrap 5 with beautiful, intuitive design</li>
+<li>🎨 <strong>Drag &amp; Drop</strong>: Easy file uploads with visual feedback</li>
+<li>📱 <strong>Mobile-Friendly</strong>: Works seamlessly on phones and tablets</li>
+<li>🔄 <strong>Live Updates</strong>: Real-time progress bars and status messages</li>
+<li>🎭 <strong>Image Modals</strong>: Full-screen image preview with click</li>
+<li>🗺️ <strong>Interactive Maps</strong>: Clustered markers for location-based browsing</li>
+</ul>
+<h3 id="database-storage"><strong>Database &amp; Storage</strong></h3>
+<ul>
+<li>💾 <strong>Oracle Vector DB</strong>: Native VECTOR datatype for embeddings</li>
+<li>🗄️ <strong>Autonomous Database</strong>: Self-managing with ML-powered optimization</li>
+<li>📦 <strong>OCI Object Storage</strong>: Infinite scale with multi-region replication</li>
+<li>🔐 <strong>Secure Access</strong>: PAR URLs with time-limited access tokens</li>
+<li>💿 <strong>Wallet Security</strong>: mTLS encryption for all database connections</li>
+<li>🔄 <strong>Connection Pooling</strong>: Optimized database connection management</li>
+</ul>
+<h2 id="architecture-overview">🏗️ Architecture Overview</h2>
+<div class="codehilite"><pre><span></span><code><span class="err">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                        </span><span class="n">Web</span><span class="w"> </span><span class="n">Browser</span><span class="w"> </span><span class="n">UI</span><span class="w">                            </span><span class="err">│</span>
+<span class="err">│</span><span class="w">              </span><span class="p">(</span><span class="n">Bootstrap</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="n">Leaflet</span><span class="w"> </span><span class="n">Maps</span><span class="p">,</span><span class="w"> </span><span class="n">SSE</span><span class="p">)</span><span class="w">                   </span><span class="err">│</span>
+<span class="err">└────────────────────────┬────────────────────────────────────────┘</span>
+<span class="w">                         </span><span class="err">│</span><span class="w"> </span><span class="n">HTTPS</span>
+<span class="w">                         </span><span class="err">▼</span>
+<span class="err">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                    </span><span class="n">Flask</span><span class="w"> </span><span class="n">Application</span><span class="w">                             </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="n">Upload</span><span class="w"> </span><span class="n">Management</span><span class="w">    </span><span class="err">•</span><span class="w"> </span><span class="n">Search</span><span class="w"> </span><span class="n">API</span><span class="w">      </span><span class="err">•</span><span class="w"> </span><span class="n">Delete</span><span class="w"> </span><span class="n">Operations</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="n">Progress</span><span class="w"> </span><span class="n">Tracking</span><span class="w">    </span><span class="err">•</span><span class="w"> </span><span class="n">PAR</span><span class="w"> </span><span class="n">Generation</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="n">Metadata</span><span class="w"> </span><span class="n">Extraction</span><span class="w"> </span><span class="err">│</span>
+<span class="err">└──────┬──────────────┬──────────────┬──────────────┬────────────┘</span>
+<span class="w">       </span><span class="err">│</span><span class="w">              </span><span class="err">│</span><span class="w">              </span><span class="err">│</span><span class="w">              </span><span class="err">│</span>
+<span class="w">       </span><span class="err">│</span><span class="w"> </span><span class="n">Python</span><span class="w"> </span><span class="n">SDK</span><span class="w">   </span><span class="err">│</span><span class="w"> </span><span class="n">REST</span><span class="w"> </span><span class="n">API</span><span class="w">     </span><span class="err">│</span><span class="w"> </span><span class="n">SDK</span><span class="w">          </span><span class="err">│</span><span class="w"> </span><span class="n">mTLS</span>
+<span class="w">       </span><span class="err">▼</span><span class="w">              </span><span class="err">▼</span><span class="w">              </span><span class="err">▼</span><span class="w">              </span><span class="err">▼</span>
+<span class="err">┌─────────────┐</span><span class="w"> </span><span class="err">┌─────────────┐</span><span class="w"> </span><span class="err">┌─────────────┐</span><span class="w"> </span><span class="err">┌─────────────┐</span>
+<span class="err">│</span><span class="w"> </span><span class="n">OCI</span><span class="w"> </span><span class="nb nb-Type">Object</span><span class="w">  </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="n">TwelveLabs</span><span class="w">  </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="n">TwelveLabs</span><span class="w">  </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">   </span><span class="n">Oracle</span><span class="w">    </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">Storage</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">   </span><span class="n">Embed</span><span class="w">     </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">  </span><span class="n">Pegasus</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="n">Autonomous</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">             </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">   </span><span class="n">API</span><span class="w">       </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">    </span><span class="n">AI</span><span class="w">       </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">  </span><span class="n">Database</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Photos</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">             </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">             </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">             </span><span class="err">│</span>
+<span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Videos</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Marengo</span><span class="w">   </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Video</span><span class="w">     </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Metadata</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Multipart</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">   </span><span class="mf">2.7</span><span class="w">       </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">   </span><span class="n">Analysis</span><span class="w">  </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Embeddings</span><span class="err">│</span>
+<span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">PAR</span><span class="w"> </span><span class="n">URLs</span><span class="w">  </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="mi">1024</span><span class="n">D</span><span class="w">     </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Summaries</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">VECTOR</span><span class="w">    </span><span class="err">│</span>
+<span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="mi">11</span><span class="w"> </span><span class="mi">9</span><span class="n">s</span><span class="w">     </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w">   </span><span class="n">Vectors</span><span class="w">   </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Chapters</span><span class="w">  </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">JSON</span><span class="w">      </span><span class="err">│</span>
+<span class="err">│</span><span class="w">   </span><span class="n">Durable</span><span class="w">   </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Float32</span><span class="w">   </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Topics</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">•</span><span class="w"> </span><span class="n">Spatial</span><span class="w">   </span><span class="err">│</span>
+<span class="err">└─────────────┘</span><span class="w"> </span><span class="err">└─────────────┘</span><span class="w"> </span><span class="err">└─────────────┘</span><span class="w"> </span><span class="err">└─────────────┘</span>
+</code></pre></div>
+
+<h3 id="data-flow"><strong>Data Flow</strong></h3>
+<ol>
+<li><strong>Upload</strong>: Browser → Flask → OCI Object Storage (multipart if &gt;100MB)</li>
+<li><strong>AI Processing</strong>: Flask → TwelveLabs API → Generate embeddings</li>
+<li><strong>Storage</strong>: Flask → Oracle DB → Store metadata + embeddings</li>
+<li><strong>Search</strong>: User query → TwelveLabs embeddings → Vector similarity → Ranked results</li>
+<li><strong>Retrieval</strong>: Flask → Oracle DB → Metadata + OCI PAR URLs → Browser</li>
+</ol>
+<h2 id="security-architecture">🔐 Security Architecture</h2>
+<h3 id="defense-in-depth"><strong>Defense in Depth</strong></h3>
+<h4 id="network-security"><strong>Network Security</strong></h4>
+<ul>
+<li>✅ <strong>VCN Isolation</strong>: Private subnets for database and compute</li>
+<li>✅ <strong>Security Lists</strong>: Firewall rules at subnet level</li>
+<li>✅ <strong>Network Security Groups</strong>: Instance-level access control</li>
+<li>✅ <strong>Private Endpoints</strong>: Database accessible only via private IP</li>
+<li>✅ <strong>Bastion Service</strong>: Secure SSH access for administration</li>
+</ul>
+<h4 id="identity-access-management"><strong>Identity &amp; Access Management</strong></h4>
+<ul>
+<li>✅ <strong>OCI IAM</strong>: Fine-grained resource policies and compartments</li>
+<li>✅ <strong>Dynamic Groups</strong>: Automatic credential rotation for compute instances</li>
+<li>✅ <strong>User Policies</strong>: Principle of least privilege enforcement</li>
+<li>✅ <strong>API Keys</strong>: Secure authentication for programmatic access</li>
+<li>✅ <strong>Audit Logging</strong>: Complete audit trail of all API calls</li>
+</ul>
+<h4 id="data-security"><strong>Data Security</strong></h4>
+<ul>
+<li>✅ <strong>Encryption at Rest</strong>: AES-256 for Object Storage and Database</li>
+<li>✅ <strong>Encryption in Transit</strong>: TLS 1.2+ for all network communication</li>
+<li>✅ <strong>mTLS for Database</strong>: Wallet-based mutual TLS authentication</li>
+<li>✅ <strong>Key Management</strong>: OCI Vault for centralized key management</li>
+<li>✅ <strong>Data Masking</strong>: Built-in Oracle Data Safe capabilities</li>
+</ul>
+<h4 id="application-security"><strong>Application Security</strong></h4>
+<ul>
+<li>✅ <strong>PAR URLs</strong>: Time-limited, scoped access tokens for objects</li>
+<li>✅ <strong>Token Expiration</strong>: 7-day maximum for pre-authenticated requests</li>
+<li>✅ <strong>SQL Injection Protection</strong>: Parameterized queries throughout</li>
+<li>✅ <strong>CORS Policies</strong>: Configurable cross-origin resource sharing</li>
+<li>✅ <strong>Rate Limiting</strong>: Throttling support for API endpoints</li>
+</ul>
+<h4 id="compliance-governance"><strong>Compliance &amp; Governance</strong></h4>
+<ul>
+<li>✅ <strong>GDPR Compliant</strong>: EU data residency options</li>
+<li>✅ <strong>HIPAA Eligible</strong>: Healthcare data protection</li>
+<li>✅ <strong>SOC 2 Type II</strong>: Audited security controls</li>
+<li>✅ <strong>ISO 27001</strong>: Information security management</li>
+<li>✅ <strong>PCI DSS</strong>: Payment card industry compliance</li>
+</ul>
+<h3 id="why-oci-is-more-secure"><strong>Why OCI is More Secure</strong></h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>OCI</th>
+<th>Other Providers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Encryption Default</strong></td>
+<td>✅ Always on</td>
+<td>⚠️ Often optional</td>
+</tr>
+<tr>
+<td><strong>Network Isolation</strong></td>
+<td>✅ Built-in VCN</td>
+<td>⚠️ Requires configuration</td>
+</tr>
+<tr>
+<td><strong>Autonomous Security</strong></td>
+<td>✅ Self-patching DB</td>
+<td>❌ Manual updates</td>
+</tr>
+<tr>
+<td><strong>Zero Trust</strong></td>
+<td>✅ IAM + mTLS</td>
+<td>⚠️ Varies</td>
+</tr>
+<tr>
+<td><strong>Compliance Certs</strong></td>
+<td>✅ 70+ certifications</td>
+<td>⚠️ Fewer options</td>
+</tr>
+<tr>
+<td><strong>Data Residency</strong></td>
+<td>✅ 40+ regions</td>
+<td>⚠️ Limited regions</td>
+</tr>
+</tbody>
+</table>
+<h2 id="quick-start">🚀 Quick Start</h2>
+<h3 id="1-install-dependencies">1. Install Dependencies</h3>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</code></pre></div>
+
+<h3 id="2-configure-environment">2. Configure Environment</h3>
+<p>Create a <code>.env</code> file with the following OCI and TwelveLabs credentials:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># TwelveLabs AI API Keys</span>
+<span class="nv">TWELVE_LABS_API_KEY</span><span class="o">=</span>tlk_your_api_key_here
+<span class="nv">PEGASUS_API_KEY</span><span class="o">=</span>tlk_your_pegasus_key_here
+
+<span class="c1"># Oracle Autonomous Database Configuration</span>
+<span class="nv">ORACLE_DB_USERNAME</span><span class="o">=</span>ADMIN
+<span class="nv">ORACLE_DB_PASSWORD</span><span class="o">=</span>your_secure_password_here
+<span class="nv">ORACLE_DB_CONNECT_STRING</span><span class="o">=(</span><span class="nv">description</span><span class="o">=(</span><span class="nv">retry_count</span><span class="o">=</span><span class="m">20</span><span class="o">)</span>...<span class="o">)</span>
+<span class="nv">ORACLE_DB_WALLET_PATH</span><span class="o">=</span>/path/to/wallet_directory
+<span class="nv">ORACLE_DB_WALLET_PASSWORD</span><span class="o">=</span>your_wallet_password
+
+<span class="c1"># OCI Object Storage Configuration</span>
+<span class="nv">OCI_BUCKET</span><span class="o">=</span>Media
+<span class="nv">DEFAULT_OCI_BUCKET</span><span class="o">=</span>Media
+<span class="nv">OCI_NAMESPACE</span><span class="o">=</span>your_namespace
+<span class="nv">OCI_REGION</span><span class="o">=</span>us-phoenix-1
+
+<span class="c1"># OCI Authentication (optional - SDK auto-discovers)</span>
+<span class="nv">OCI_CONFIG_PATH</span><span class="o">=</span>~/.oci/config
+<span class="nv">OCI_CONFIG_PROFILE</span><span class="o">=</span>DEFAULT
+
+<span class="c1"># Flask Configuration (for localhost development)</span>
+<span class="nv">FLASK_HOST</span><span class="o">=</span><span class="m">127</span>.0.0.1
+<span class="nv">FLASK_PORT</span><span class="o">=</span><span class="m">8080</span>
+</code></pre></div>
+
+<h4 id="oci-setup-guide"><strong>OCI Setup Guide</strong></h4>
+<ol>
+<li><strong>Create Autonomous Database</strong> (Always Free Tier):</li>
+<li>Login to OCI Console → Database → Autonomous Database</li>
+<li>Click "Create Autonomous Database"</li>
+<li>Choose "Always Free" option</li>
+<li>Download wallet (ZIP file)</li>
+<li>
+<p>Extract wallet and note the connection string</p>
+</li>
+<li>
+<p><strong>Setup Object Storage</strong>:</p>
+</li>
+<li>Navigate to Storage → Buckets</li>
+<li>Create bucket named "Media"</li>
+<li>Set visibility to Private</li>
+<li>
+<p>Enable versioning (optional)</p>
+</li>
+<li>
+<p><strong>Configure OCI CLI</strong> (one-time setup):
+   ```bash
+   # Install OCI CLI
+   bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)"</p>
+</li>
+</ol>
+<p># Configure credentials
+   oci setup config
+   ```</p>
+<ol>
+<li><strong>Python SDK Installation</strong>:
+   <code>bash
+   pip install oci</code></li>
+</ol>
+<h3 id="3-create-database-schemas">3. Create Database Schemas</h3>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>twelvelabvideoai/src
+
+<span class="c1"># Create unified albums table with GPS metadata support</span>
+python<span class="w"> </span>create_schema_unified_albums.py
+
+<span class="c1"># Run migration to add GPS/location columns (if upgrading)</span>
+python<span class="w"> </span>migrate_add_location_metadata.py
+
+<span class="c1"># Create video embeddings table</span>
+python<span class="w"> </span>create_schema_video_embeddings.py
+
+<span class="c1"># Create photo embeddings table</span>
+python<span class="w"> </span>create_schema_photo_embeddings.py
+</code></pre></div>
+
+<h3 id="4-start-flask-server">4. Start Flask Server</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Start the localhost-only Flask application</span>
+python3<span class="w"> </span>localhost_only_flask.py
+
+<span class="c1"># Or run in background</span>
+nohup<span class="w"> </span>python3<span class="w"> </span>localhost_only_flask.py<span class="w"> </span>&gt;<span class="w"> </span>flask_output.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">&amp;</span>
+
+<span class="c1"># Check if running</span>
+lsof<span class="w"> </span>-i<span class="w"> </span>:8080
+
+<span class="c1"># View logs</span>
+tail<span class="w"> </span>-f<span class="w"> </span>flask_output.log
+</code></pre></div>
+
+<p>The application will start on <code>http://localhost:8080</code> with full OCI, TwelveLabs, and Oracle DB integration.</p>
+<h3 id="5-open-web-ui">5. Open Web UI</h3>
+<p>Visit http://localhost:8080 in your browser.</p>
+<h2 id="project-structure">Project Structure</h2>
+<div class="codehilite"><pre><span></span><code><span class="n">twelvelabvideoai</span><span class="o">/</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">src</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">agent_playback_app</span><span class="o">.</span><span class="n">py</span><span class="w">          </span><span class="c1"># Main Flask application</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">store_video_embeddings</span><span class="o">.</span><span class="n">py</span><span class="w">      </span><span class="c1"># Video embedding creation</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">query_video_embeddings</span><span class="o">.</span><span class="n">py</span><span class="w">      </span><span class="c1"># Video search</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">store_photo_embeddings</span><span class="o">.</span><span class="n">py</span><span class="w">      </span><span class="c1"># Photo embedding creation</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">query_photo_embeddings</span><span class="o">.</span><span class="n">py</span><span class="w">      </span><span class="c1"># Photo search</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">unified_search</span><span class="o">.</span><span class="n">py</span><span class="w">              </span><span class="c1"># Unified photo+video search</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">pegasus_client</span><span class="o">.</span><span class="n">py</span><span class="w">              </span><span class="c1"># Pegasus AI integration</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">utils</span><span class="o">/</span><span class="w">                         </span><span class="c1"># Helper modules</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">oci_utils</span><span class="o">.</span><span class="n">py</span><span class="w">              </span><span class="c1"># OCI/PAR management</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">ffmpeg_utils</span><span class="o">.</span><span class="n">py</span><span class="w">           </span><span class="c1"># Video processing</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">http_utils</span><span class="o">.</span><span class="n">py</span><span class="w">             </span><span class="c1"># Download helpers</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">templates</span><span class="o">/</span>
+<span class="err">│</span><span class="w">       </span><span class="err">└──</span><span class="w"> </span><span class="n">index</span><span class="o">.</span><span class="n">html</span><span class="w">                 </span><span class="c1"># Web UI</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">scripts</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">test_photo_albums</span><span class="o">.</span><span class="n">py</span><span class="w">          </span><span class="c1"># Test suite</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">clean_caches</span><span class="o">.</span><span class="n">sh</span><span class="w">               </span><span class="c1"># Cache cleanup</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">refresh_environment</span><span class="o">.</span><span class="n">py</span><span class="w">        </span><span class="c1"># Full environment reset</span>
+<span class="err">└──</span><span class="w"> </span><span class="n">PHOTO_ALBUMS_README</span><span class="o">.</span><span class="n">md</span><span class="w">            </span><span class="c1"># Detailed photo docs</span>
+</code></pre></div>
+
+<h2 id="usage-examples">Usage Examples</h2>
+<h3 id="upload-and-search-photos">Upload and Search Photos</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Upload photos via web UI at http://localhost:8080</span>
+<span class="c1"># Or via CLI:</span>
+<span class="nb">cd</span><span class="w"> </span>twelvelabvideoai/src
+python<span class="w"> </span>store_photo_embeddings.py<span class="w"> </span><span class="s2">&quot;vacation2024&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="s2">&quot;https://example.com/photo1.jpg&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="s2">&quot;https://example.com/photo2.jpg&quot;</span>
+
+<span class="c1"># Search photos</span>
+python<span class="w"> </span>query_photo_embeddings.py<span class="w"> </span><span class="s2">&quot;sunset beach&quot;</span>
+</code></pre></div>
+
+<h3 id="unified-search-photos-videos">Unified Search (Photos + Videos)</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Search across both photos and videos</span>
+python<span class="w"> </span>unified_search.py<span class="w"> </span><span class="s2">&quot;inspection tower&quot;</span><span class="w"> </span><span class="s2">&quot;safety equipment&quot;</span>
+
+<span class="c1"># Or use the web UI &quot;Unified Search&quot; section</span>
+</code></pre></div>
+
+<h3 id="video-embeddings">Video Embeddings</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Create video embeddings</span>
+python<span class="w"> </span>store_video_embeddings.py<span class="w"> </span><span class="s2">&quot;path/to/video.mp4&quot;</span>
+
+<span class="c1"># Search videos</span>
+python<span class="w"> </span>query_video_embeddings.py<span class="w"> </span><span class="s2">&quot;inspection tower&quot;</span>
+</code></pre></div>
+
+<h2 id="use-cases-benefits">🎯 Use Cases &amp; Benefits</h2>
+<h3 id="media-companies-content-creators"><strong>Media Companies &amp; Content Creators</strong></h3>
+<ul>
+<li>📺 <strong>Video Archive Search</strong>: Find specific scenes in thousands of hours of footage</li>
+<li>🎬 <strong>Content Discovery</strong>: Locate reusable B-roll and stock footage instantly</li>
+<li>📊 <strong>Rights Management</strong>: Track media usage with metadata and embeddings</li>
+<li>💰 <strong>Cost Savings</strong>: Reduce storage costs with OCI's competitive pricing</li>
+</ul>
+<h3 id="enterprise-organizations"><strong>Enterprise Organizations</strong></h3>
+<ul>
+<li>🏢 <strong>Training Videos</strong>: Search corporate training library by topic/scenario</li>
+<li>📹 <strong>Security Footage</strong>: Natural language search for incident investigation</li>
+<li>📸 <strong>Product Photography</strong>: Find product images by description, not filename</li>
+<li>🔒 <strong>Compliance</strong>: GDPR/HIPAA compliant storage on Oracle infrastructure</li>
+</ul>
+<h3 id="healthcare-research"><strong>Healthcare &amp; Research</strong></h3>
+<ul>
+<li>🏥 <strong>Medical Imaging</strong>: Search radiology and pathology image libraries</li>
+<li>🔬 <strong>Research Data</strong>: Organize and search research photos/videos</li>
+<li>📊 <strong>Case Studies</strong>: Build searchable case study databases</li>
+<li>🔐 <strong>HIPAA Compliance</strong>: Secure, compliant data storage on OCI</li>
+</ul>
+<h3 id="e-commerce-retail"><strong>E-commerce &amp; Retail</strong></h3>
+<ul>
+<li>🛍️ <strong>Product Catalog</strong>: Visual search for product images</li>
+<li>📦 <strong>Inventory Management</strong>: Photo-based inventory tracking</li>
+<li>🎨 <strong>Design Assets</strong>: Search design libraries by visual similarity</li>
+<li>📈 <strong>Analytics</strong>: Track visual trends and popular products</li>
+</ul>
+<h3 id="education-training"><strong>Education &amp; Training</strong></h3>
+<ul>
+<li>🎓 <strong>Educational Content</strong>: Search lecture recordings by topic</li>
+<li>📚 <strong>Library Archives</strong>: Digital asset management for universities</li>
+<li>👨‍🏫 <strong>Student Projects</strong>: Organize and search student multimedia projects</li>
+<li>🌐 <strong>Distance Learning</strong>: Build searchable video learning libraries</li>
+</ul>
+<h2 id="performance-benchmarks">📊 Performance Benchmarks</h2>
+<h3 id="search-performance"><strong>Search Performance</strong></h3>
+<ul>
+<li><strong>Vector Search</strong>: &lt;100ms for 1M embeddings (Oracle VECTOR native)</li>
+<li><strong>Object Retrieval</strong>: &lt;50ms PAR URL generation</li>
+<li><strong>Upload Speed</strong>: Multipart uploads at line speed (100MB+ files)</li>
+<li><strong>Concurrent Users</strong>: 100+ simultaneous searches (auto-scaling)</li>
+</ul>
+<h3 id="scalability"><strong>Scalability</strong></h3>
+<ul>
+<li><strong>Database</strong>: 2-128 OCPUs with automatic scaling</li>
+<li><strong>Storage</strong>: Unlimited object storage capacity</li>
+<li><strong>Embeddings</strong>: Billions of vectors supported</li>
+<li><strong>API Calls</strong>: TwelveLabs rate limits (configurable)</li>
+</ul>
+<h2 id="documentation-resources">📚 Documentation &amp; Resources</h2>
+<ul>
+<li><strong><a href="./DELETE_FEATURES.md">DELETE_FEATURES.md</a></strong> - Complete guide to delete operations</li>
+<li><strong><a href="./DELETE_QUICK_START.md">DELETE_QUICK_START.md</a></strong> - Quick guide for delete functionality</li>
+<li><strong><a href="./PHOTO_ALBUMS_README.md">PHOTO_ALBUMS_README.md</a></strong> - Complete photo album feature documentation</li>
+<li><strong>Flask API Endpoints</strong> - See routes in <code>localhost_only_flask.py</code></li>
+<li><strong>TwelveLabs Documentation</strong> - <a href="https://docs.twelvelabs.io/">https://docs.twelvelabs.io/</a></li>
+<li><strong>OCI Documentation</strong> - <a href="https://docs.oracle.com/en-us/iaas/">https://docs.oracle.com/en-us/iaas/</a></li>
+<li><strong>Oracle Database Vectors</strong> - <a href="https://docs.oracle.com/en/database/oracle/oracle-database/23/vecse/">https://docs.oracle.com/en/database/oracle/oracle-database/23/vecse/</a></li>
+</ul>
+<h2 id="api-endpoints">🌐 API Endpoints</h2>
+<h3 id="core-operations"><strong>Core Operations</strong></h3>
+<ul>
+<li><code>GET /</code> - Web UI dashboard</li>
+<li><code>GET /health</code> - Health check endpoint</li>
+<li><code>GET /list_albums</code> - List all albums with counts</li>
+<li><code>GET /album_contents/&lt;album_name&gt;</code> - Get media in specific album</li>
+</ul>
+<h3 id="upload-processing"><strong>Upload &amp; Processing</strong></h3>
+<ul>
+<li><code>POST /upload_unified</code> - Upload photo/video with embedding generation</li>
+<li><code>GET /progress/&lt;task_id&gt;</code> - Server-Sent Events for upload progress</li>
+<li><code>GET /task_status/&lt;task_id&gt;</code> - Check background task status</li>
+</ul>
+<h3 id="search-operations"><strong>Search Operations</strong></h3>
+<ul>
+<li><code>POST /search_unified</code> - Natural language search across all media</li>
+<li><code>POST /search_photos</code> - Search photos only</li>
+<li><code>POST /search_videos</code> - Search videos only</li>
+</ul>
+<h3 id="delete-operations-new"><strong>Delete Operations</strong> <em>(NEW)</em></h3>
+<ul>
+<li><code>DELETE /delete_media/&lt;media_id&gt;</code> - Delete single photo/video</li>
+<li><code>DELETE /delete_album/&lt;album_name&gt;</code> - Delete entire album with contents</li>
+</ul>
+<h3 id="utility-endpoints"><strong>Utility Endpoints</strong></h3>
+<ul>
+<li><code>GET /get_media_url/&lt;media_id&gt;</code> - Generate PAR URL for media item</li>
+<li><code>GET /media_with_gps</code> - Get all media with GPS coordinates</li>
+<li><code>GET /config_debug</code> - System configuration and capabilities</li>
+</ul>
+<h2 id="advanced-configuration">🔧 Advanced Configuration</h2>
+<h3 id="oci-configuration-precedence"><strong>OCI Configuration Precedence</strong></h3>
+<p>This project uses OCI for photo/video storage. Config file precedence:</p>
+<ol>
+<li><code>OCI_CONFIG_PATH</code> environment variable (if set)</li>
+<li><code>twelvelabvideoai/.oci/config</code> (repository-local)</li>
+<li><code>~/.oci/config</code> (default SDK location)</li>
+</ol>
+<h3 id="database-connection-pooling"><strong>Database Connection Pooling</strong></h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Configure in your .env</span>
+<span class="n">DB_POOL_MIN</span><span class="o">=</span><span class="mi">2</span>
+<span class="n">DB_POOL_MAX</span><span class="o">=</span><span class="mi">10</span>
+<span class="n">DB_POOL_INCREMENT</span><span class="o">=</span><span class="mi">1</span>
+</code></pre></div>
+
+<h3 id="twelvelabs-api-configuration"><strong>TwelveLabs API Configuration</strong></h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Customize embedding parameters</span>
+<span class="n">EMBEDDING_CLIP_LENGTH</span><span class="o">=</span><span class="mi">10</span>  <span class="c1"># seconds per video segment</span>
+<span class="n">EMBEDDING_MODEL</span><span class="o">=</span><span class="n">Marengo</span><span class="o">-</span><span class="n">retrieval</span><span class="o">-</span><span class="mf">2.7</span>
+</code></pre></div>
+
+<h2 id="oci-vs-other-cloud-providers">🆚 OCI vs Other Cloud Providers</h2>
+<h3 id="cost-comparison-1tb-storage-100gb-db"><strong>Cost Comparison (1TB storage + 100GB DB)</strong></h3>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Monthly Cost</th>
+<th>Free Tier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Oracle Cloud</strong></td>
+<td><strong>$25-50</strong></td>
+<td><strong>✅ 20GB DB + 10GB Storage</strong></td>
+</tr>
+<tr>
+<td>AWS</td>
+<td>$100-150</td>
+<td>⚠️ 12 months only</td>
+</tr>
+<tr>
+<td>Google Cloud</td>
+<td>$90-140</td>
+<td>⚠️ 90 days only</td>
+</tr>
+<tr>
+<td>Azure</td>
+<td>$110-160</td>
+<td>⚠️ 12 months only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security-comparison"><strong>Security Comparison</strong></h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>OCI</th>
+<th>AWS</th>
+<th>GCP</th>
+<th>Azure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Encryption at Rest</strong></td>
+<td>✅ Default</td>
+<td>⚠️ Optional</td>
+<td>⚠️ Optional</td>
+<td>⚠️ Optional</td>
+</tr>
+<tr>
+<td><strong>Network Isolation</strong></td>
+<td>✅ Built-in VCN</td>
+<td>✅ VPC</td>
+<td>✅ VPC</td>
+<td>✅ VNet</td>
+</tr>
+<tr>
+<td><strong>Autonomous Database</strong></td>
+<td>✅ Yes</td>
+<td>❌ No</td>
+<td>❌ No</td>
+<td>❌ No</td>
+</tr>
+<tr>
+<td><strong>Zero Trust</strong></td>
+<td>✅ Full</td>
+<td>⚠️ Partial</td>
+<td>⚠️ Partial</td>
+<td>⚠️ Partial</td>
+</tr>
+<tr>
+<td><strong>Compliance Certs</strong></td>
+<td>✅ 70+</td>
+<td>✅ 60+</td>
+<td>✅ 50+</td>
+<td>✅ 60+</td>
+</tr>
+<tr>
+<td><strong>Data Residency</strong></td>
+<td>✅ 40+ regions</td>
+<td>✅ 30+</td>
+<td>✅ 35+</td>
+<td>✅ 60+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="performance-comparison-vector-search"><strong>Performance Comparison (Vector Search)</strong></h3>
+<table>
+<thead>
+<tr>
+<th>Database</th>
+<th>1M Vectors</th>
+<th>10M Vectors</th>
+<th>Native Vector Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Oracle DB</strong></td>
+<td><strong>&lt;100ms</strong></td>
+<td><strong>&lt;200ms</strong></td>
+<td><strong>✅ VECTOR</strong></td>
+</tr>
+<tr>
+<td>PostgreSQL + pgvector</td>
+<td>~300ms</td>
+<td>~1000ms</td>
+<td>✅ vector</td>
+</tr>
+<tr>
+<td>MySQL</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>❌ No native support</td>
+</tr>
+<tr>
+<td>MongoDB Atlas</td>
+<td>~500ms</td>
+<td>~2000ms</td>
+<td>⚠️ Via Atlas Search</td>
+</tr>
+</tbody>
+</table>
+<h2 id="learning-resources">🎓 Learning Resources</h2>
+<h3 id="oci-training"><strong>OCI Training</strong></h3>
+<ul>
+<li><strong>OCI Foundations</strong> - Free certification course</li>
+<li><strong>OCI Architect Associate</strong> - Professional certification</li>
+<li><strong>Autonomous Database Workshop</strong> - Hands-on labs</li>
+<li><strong>Object Storage Deep Dive</strong> - Advanced features</li>
+</ul>
+<h3 id="twelvelabs-resources"><strong>TwelveLabs Resources</strong></h3>
+<ul>
+<li><strong>Marengo API Docs</strong> - Complete API reference</li>
+<li><strong>Video Understanding Guide</strong> - Best practices</li>
+<li><strong>Embedding Optimization</strong> - Performance tuning</li>
+<li><strong>Use Case Examples</strong> - Real-world implementations</li>
+</ul>
+<h3 id="oracle-database"><strong>Oracle Database</strong></h3>
+<ul>
+<li><strong>Vector Search Guide</strong> - AI/ML features documentation</li>
+<li><strong>JSON in Oracle</strong> - Semi-structured data handling</li>
+<li><strong>Spatial and Graph</strong> - Advanced data types</li>
+<li><strong>Performance Tuning</strong> - Query optimization</li>
+</ul>
+<h2 id="contributing">🤝 Contributing</h2>
+<p>Contributions are welcome! Please follow these guidelines:</p>
+<ol>
+<li>Fork the repository</li>
+<li>Create a feature branch (<code>git checkout -b feature/AmazingFeature</code>)</li>
+<li>Commit your changes (<code>git commit -m 'Add some AmazingFeature'</code>)</li>
+<li>Push to the branch (<code>git push origin feature/AmazingFeature</code>)</li>
+<li>Open a Pull Request</li>
+</ol>
+<h2 id="license">📄 License</h2>
+<p>This project is licensed under the MIT License - see the LICENSE file for details.</p>
+<h2 id="acknowledgments">🙏 Acknowledgments</h2>
+<ul>
+<li><strong>Oracle Cloud Infrastructure</strong> - Enterprise cloud platform with unmatched security</li>
+<li><strong>TwelveLabs</strong> - State-of-the-art multimodal AI for video understanding</li>
+<li><strong>Oracle Database</strong> - World's most advanced database with native vector support</li>
+<li><strong>Open Source Community</strong> - Flask, Bootstrap, Leaflet, and countless other projects</li>
+</ul>
+<h2 id="support-contact">📞 Support &amp; Contact</h2>
+<ul>
+<li><strong>Issues</strong>: Open an issue on GitHub</li>
+<li><strong>Discussions</strong>: Use GitHub Discussions for questions</li>
+<li><strong>Documentation</strong>: See docs in this repository</li>
+<li><strong>OCI Support</strong>: <a href="https://support.oracle.com">https://support.oracle.com</a></li>
+<li><strong>TwelveLabs Support</strong>: <a href="https://support.twelvelabs.io">https://support.twelvelabs.io</a></li>
+</ul>
+<hr />
+<p><strong>Built with ❤️ on Oracle Cloud Infrastructure</strong></p>
+<p><em>Secure • Scalable • Cost-Effective • Enterprise-Ready</em></p>
+<h2 id="testing">Testing</h2>
+<p>Run the photo album test suite:</p>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>scripts/test_photo_albums.py
+</code></pre></div>
+
+<h2 id="utilities">Utilities</h2>
+<p><strong>Clean all caches:</strong></p>
+<div class="codehilite"><pre><span></span><code>./scripts/clean_caches.sh<span class="w">           </span><span class="c1"># Dry-run</span>
+./scripts/clean_caches.sh<span class="w"> </span>--yes<span class="w">     </span><span class="c1"># Actually delete</span>
+</code></pre></div>
+
+<p><strong>Full environment reset:</strong></p>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>scripts/refresh_environment.py<span class="w"> </span>--help
+</code></pre></div>
+
+<h2 id="notes">Notes</h2>
+<ul>
+<li>Photo and video embeddings are stored as float32 BLOBs (not Oracle VECTOR type)</li>
+<li>Client-side cosine similarity search implemented</li>
+<li>PAR URLs cached for OCI object access</li>
+<li>All search results ranked by similarity score</li>
+<li>Web UI supports drag/drop for Pegasus plan editing</li>
+</ul>
+<h2 id="production-deployment-on-oci">🚀 Production Deployment on OCI</h2>
+<h3 id="recommended-oci-architecture"><strong>Recommended OCI Architecture</strong></h3>
+<div class="codehilite"><pre><span></span><code><span class="err">┌──────────────────────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                     </span><span class="nx">Internet</span><span class="w"> </span><span class="nx">Gateway</span><span class="w">                          </span><span class="err">│</span>
+<span class="err">└────────────────────────┬─────────────────────────────────────┘</span>
+<span class="w">                         </span><span class="err">│</span>
+<span class="err">┌────────────────────────▼─────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">              </span><span class="nx">Load</span><span class="w"> </span><span class="nx">Balancer</span><span class="w"> </span><span class="p">(</span><span class="nx">Always</span><span class="w"> </span><span class="nx">Free</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nx">Flexible</span><span class="p">)</span><span class="w">          </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                    </span><span class="err">•</span><span class="w"> </span><span class="nx">SSL</span><span class="w"> </span><span class="nx">Termination</span><span class="w">                          </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                    </span><span class="err">•</span><span class="w"> </span><span class="nx">Auto</span><span class="o">-</span><span class="nx">scaling</span><span class="w">                             </span><span class="err">│</span>
+<span class="err">└────────────────────────┬─────────────────────────────────────┘</span>
+<span class="w">                         </span><span class="err">│</span>
+<span class="err">┌────────────────────────▼─────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                 </span><span class="nx">Public</span><span class="w"> </span><span class="nx">Subnet</span><span class="w"> </span><span class="p">(</span><span class="nx">DMZ</span><span class="p">)</span><span class="w">                           </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">┌──────────────────────────────────────────────────────┐</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="nx">Compute</span><span class="w"> </span><span class="nx">Instances</span><span class="w"> </span><span class="p">(</span><span class="nx">Auto</span><span class="o">-</span><span class="nx">scaling</span><span class="w"> </span><span class="nx">Group</span><span class="p">)</span><span class="w">              </span><span class="err">│</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="nx">Flask</span><span class="w"> </span><span class="nx">Application</span><span class="w">                                  </span><span class="err">│</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="nx">Nginx</span><span class="o">/</span><span class="nx">Gunicorn</span><span class="w">                                     </span><span class="err">│</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="nx">Connection</span><span class="w"> </span><span class="nx">Pooling</span><span class="w">                                 </span><span class="err">│</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">└──────────────────────────────────────────────────────┘</span><span class="w">   </span><span class="err">│</span>
+<span class="err">└────────────────────────┬─────────────────────────────────────┘</span>
+<span class="w">                         </span><span class="err">│</span><span class="w"> </span><span class="nx">Private</span><span class="w"> </span><span class="nx">Communication</span>
+<span class="err">┌────────────────────────▼─────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                 </span><span class="nx">Private</span><span class="w"> </span><span class="nx">Subnet</span><span class="w">                                </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">┌─────────────────────┐</span><span class="w">  </span><span class="err">┌──────────────────────────────┐</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="nx">Oracle</span><span class="w"> </span><span class="nx">Autonomous</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">   </span><span class="nx">OCI</span><span class="w"> </span><span class="nx">Object</span><span class="w"> </span><span class="nx">Storage</span><span class="w">          </span><span class="err">│</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="nx">Database</span><span class="w">           </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">   </span><span class="err">•</span><span class="w"> </span><span class="nx">Private</span><span class="w"> </span><span class="nx">Endpoints</span><span class="w">         </span><span class="err">│</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="nx">Always</span><span class="w"> </span><span class="nx">Free</span><span class="w">      </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">   </span><span class="err">•</span><span class="w"> </span><span class="nx">Versioning</span><span class="w"> </span><span class="nx">Enabled</span><span class="w">        </span><span class="err">│</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="nx">Auto</span><span class="o">-</span><span class="nx">patching</span><span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">   </span><span class="err">•</span><span class="w"> </span><span class="nx">Lifecycle</span><span class="w"> </span><span class="nx">Policies</span><span class="w">        </span><span class="err">│</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">•</span><span class="w"> </span><span class="k">Self</span><span class="o">-</span><span class="nx">securing</span><span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">   </span><span class="err">•</span><span class="w"> </span><span class="mi">11</span><span class="w"> </span><span class="mi">9</span><span class="err">&#39;</span><span class="nx">s</span><span class="w"> </span><span class="nx">Durability</span><span class="w">         </span><span class="err">│</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">└─────────────────────┘</span><span class="w">  </span><span class="err">└──────────────────────────────┘</span><span class="w">  </span><span class="err">│</span>
+<span class="err">└──────────────────────────────────────────────────────────────┘</span>
+</code></pre></div>
+
+<h3 id="production-checklist"><strong>Production Checklist</strong></h3>
+<h4 id="security-hardening"><strong>Security Hardening</strong></h4>
+<ul>
+<li>✅ Enable OCI WAF (Web Application Firewall)</li>
+<li>✅ Configure Security Lists and NSGs</li>
+<li>✅ Implement API authentication (JWT/OAuth2)</li>
+<li>✅ Enable OCI Audit logging</li>
+<li>✅ Setup OCI Vault for secrets management</li>
+<li>✅ Configure CORS policies for production domain</li>
+<li>✅ Enable HTTPS with Let's Encrypt or OCI Certificates</li>
+</ul>
+<h4 id="performance-optimization"><strong>Performance Optimization</strong></h4>
+<ul>
+<li>✅ Enable connection pooling (cx_Oracle)</li>
+<li>✅ Implement Redis caching layer</li>
+<li>✅ Use OCI CDN for static assets</li>
+<li>✅ Configure auto-scaling policies</li>
+<li>✅ Enable database query result cache</li>
+<li>✅ Implement pagination for large datasets</li>
+<li>✅ Use async/await for I/O operations</li>
+</ul>
+<h4 id="reliability-monitoring"><strong>Reliability &amp; Monitoring</strong></h4>
+<ul>
+<li>✅ Setup OCI Monitoring and Alarms</li>
+<li>✅ Configure application logging (OCI Logging)</li>
+<li>✅ Implement health check endpoints</li>
+<li>✅ Setup backup policies for database</li>
+<li>✅ Enable object storage versioning</li>
+<li>✅ Configure disaster recovery (multi-region)</li>
+<li>✅ Implement circuit breakers for external APIs</li>
+</ul>
+<h4 id="cost-optimization"><strong>Cost Optimization</strong></h4>
+<ul>
+<li>✅ Use Always Free tier resources where possible</li>
+<li>✅ Enable auto-scaling (scale down during low usage)</li>
+<li>✅ Implement lifecycle policies for old objects</li>
+<li>✅ Use block volumes instead of object storage for temp files</li>
+<li>✅ Monitor and optimize database workloads</li>
+<li>✅ Set budget alerts in OCI console</li>
+<li>✅ Review and rightsize compute instances monthly</li>
+</ul>
+<h3 id="deployment-steps"><strong>Deployment Steps</strong></h3>
+<ol>
+<li>
+<p><strong>Provision Infrastructure</strong>:
+   <code>bash
+   # Using OCI CLI or Terraform
+   oci compute instance launch \
+     --compartment-id &lt;compartment-ocid&gt; \
+     --availability-domain &lt;ad&gt; \
+     --shape VM.Standard.E2.1.Micro \  # Always Free
+     --image-id &lt;oracle-linux-image-id&gt;</code></p>
+</li>
+<li>
+<p><strong>Setup Application</strong>:
+   ```bash
+   # On compute instance
+   git clone https://github.com/DeepakMishra1108/TwelvelabsWithOracleVector.git
+   cd TwelvelabsWithOracleVector
+   pip install -r requirements.txt</p>
+</li>
+</ol>
+<p># Configure systemd service
+   sudo cp deployment/flask-app.service /etc/systemd/system/
+   sudo systemctl enable flask-app
+   sudo systemctl start flask-app
+   ```</p>
+<ol>
+<li>
+<p><strong>Configure Nginx</strong>:
+   <code>bash
+   sudo cp deployment/nginx.conf /etc/nginx/sites-available/
+   sudo nginx -t
+   sudo systemctl restart nginx</code></p>
+</li>
+<li>
+<p><strong>Setup SSL</strong>:
+   <code>bash
+   sudo certbot --nginx -d yourdomain.com</code></p>
+</li>
+</ol>
+<h3 id="estimated-costs-production"><strong>Estimated Costs (Production)</strong></h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Free Tier</th>
+<th>Paid (Monthly)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compute (2 VMs)</td>
+<td>✅ $0</td>
+<td>$50-100</td>
+</tr>
+<tr>
+<td>Load Balancer</td>
+<td>✅ $0 (10Mbps)</td>
+<td>$30-60</td>
+</tr>
+<tr>
+<td>Autonomous DB</td>
+<td>✅ $0 (20GB)</td>
+<td>$175+</td>
+</tr>
+<tr>
+<td>Object Storage</td>
+<td>✅ $0 (10GB)</td>
+<td>$0.0255/GB</td>
+</tr>
+<tr>
+<td>Egress</td>
+<td>✅ 10TB free</td>
+<td>$0.0085/GB</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>$0</strong></td>
+<td><strong>$255-500</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note</strong>: Many OCI services have generous free tiers - you can run this entire platform on Always Free resources!</p>
+<h2 id="advanced-configuration_1">🔧 Advanced Configuration</h2>
+    
+    <hr>
+    <p style="text-align: center; color: #666; font-size: 9pt; margin-top: 30px;">
+        Generated from README.md | Oracle Cloud Infrastructure | TwelveLabs Platform
+    </p>
+</body>
+</html>
