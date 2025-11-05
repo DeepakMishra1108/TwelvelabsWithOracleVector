@@ -75,6 +75,20 @@ except Exception as e:
     get_full_metadata = None
     METADATA_EXTRACTOR_AVAILABLE = False
 
+# Import Flask-safe search
+try:
+    # Add parent directory to path to import search_flask_safe
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    from search_flask_safe import search_photos_flask_safe
+    FLASK_SAFE_SEARCH_AVAILABLE = True
+    logger.info("✅ Flask-safe search imported successfully")
+except Exception as e:
+    logger.warning(f"⚠️ Flask-safe search not available: {e}")
+    search_photos_flask_safe = None
+    FLASK_SAFE_SEARCH_AVAILABLE = False
+
 # No longer need wrapper - using Flask-safe album manager directly
 # flask_safe_album_manager is imported from unified_album_manager_flask_safe
 if UNIFIED_ALBUM_AVAILABLE and flask_safe_album_manager:
@@ -83,13 +97,20 @@ else:
     logger.warning("⚠️ No album manager available")
 
 # Flask-safe embedding functions - DO NOT use signal-based timeouts
-def create_unified_embedding_flask_safe(file_path, file_type, album_name, **kwargs):
-    """Flask-safe version - create embedding without signal timeouts"""
+def create_unified_embedding_flask_safe(file_path, file_type, album_name, media_id=None, **kwargs):
+    """Flask-safe version - create embedding without signal timeouts
+    
+    Args:
+        file_path: URL/path to the media file
+        file_type: 'photo' or 'video'
+        album_name: Name of the album
+        media_id: Existing media ID to update (if None, creates new entry)
+    """
     try:
         if file_type == 'photo':
-            return create_photo_embedding_flask_safe(file_path, album_name, **kwargs)
+            return create_photo_embedding_flask_safe(file_path, album_name, media_id=media_id, **kwargs)
         elif file_type == 'video':
-            return create_video_embedding_flask_safe(file_path, album_name, **kwargs)
+            return create_video_embedding_flask_safe(file_path, album_name, media_id=media_id, **kwargs)
         else:
             logger.error(f"Unsupported file type: {file_type}")
             return None
@@ -97,8 +118,14 @@ def create_unified_embedding_flask_safe(file_path, file_type, album_name, **kwar
         logger.error(f"❌ Error creating unified embedding: {e}")
         return None
 
-def create_photo_embedding_flask_safe(file_path, album_name, **kwargs):
-    """Flask-safe photo embedding - uses flask_safe_album_manager"""
+def create_photo_embedding_flask_safe(file_path, album_name, media_id=None, **kwargs):
+    """Flask-safe photo embedding - uses flask_safe_album_manager
+    
+    Args:
+        file_path: URL/path to the image (may be resized version)
+        album_name: Name of the album
+        media_id: Existing media ID to update (if None, creates new entry)
+    """
     try:
         from twelvelabs import TwelveLabs
         from pathlib import Path
@@ -137,34 +164,58 @@ def create_photo_embedding_flask_safe(file_path, album_name, **kwargs):
                 embedding_vector = seg0.float
         
         if embedding_vector:
-            # Store metadata using Flask-safe manager
-            media_id = flask_safe_album_manager.store_media_metadata(
-                album_name=album_name,
-                file_name=Path(file_path).name,
-                file_path=file_path,
-                file_type='photo',
-                **kwargs
-            )
-            
+            # Update existing media entry with embedding (DON'T create new entry)
             if media_id:
-                # Update with embedding using Flask-safe connection
+                # Update existing entry with embedding
                 from utils.db_utils_flask_safe import get_flask_safe_connection
-                import numpy as np
+                import json
                 
                 try:
                     with get_flask_safe_connection() as conn:
                         cursor = conn.cursor()
-                        embedding_bytes = np.array(embedding_vector, dtype=np.float32).tobytes()
+                        # Convert to JSON string for Oracle VECTOR type with TO_VECTOR
+                        embedding_json = json.dumps(list(embedding_vector))
                         cursor.execute(
-                            "UPDATE album_media SET embedding = :embedding WHERE media_id = :media_id",
-                            {'embedding': embedding_bytes, 'media_id': media_id}
+                            "UPDATE album_media SET embedding_vector = TO_VECTOR(:embedding) WHERE id = :id",
+                            {'embedding': embedding_json, 'id': media_id}
                         )
                         conn.commit()
-                        logger.info(f"✅ Photo embedding stored for media_id {media_id}")
+                        logger.info(f"✅ Photo embedding stored for existing media_id {media_id}")
                 except Exception as db_err:
                     logger.error(f"❌ Failed to store photo embedding: {db_err}")
                 
                 return media_id
+            else:
+                # Legacy path: Store new metadata (only if media_id not provided)
+                logger.warning("⚠️ Creating new media entry for embedding - this should not happen during upload")
+                media_id = flask_safe_album_manager.store_media_metadata(
+                    album_name=album_name,
+                    file_name=Path(file_path).name,
+                    file_path=file_path,
+                    file_type='photo',
+                    **kwargs
+                )
+                
+                if media_id:
+                    # Update with embedding
+                    from utils.db_utils_flask_safe import get_flask_safe_connection
+                    import json
+                    
+                    try:
+                        with get_flask_safe_connection() as conn:
+                            cursor = conn.cursor()
+                            # Convert to JSON string for Oracle VECTOR type with TO_VECTOR
+                            embedding_json = json.dumps(list(embedding_vector))
+                            cursor.execute(
+                                "UPDATE album_media SET embedding_vector = TO_VECTOR(:embedding) WHERE id = :id",
+                                {'embedding': embedding_json, 'id': media_id}
+                            )
+                            conn.commit()
+                            logger.info(f"✅ Photo embedding stored for new media_id {media_id}")
+                    except Exception as db_err:
+                        logger.error(f"❌ Failed to store photo embedding: {db_err}")
+                    
+                    return media_id
         
         return None
         
@@ -180,10 +231,10 @@ def create_video_embedding_flask_safe(file_path, album_name, **kwargs):
         
         client = TwelveLabs(api_key=os.getenv("TWELVE_LABS_API_KEY"))
         
-        # Create embedding task
+        # Create embedding task - TwelveLabs API uses 'url' not 'video_url'
         task = client.embed.create(
             model_name="Marengo-retrieval-2.7",
-            video_url=file_path,
+            url=file_path,  # Changed from video_url to url
             video_clip_length=kwargs.get('clip_length', 10)
         )
         
@@ -223,15 +274,16 @@ def create_video_embedding_flask_safe(file_path, album_name, **kwargs):
                         if media_id:
                             # Update with embedding using Flask-safe connection
                             from utils.db_utils_flask_safe import get_flask_safe_connection
-                            import numpy as np
+                            import json
                             
                             try:
                                 with get_flask_safe_connection() as conn:
                                     cursor = conn.cursor()
-                                    embedding_bytes = np.array(embedding_vector, dtype=np.float32).tobytes()
+                                    # Convert to JSON string for Oracle VECTOR type with TO_VECTOR
+                                    embedding_json = json.dumps(list(embedding_vector))
                                     cursor.execute(
-                                        "UPDATE album_media SET embedding = :embedding WHERE media_id = :media_id",
-                                        {'embedding': embedding_bytes, 'media_id': media_id}
+                                        "UPDATE album_media SET embedding_vector = TO_VECTOR(:embedding) WHERE id = :id",
+                                        {'embedding': embedding_json, 'id': media_id}
                                     )
                                     conn.commit()
                                     logger.info(f"✅ Video embedding stored for media_id {media_id}")
@@ -449,7 +501,9 @@ def list_unified_albums():
                 'album_name': album.get('album_name'),
                 'description': album.get('description', ''),
                 'created_at': album.get('created_at'),
-                'item_count': album.get('item_count', 0)
+                'total_items': album.get('total_items', 0),
+                'photo_count': album.get('photo_count', 0),
+                'video_count': album.get('video_count', 0)
             }
             album_list.append(album_data)
         
@@ -459,6 +513,46 @@ def list_unified_albums():
     except Exception as e:
         logger.error(f"❌ Error listing albums: {e}")
         return jsonify({'error': str(e), 'albums': [], 'count': 0})
+
+@app.route('/album_contents/<album_name>')
+def get_album_contents(album_name):
+    """Get contents of a specific album"""
+    try:
+        logger.info(f"📂 Getting contents for album: {album_name}")
+        
+        if not UNIFIED_ALBUM_AVAILABLE or flask_safe_album_manager is None:
+            logger.error("❌ Album manager not available")
+            return jsonify({'error': 'Album manager not available', 'results': [], 'count': 0})
+        
+        # Get album contents
+        contents = flask_safe_album_manager.get_album_contents(album_name)
+        
+        # Format results
+        results = []
+        for item in contents:
+            result = {
+                'media_id': item.get('media_id'),
+                'album_name': album_name,
+                'file_name': item.get('file_name'),
+                'file_type': item.get('file_type'),
+                'mime_type': item.get('mime_type'),
+                'file_size': item.get('file_size'),
+                'oci_path': item.get('file_path'),
+                'created_at': item.get('created_at'),
+                'par_url': None  # Will be generated on demand
+            }
+            results.append(result)
+        
+        logger.info(f"✅ Found {len(results)} items in album '{album_name}'")
+        return jsonify({
+            'album_name': album_name,
+            'results': results,
+            'count': len(results)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting album contents: {e}")
+        return jsonify({'error': str(e), 'results': [], 'count': 0})
 
 @app.route('/upload_unified', methods=['POST'])
 def upload_unified():
@@ -846,7 +940,7 @@ def upload_unified():
                                     logger.info(f'🎬 Creating video embeddings with TwelveLabs Marengo for {filename}')
                                     send_progress(upload_tid, 'embedding', 70, 'Generating video embeddings...')
                                     
-                                    embedding_ids = create_unified_embedding_flask_safe(par_url, file_type, album_name)
+                                    embedding_ids = create_unified_embedding_flask_safe(par_url, file_type, album_name, media_id=media_id)
                                     if embedding_ids:
                                         _upload_tasks[tid]['status'] = 'completed'
                                         _upload_tasks[tid]['embedding_ids'] = embedding_ids
@@ -875,7 +969,7 @@ def upload_unified():
                                     logger.info(f'📸 Creating photo embeddings with TwelveLabs Marengo for {filename}')
                                     send_progress(upload_tid, 'embedding', 70, 'Generating photo embeddings...')
                                     
-                                    embedding_id = create_unified_embedding_flask_safe(par_url, file_type, album_name)
+                                    embedding_id = create_unified_embedding_flask_safe(par_url, file_type, album_name, media_id=media_id)
                                     if embedding_id:
                                         _upload_tasks[tid]['status'] = 'completed'
                                         _upload_tasks[tid]['embedding_id'] = embedding_id
@@ -1050,7 +1144,12 @@ def search_unified():
     Searches both photo and video content using natural language queries.
     Uses Oracle Vector DB for similarity search.
     
-    JSON body: { "query": "search text", "limit": 20, "album_filter": "optional" }
+    JSON body: { 
+        "query": "search text", 
+        "limit": 20, 
+        "album_filter": "optional",
+        "min_similarity": 0.30  (optional, default 30%)
+    }
     Returns: { "results": [{"type": "photo/video", "media_id": "...", "score": 0.95, ...}] }
     """
     try:
@@ -1058,33 +1157,39 @@ def search_unified():
         query = data.get('query', '').strip()
         limit = data.get('limit', 20)
         album_filter = data.get('album_filter')
+        min_similarity = data.get('min_similarity', 0.30)  # Default 30% threshold
         
         if not query:
             return jsonify({'error': 'Query is required'}), 400
         
-        logger.info(f"🔍 Unified search request: '{query}' (limit: {limit})")
+        logger.info(f"🔍 Unified search request: '{query}' (limit: {limit}, threshold: {min_similarity*100:.0f}%)")
         
         if not UNIFIED_ALBUM_AVAILABLE:
             return jsonify({'error': 'Unified album system not available'}), 500
         
-        # Try vector search first (Oracle Vector DB), fall back to basic search
+        # Try Flask-safe vector search first (Oracle Vector DB), fall back to basic search
         results = []
         search_method = "unknown"
         
-        if 'unified_search_enhanced' in globals() and VECTOR_SEARCH_AVAILABLE:
-            logger.info("🧠 Using Oracle Vector DB enhanced search")
-            search_method = "vector_enhanced"
+        if FLASK_SAFE_SEARCH_AVAILABLE and search_photos_flask_safe:
+            logger.info("🧠 Using Flask-safe Vector DB search")
+            search_method = "vector_flask_safe"
             
             try:
-                results = unified_search_enhanced(
-                    query=query,
-                    limit=limit,
-                    album_filter=album_filter,
-                    include_photos=True,
-                    include_videos=True
+                # search_photos_flask_safe returns list of results directly
+                photo_results = search_photos_flask_safe(
+                    query_text=query,
+                    album_name=album_filter,
+                    top_k=limit,
+                    min_similarity=min_similarity
                 )
+                
+                # Results are already in the correct format
+                results = photo_results if photo_results else []
+                logger.info(f"✅ Flask-safe search found {len(results)} photos")
+                        
             except Exception as e:
-                logger.error(f"Vector search failed: {e}")
+                logger.error(f"Flask-safe vector search failed: {e}", exc_info=True)
                 results = []
         
         elif 'unified_search' in globals() and BASIC_SEARCH_AVAILABLE:
@@ -1169,6 +1274,48 @@ def embedding_status(task_id):
         
     except Exception as e:
         logger.error(f"❌ Status check failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get_media_url/<int:media_id>')
+def get_media_url(media_id):
+    """Get PAR URL for a specific media item"""
+    try:
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        
+        # Get media details from database
+        sql = """
+        SELECT file_path, file_type, file_name
+        FROM album_media
+        WHERE id = :media_id
+        """
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, {'media_id': media_id})
+            result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({'error': 'Media not found'}), 404
+        
+        file_path = result[0]
+        file_type = result[1]
+        file_name = result[2]
+        
+        # Generate PAR URL
+        par_url = _get_par_url_for_oci(file_path)
+        
+        if not par_url:
+            return jsonify({'error': 'Failed to generate PAR URL'}), 500
+        
+        return jsonify({
+            'media_id': media_id,
+            'par_url': par_url,
+            'file_name': file_name,
+            'file_type': file_type
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get media URL: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/config_debug')

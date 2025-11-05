@@ -24,7 +24,9 @@ class FlaskSafeUnifiedAlbumManager:
     def __init__(self):
         self.supported_video_types = {
             'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm',
-            'video/x-flv', 'video/x-ms-wmv', 'video/3gpp', 'video/x-matroska'
+            'video/x-flv', 'video/x-ms-wmv', 'video/3gpp', 'video/x-matroska',
+            'video/mpeg', 'video/mpg', 'video/x-mpeg', 'video/x-mpg',  # Added MPEG formats
+            'video/mov', 'video/avi'  # Added common video formats
         }
         self.supported_photo_types = {
             'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp',
@@ -48,7 +50,8 @@ class FlaskSafeUnifiedAlbumManager:
                            latitude=None, longitude=None, gps_altitude=None,
                            city=None, state=None, country=None, country_code=None,
                            capture_date=None, camera_make=None, camera_model=None,
-                           orientation=None, **kwargs):
+                           orientation=None, start_time=None, end_time=None,
+                           video_duration=None, **kwargs):
         """Store media metadata in unified album_media table using Flask-safe connection
         
         Args:
@@ -72,11 +75,23 @@ class FlaskSafeUnifiedAlbumManager:
             camera_make: Camera manufacturer
             camera_model: Camera model
             orientation: Image orientation (EXIF)
+            start_time: Video start time (required for videos)
+            end_time: Video end time (required for videos)
+            video_duration: Video duration in seconds
             **kwargs: Additional metadata fields
         """
         
         try:
             logger.info(f"📝 Storing metadata for {file_name} in album {album_name}")
+            
+            # For videos, ensure start_time and end_time are set (database constraint)
+            if file_type == 'video':
+                if start_time is None:
+                    start_time = 0  # Default start at 0 seconds
+                if end_time is None and video_duration:
+                    end_time = video_duration  # Use duration as end time
+                elif end_time is None:
+                    end_time = 0  # Default if no duration available
             
             # Insert into album_media table (ID is auto-generated)
             insert_data = {
@@ -99,7 +114,9 @@ class FlaskSafeUnifiedAlbumManager:
                 'capture_date': capture_date,
                 'camera_make': camera_make,
                 'camera_model': camera_model,
-                'orientation': orientation
+                'orientation': orientation,
+                'start_time': start_time,
+                'end_time': end_time
             }
             
             # Log GPS info if available
@@ -177,7 +194,7 @@ class FlaskSafeUnifiedAlbumManager:
         """Get contents of a specific album"""
         try:
             query = """
-            SELECT media_id, file_name, file_type, mime_type, file_size, created_at, file_path
+            SELECT id, file_name, file_type, mime_type, file_size, created_at, file_path
             FROM album_media 
             WHERE album_name = :album_name
             ORDER BY created_at DESC

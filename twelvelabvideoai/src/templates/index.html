@@ -1,2481 +1,1108 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Data Guardian - Art of Possible</title>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Media Intelligence Platform - TwelveLabs AI</title>
+    
+    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Oracle Redwood Design System -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-    <!-- Leaflet CSS for maps -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <!-- Leaflet MarkerCluster CSS -->
+    
+    <!-- Leaflet Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-        <style>
-            /* Clean Professional Variables */
-            :root {
-                --primary-blue: #2563eb;
-                --primary-blue-dark: #1d4ed8;
-                --light-blue: #dbeafe;
-                --text-primary: #1f2937;
-                --text-secondary: #6b7280;
-                --text-muted: #9ca3af;
-                --border-color: #e5e7eb;
-                --success-color: #10b981;
-                --warning-color: #f59e0b;
-                --error-color: #ef4444;
-                --bg-white: #ffffff;
-                --bg-light: #f8fafc;
-            }
-            body {
-                padding: 0;
-                margin: 0;
-                min-height: 100vh;
-                background: var(--oj-color-neutral-10);
-                color: var(--oj-color-neutral-80);
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                font-size: 14px;
-                line-height: 1.5;
-                font-weight: 400;
-            }
-
-            /* Redwood Header */
-            .redwood-header {
-                background: linear-gradient(135deg, var(--oj-color-brand-primary) 0%, var(--oj-color-brand-secondary) 100%);
-                color: var(--oj-color-neutral-0);
-                padding: var(--oj-spacing-lg) 0;
-                box-shadow: var(--oj-shadow-md);
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            }
-
-            .redwood-header h1 {
-                font-size: 1.75rem;
-                font-weight: 600;
-                margin: 0;
-                letter-spacing: -0.025em;
-            }
-
-            .redwood-header .subtitle {
-                font-size: 0.875rem;
-                opacity: 0.9;
-                margin-top: var(--oj-spacing-xs);
-                font-weight: 400;
-            }
-
-            /* Redwood Status Badges */
-            .redwood-status-badge {
-                background: rgba(255, 255, 255, 0.15);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                color: var(--oj-color-neutral-0);
-                padding: var(--oj-spacing-xs) var(--oj-spacing-sm);
-                border-radius: var(--oj-border-radius-md);
-                font-size: 0.75rem;
-                font-weight: 500;
-                backdrop-filter: blur(8px);
-            }
-
-            .redwood-status-dot {
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                display: inline-block;
-                margin-right: var(--oj-spacing-xs);
-            }
-            .redwood-status-dot.success { background: #52c41a; }
-            .redwood-status-dot.info { background: #1890ff; }
-
-            /* Redwood Container */
-            .redwood-container {
-                padding: var(--oj-spacing-lg);
-                max-width: 100%;
-            }
-
-            /* Redwood Cards */
-            .redwood-card {
-                background: var(--oj-color-neutral-0);
-                border: 1px solid var(--oj-color-neutral-30);
-                border-radius: var(--oj-border-radius-lg);
-                box-shadow: var(--oj-shadow-sm);
-                margin-bottom: var(--oj-spacing-md);
-                overflow: hidden;
-                transition: box-shadow 0.2s ease, border-color 0.2s ease;
-            }
-
-            .redwood-card:hover {
-                box-shadow: var(--oj-shadow-md);
-                border-color: var(--oj-color-neutral-40);
-            }
-
-            .redwood-card-header {
-                background: var(--oj-color-neutral-10);
-                border-bottom: 1px solid var(--oj-color-neutral-30);
-                padding: var(--oj-spacing-sm) var(--oj-spacing-md);
-                font-weight: 500;
-                font-size: 0.875rem;
-                color: var(--oj-color-neutral-80);
-                display: flex;
-                align-items: center;
-            }
-
-            .redwood-card-body {
-                padding: var(--oj-spacing-md);
-            }
-
-            /* Redwood Form Controls */
-            .redwood-input {
-                font-size: 0.875rem;
-                padding: var(--oj-spacing-sm) var(--oj-spacing-md);
-                margin-bottom: var(--oj-spacing-sm);
-                border: 1px solid var(--oj-color-neutral-40);
-                border-radius: var(--oj-border-radius-md);
-                background: var(--oj-color-neutral-0);
-                color: var(--oj-color-neutral-80);
-                transition: border-color 0.2s ease, box-shadow 0.2s ease;
-            }
-
-            .redwood-input:focus {
-                outline: none;
-                border-color: var(--oj-color-brand-primary);
-                box-shadow: 0 0 0 3px rgba(5, 114, 206, 0.1);
-            }
-
-            /* Redwood Buttons */
-            .redwood-btn {
-                font-size: 0.875rem;
-                padding: var(--oj-spacing-sm) var(--oj-spacing-md);
-                border-radius: var(--oj-border-radius-md);
-                font-weight: 500;
-                border: 1px solid transparent;
-                cursor: pointer;
-                transition: all 0.2s ease;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                text-decoration: none;
-                line-height: 1.2;
-            }
-
-            .redwood-btn-primary {
-                background: var(--oj-color-brand-primary);
-                color: var(--oj-color-neutral-0);
-                border-color: var(--oj-color-brand-primary);
-            }
-
-            .redwood-btn-primary:hover {
-                background: #0056b3;
-                border-color: #0056b3;
-                transform: translateY(-1px);
-                box-shadow: var(--oj-shadow-md);
-            }
-
-            .redwood-btn-secondary {
-                background: var(--oj-color-neutral-0);
-                color: var(--oj-color-brand-primary);
-                border-color: var(--oj-color-brand-primary);
-            }
-
-            .redwood-btn-secondary:hover {
-                background: var(--oj-color-neutral-10);
-                color: var(--oj-color-brand-primary);
-            }
-
-            .redwood-btn-success {
-                background: var(--oj-color-success);
-                color: var(--oj-color-neutral-0);
-                border-color: var(--oj-color-success);
-            }
-
-            .redwood-btn-success:hover {
-                background: #237804;
-                border-color: #237804;
-            }
-
-            .redwood-btn-xs {
-                font-size: 0.75rem;
-                padding: var(--oj-spacing-xs) var(--oj-spacing-sm);
-            }
-
-            .redwood-btn:disabled {
-                background: var(--oj-color-neutral-30);
-                color: var(--oj-color-neutral-50);
-                border-color: var(--oj-color-neutral-30);
-                cursor: not-allowed;
-                transform: none;
-                box-shadow: none;
-            }
-
-            /* Redwood Search Bar */
-            .redwood-search {
-                background: var(--oj-color-neutral-0);
-                border-radius: var(--oj-border-radius-lg);
-                padding: var(--oj-spacing-lg);
-                margin-bottom: var(--oj-spacing-lg);
-                box-shadow: var(--oj-shadow-sm);
-                border: 1px solid var(--oj-color-neutral-30);
-            }
-
-            .redwood-search-input-group {
-                position: relative;
-                display: flex;
-                gap: var(--oj-spacing-sm);
-            }
-
-            .redwood-search-input-group input {
-                padding-left: 2.5rem;
-                border-radius: var(--oj-border-radius-md);
-                border: 1px solid var(--oj-color-neutral-40);
-                flex: 1;
-                font-size: 1rem;
-                padding-top: var(--oj-spacing-md);
-                padding-bottom: var(--oj-spacing-md);
-            }
-
-            .redwood-search-icon {
-                position: absolute;
-                left: var(--oj-spacing-md);
-                top: 50%;
-                transform: translateY(-50%);
-                color: var(--oj-color-neutral-60);
-                z-index: 2;
-            }
-
-            /* Redwood Icons */
-            .redwood-icon {
-                width: 1.5rem;
-                height: 1.5rem;
-                background: var(--oj-color-neutral-20);
-                border-radius: 50%;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                color: var(--oj-color-brand-primary);
-                margin-right: var(--oj-spacing-sm);
-                font-size: 0.75rem;
-            }
-
-            /* Redwood Results Panel */
-            .redwood-results-panel {
-                background: var(--oj-color-neutral-0);
-                border-radius: var(--oj-border-radius-lg);
-                border: 1px solid var(--oj-color-neutral-30);
-                overflow: hidden;
-                box-shadow: var(--oj-shadow-sm);
-            }
-
-            .redwood-results-header {
-                background: var(--oj-color-brand-primary);
-                color: var(--oj-color-neutral-0);
-                padding: var(--oj-spacing-md);
-                font-weight: 500;
-                position: sticky;
-                top: 0;
-                z-index: 10;
-            }
-
-            .redwood-results-body {
-                padding: var(--oj-spacing-sm);
-                max-height: 70vh;
-                overflow-y: auto;
-            }
-
-            /* Redwood Result Items */
-            .redwood-result-item {
-                background: var(--oj-color-neutral-0);
-                border: 1px solid var(--oj-color-neutral-30);
-                border-radius: var(--oj-border-radius-md);
-                padding: var(--oj-spacing-sm);
-                margin-bottom: var(--oj-spacing-sm);
-                transition: all 0.2s ease;
-                font-size: 0.875rem;
-            }
-
-            .redwood-result-item:hover {
-                box-shadow: var(--oj-shadow-sm);
-                border-color: var(--oj-color-brand-primary);
-                transform: translateY(-1px);
-            }
-
-            /* Redwood Progress Bar */
-            .redwood-progress {
-                height: 8px;
-                background: var(--oj-color-neutral-20);
-                border-radius: var(--oj-border-radius-sm);
-                overflow: hidden;
-                margin-bottom: var(--oj-spacing-sm);
-            }
-
-            .redwood-progress-bar {
-                height: 100%;
-                background: linear-gradient(90deg, var(--oj-color-brand-primary), var(--oj-color-brand-secondary));
-                border-radius: var(--oj-border-radius-sm);
-                transition: width 0.3s ease;
-            }
-
-            /* Redwood Collapsible */
-            .redwood-collapsible {
-                border: 1px solid var(--oj-color-neutral-30);
-                border-radius: var(--oj-border-radius-lg);
-                margin-bottom: var(--oj-spacing-sm);
-                overflow: hidden;
-                background: var(--oj-color-neutral-0);
-            }
-
-            .redwood-collapsible-header {
-                background: var(--oj-color-neutral-10);
-                padding: var(--oj-spacing-sm) var(--oj-spacing-md);
-                cursor: pointer;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                font-weight: 500;
-                font-size: 0.875rem;
-                transition: background-color 0.2s ease;
-                border-bottom: 1px solid var(--oj-color-neutral-30);
-            }
-
-            .redwood-collapsible-header:hover {
-                background: var(--oj-color-neutral-20);
-            }
-
-            .redwood-collapsible-content {
-                padding: var(--oj-spacing-md);
-                background: var(--oj-color-neutral-0);
-                display: none;
-            }
-
-            .redwood-collapsible-content.show {
-                display: block;
-            }
-
-            /* Redwood Grid */
-            .redwood-grid {
-                display: grid;
-                gap: var(--oj-spacing-sm);
-            }
-
-            @media (min-width: 768px) {
-                .redwood-grid { grid-template-columns: repeat(2, 1fr); }
-            }
-
-            @media (min-width: 1200px) {
-                .redwood-grid { grid-template-columns: repeat(4, 1fr); }
-            }
-
-            /* Redwood Typography */
-            .redwood-text-xs { font-size: 0.75rem; }
-            .redwood-text-sm { font-size: 0.875rem; }
-            .redwood-text-muted { color: var(--oj-color-neutral-60); }
-            .redwood-text-primary { color: var(--oj-color-brand-primary); }
-            .redwood-text-success { color: var(--oj-color-success); }
-            .redwood-text-warning { color: var(--oj-color-warning); }
-
-            /* Redwood Utilities */
-            .redwood-shadow { box-shadow: var(--oj-shadow-sm); }
-            .redwood-shadow-md { box-shadow: var(--oj-shadow-md); }
-            .redwood-rounded { border-radius: var(--oj-border-radius-md); }
-            .redwood-rounded-lg { border-radius: var(--oj-border-radius-lg); }
-
-            /* Custom Scrollbars - Redwood Style */
-            .redwood-scroll {
-                scrollbar-width: thin;
-                scrollbar-color: var(--oj-color-neutral-40) transparent;
-            }
-            .redwood-scroll::-webkit-scrollbar {
-                width: 6px;
-            }
-            .redwood-scroll::-webkit-scrollbar-track {
-                background: var(--oj-color-neutral-20);
-                border-radius: var(--oj-border-radius-sm);
-            }
-            .redwood-scroll::-webkit-scrollbar-thumb {
-                background: var(--oj-color-neutral-40);
-                border-radius: var(--oj-border-radius-sm);
-            }
-            .redwood-scroll::-webkit-scrollbar-thumb:hover {
-                background: var(--oj-color-neutral-50);
-            }
-
-            /* Global Styles */
-            body {
-                background: linear-gradient(135deg, var(--light-blue) 0%, var(--bg-light) 100%);
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                color: var(--text-primary);
-                font-size: 14px;
-                line-height: 1.5;
-                margin: 0;
-                padding: 0;
-            }
-
-            /* Header */
-            .header-section {
-                background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-dark) 100%);
-                color: white;
-                padding: 1rem 0;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            }
-
-            .header-section h1 {
-                font-size: 1.75rem;
-                font-weight: 700;
-                margin: 0;
-            }
-
-            .header-section .subtitle {
-                font-size: 0.9rem;
-                opacity: 0.9;
-                margin-top: 0.25rem;
-            }
-
-            /* Container */
-            .dashboard-container {
-                padding: 1rem;
-                max-width: 1400px;
-                margin: 0 auto;
-            }
-
-            /* Cards */
-            .card {
-                background: var(--bg-white);
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-                margin-bottom: 1rem;
-                transition: all 0.2s ease;
-            }
-
-            .card:hover {
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                border-color: var(--primary-blue);
-            }
-
-            .card-header {
-                background: var(--bg-light);
-                border-bottom: 1px solid var(--border-color);
-                padding: 0.75rem 1rem;
-                font-weight: 600;
-                font-size: 0.9rem;
-                color: var(--text-primary);
-                display: flex;
-                align-items: center;
-            }
-
-            .card-body {
-                padding: 1rem;
-            }
-
-            /* Form Controls */
-            .form-control, .form-select {
-                border: 1px solid var(--border-color);
-                border-radius: 6px;
-                font-size: 0.9rem;
-                padding: 0.5rem 0.75rem;
-                margin-bottom: 0.75rem;
-                transition: border-color 0.2s ease, box-shadow 0.2s ease;
-            }
-
-            .form-control:focus, .form-select:focus {
-                border-color: var(--primary-blue);
-                box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-                outline: none;
-            }
-
-            /* Buttons */
-            .btn {
-                border-radius: 6px;
-                font-weight: 500;
-                padding: 0.5rem 1rem;
-                font-size: 0.9rem;
-                border: none;
-                transition: all 0.2s ease;
-                cursor: pointer;
-            }
-
-            .btn-primary {
-                background: var(--primary-blue);
-                color: white;
-            }
-
-            .btn-primary:hover {
-                background: var(--primary-blue-dark);
-                transform: translateY(-1px);
-                box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
-            }
-
-            .btn-outline-primary {
-                border: 1px solid var(--primary-blue);
-                color: var(--primary-blue);
-                background: transparent;
-            }
-
-            .btn-outline-primary:hover {
-                background: var(--primary-blue);
-                color: white;
-            }
-
-            .btn-success {
-                background: var(--success-color);
-                color: white;
-            }
-
-            .btn-outline-secondary {
-                border: 1px solid var(--border-color);
-                color: var(--text-secondary);
-                background: white;
-            }
-
-            /* Search Bar */
-            .search-section {
-                background: var(--bg-white);
-                border-radius: 8px;
-                padding: 1rem;
-                margin-bottom: 1.5rem;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-                border: 1px solid var(--border-color);
-            }
-
-            .search-input-group {
-                position: relative;
-                display: flex;
-                gap: 0.75rem;
-                align-items: center;
-            }
-
-            .search-input {
-                flex: 1;
-                padding-left: 2.5rem;
-                border: 2px solid var(--border-color);
-                border-radius: 8px;
-                font-size: 1rem;
-                padding-top: 0.625rem;
-                padding-bottom: 0.625rem;
-            }
-
-            .search-input:focus {
-                border-color: var(--primary-blue);
-                box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-            }
-
-            .search-icon {
-                position: absolute;
-                left: 0.75rem;
-                top: 50%;
-                transform: translateY(-50%);
-                color: var(--text-secondary);
-            }
-
-            /* Results Panel */
-            .results-panel {
-                background: var(--bg-white);
-                border-radius: 8px;
-                max-height: 70vh;
-                overflow-y: auto;
-                border: 1px solid var(--border-color);
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            }
-
-            .results-panel .card-header {
-                position: sticky;
-                top: 0;
-                z-index: 10;
-                background: var(--primary-blue);
-                color: white;
-                border-bottom: none;
-            }
-
-            /* Result Items */
-            .result-item {
-                background: var(--bg-white);
-                border: 1px solid var(--border-color);
-                border-radius: 6px;
-                padding: 0.75rem;
-                margin-bottom: 0.75rem;
-                transition: all 0.2s ease;
-            }
-
-            .result-item:hover {
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                border-color: var(--primary-blue);
-                transform: translateY(-1px);
-            }
-
-            /* Status indicators */
-            .status-dot {
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                display: inline-block;
-                margin-right: 0.5rem;
-            }
-
-            .status-dot.success { background: var(--success-color); }
-            .status-dot.warning { background: var(--warning-color); }
-            .status-dot.info { background: var(--primary-blue); }
-            .status-dot.error { background: var(--error-color); }
-
-            /* Progress bars */
-            .progress {
-                height: 6px;
-                border-radius: 3px;
-                background: var(--bg-light);
-                margin-bottom: 0.5rem;
-            }
-
-            .progress-bar {
-                border-radius: 3px;
-                transition: width 0.3s ease;
-            }
-
-            /* Badge styling */
-            .badge {
-                font-size: 0.75rem;
-                padding: 0.25rem 0.5rem;
-                font-weight: 500;
-            }
-
-            /* Upload summary styling */
-            .upload-summary {
-                margin-top: 1rem;
-                padding: 0.75rem;
-                background: var(--bg-light);
-                border-radius: 6px;
-                border-left: 3px solid var(--success-color);
-            }
-
-            .upload-summary h4 {
-                font-size: 0.9rem;
-                margin-bottom: 0.5rem;
-                color: var(--text-primary);
-            }
-
-            .upload-summary p {
-                font-size: 0.85rem;
-                margin-bottom: 0.5rem;
-                color: var(--text-secondary);
-            }
-
-            .upload-results {
-                list-style: none;
-                padding-left: 0;
-                margin-bottom: 0;
-                font-size: 0.8rem;
-            }
-
-            .upload-results li {
-                padding: 0.25rem 0;
-                color: var(--text-secondary);
-            }
-
-            .upload-results li.success {
-                color: var(--success-color);
-            }
-
-            .upload-results li.failed {
-                color: var(--error-color);
-            }
-
-            /* Custom scrollbar */
-            .custom-scroll {
-                scrollbar-width: thin;
-                scrollbar-color: var(--border-color) transparent;
-            }
-
-            .custom-scroll::-webkit-scrollbar {
-                width: 6px;
-            }
-
-            .custom-scroll::-webkit-scrollbar-track {
-                background: transparent;
-            }
-
-            .custom-scroll::-webkit-scrollbar-thumb {
-                background: var(--border-color);
-                border-radius: 3px;
-            }
-
-            .custom-scroll::-webkit-scrollbar-thumb:hover {
-                background: var(--text-secondary);
-            }
-
-            /* Enhanced Search Results Styling */
-            .results-panel {
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                background: var(--bg-white);
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            }
-
-            .results-panel .card-header {
-                background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-dark) 100%);
-                color: white;
-                border-bottom: none;
-                padding: 1rem;
-                border-radius: 8px 8px 0 0;
-            }
-
-            .result-item {
-                border: 1px solid var(--border-color);
-                border-radius: 6px;
-                padding: 0.75rem;
-                margin-bottom: 0.75rem;
-                transition: all 0.3s ease;
-                background: var(--bg-white);
-                position: relative;
-                overflow: hidden;
-            }
-
-            .result-item:hover {
-                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
-                border-color: var(--primary-blue);
-                transform: translateY(-2px);
-            }
-
-            .result-item::before {
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 4px;
-                height: 100%;
-                background: var(--primary-blue);
-                opacity: 0;
-                transition: opacity 0.3s ease;
-            }
-
-            .result-item:hover::before {
-                opacity: 1;
-            }
-
-            /* Responsive Design */
-            @media (max-width: 768px) {
-                .dashboard-container { 
-                    padding: 0.75rem; 
-                }
-                .header-section h1 { 
-                    font-size: 1.5rem; 
-                }
-                .search-input-group {
-                    flex-direction: column;
-                    gap: 0.5rem;
-                }
-                .btn {
-                    margin-bottom: 0.5rem;
-                }
-                .results-panel {
-                    margin-top: 1rem;
-                }
-                #results {
-                    min-height: 50vh !important;
-                    max-height: 60vh !important;
-                }
-                .row.g-2 .col-6 {
-                    flex: 0 0 100%;
-                    max-width: 100%;
-                }
-            }
-
-            /* Accessibility Improvements */
-            .btn:focus,
-            .form-control:focus,
-            .form-select:focus {
-                outline: 2px solid var(--primary-blue);
-                outline-offset: 2px;
-            }
-
-            /* Skip to content link for screen readers */
-            .skip-link {
-                position: absolute;
-                top: -40px;
-                left: 6px;
-                background: var(--primary-blue);
-                color: white;
-                padding: 8px;
-                text-decoration: none;
-                border-radius: 4px;
-                z-index: 9999;
-            }
-
-            .skip-link:focus {
-                top: 6px;
-            }
-
-            /* High contrast mode support */
-            @media (prefers-contrast: high) {
-                .card {
-                    border: 2px solid var(--text-primary);
-                }
-                .btn {
-                    border: 2px solid;
-                }
-            }
-
-            /* Reduced motion support */
-            @media (prefers-reduced-motion: reduce) {
-                * {
-                    animation-duration: 0.01ms !important;
-                    animation-iteration-count: 1 !important;
-                    transition-duration: 0.01ms !important;
-                }
-            }
-
-            /* Compact layout improvements */
-            .card-header {
-                font-weight: 600;
-                font-size: 0.875rem;
-            }
-
-            .card-body {
-                font-size: 0.85rem;
-            }
-
-            .form-control-sm,
-            .btn-sm {
-                font-size: 0.8rem;
-            }
-
-            /* Focus management for collapsible sections */
-            .card-header[role="button"]:focus {
-                box-shadow: 0 0 0 2px var(--primary-blue);
-            }
-
-            /* Screen reader only class */
-            .sr-only {
-                position: absolute !important;
-                width: 1px !important;
-                height: 1px !important;
-                padding: 0 !important;
-                margin: -1px !important;
-                overflow: hidden !important;
-                clip: rect(0, 0, 0, 0) !important;
-                white-space: nowrap !important;
-                border: 0 !important;
-            }
-
-            /* Visually hidden class that can be focused */
-            .visually-hidden {
-                position: absolute !important;
-                width: 1px !important;
-                height: 1px !important;
-                padding: 0 !important;
-                margin: -1px !important;
-                overflow: hidden !important;
-                clip: rect(0, 0, 0, 0) !important;
-                white-space: nowrap !important;
-                border: 0 !important;
-            }
-
-            .visually-hidden:focus {
-                position: static !important;
-                width: auto !important;
-                height: auto !important;
-                padding: 0.25rem 0.5rem !important;
-                margin: 0 !important;
-                overflow: visible !important;
-                clip: auto !important;
-                white-space: normal !important;
-                background: var(--primary-blue) !important;
-                color: white !important;
-                border-radius: 4px !important;
-            }
-        </style>
-    </head>
-    <body>
-        <!-- Skip to content link for screen readers -->
-        <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --light-bg: #f8fafc;
+            --border: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+        }
         
-        <!-- Compact Header -->
-        <div class="header-section">
-            <div class="dashboard-container">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h1><i class="bi bi-shield-check me-2" aria-hidden="true"></i>Data Guardian - Art of Possible</h1>
-                        <div class="subtitle">Intelligent Media Search & Analysis Platform</div>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <span class="badge bg-light text-dark px-2 py-1">
-                            <span class="status-dot success" aria-hidden="true"></span>Oracle
-                        </span>
-                        <span class="badge bg-light text-dark px-2 py-1">
-                            <span class="status-dot info" aria-hidden="true"></span>TwelveLabs AI
-                        </span>
-                    </div>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            background: var(--light-bg);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Header */
+        .app-header {
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        .app-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 0;
+        }
+        
+        .app-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+        
+        /* Search Bar */
+        .search-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .search-input-group {
+            position: relative;
+        }
+        
+        .search-input {
+            height: 54px;
+            font-size: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding-left: 3rem;
+            transition: all 0.2s;
+        }
+        
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+        }
+        
+        .search-btn {
+            height: 54px;
+            padding: 0 2rem;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+        
+        /* Tabs */
+        .nav-tabs {
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 2rem;
+        }
+        
+        .nav-tabs .nav-link {
+            border: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            padding: 1rem 1.5rem;
+            position: relative;
+            transition: color 0.2s;
+        }
+        
+        .nav-tabs .nav-link:hover {
+            color: var(--primary);
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--primary);
+            background: transparent;
+        }
+        
+        .nav-tabs .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary);
+        }
+        
+        /* Cards */
+        .content-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+        
+        /* Upload Area */
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 3rem 2rem;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .upload-zone:hover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.02);
+        }
+        
+        .upload-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.05);
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+        
+        /* Album Grid */
+        .album-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .album-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .album-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .album-name {
+            font-weight: 600;
+            font-size: 1.125rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+        
+        .album-stats {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+        
+        /* Results Grid */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .result-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+        
+        .result-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        
+        .result-thumbnail {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: var(--light-bg);
+        }
+        
+        .result-info {
+            padding: 1rem;
+        }
+        
+        .result-filename {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .result-meta {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .score-badge {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        /* Map */
+        #map {
+            height: 500px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        
+        /* Progress */
+        .progress {
+            height: 24px !important;
+            border-radius: 8px;
+            background: var(--light-bg);
+        }
+        
+        .progress-bar {
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        
+        /* Status Messages */
+        .status-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+        }
+        
+        .status-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .status-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .status-info {
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(37, 99, 235, 0.2);
+        }
+        
+        /* Loading Spinner */
+        .spinner-container {
+            text-align: center;
+            padding: 3rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 0.625rem 1.25rem;
+            font-weight: 500;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+        
+        /* Form Controls */
+        .form-control, .form-select {
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            padding: 0.625rem 1rem;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+        
+        /* Utility Classes */
+        .text-muted {
+            color: var(--text-secondary) !important;
+        }
+        
+        .badge {
+            padding: 0.375rem 0.75rem;
+            font-weight: 500;
+            border-radius: 6px;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .album-grid, .results-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            #map {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="app-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="app-title">
+                        <i class="bi bi-film me-2"></i>Media Intelligence Platform
+                    </h1>
+                    <p class="app-subtitle">AI-Powered Media Search & Management</p>
+                </div>
+                <div>
+                    <span class="badge bg-primary">
+                        <i class="bi bi-database me-1"></i>Oracle Vector DB
+                    </span>
+                    <span class="badge bg-success ms-2">
+                        <i class="bi bi-cpu me-1"></i>TwelveLabs AI
+                    </span>
                 </div>
             </div>
         </div>
+    </header>
 
-        <!-- Main Content -->
-        <main id="main-content" role="main">
-
-        <!-- Dashboard Layout -->
-        <div class="dashboard-container">
-            <!-- Primary Search Section - Full Width at Top -->
-            <div class="search-section mb-4">
-                <div class="row align-items-center">
-                    <div class="col">
-                        <label for="prompt" class="visually-hidden">Search across videos and photos</label>
-                        <form id="queryForm">
-                            <div class="search-input-group">
-                                <i class="bi bi-search search-icon" aria-hidden="true"></i>
-                                <input id="prompt" class="form-control search-input" type="search" 
-                                       placeholder="Search across videos and photos using natural language..." 
-                                       aria-label="Main search across all media"
-                                       aria-describedby="search-help">
-                                <button class="btn btn-primary" type="submit" aria-label="Execute search">
-                                    <i class="bi bi-search me-1" aria-hidden="true"></i>Search
-                                </button>
-                            </div>
-                            <div id="search-help" class="form-text">Use natural language to search your media content</div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Main Content Layout -->
+    <!-- Main Content -->
+    <div class="container my-4">
+        <!-- Search Bar -->
+        <div class="search-container">
             <div class="row g-3">
-                <!-- Compact Tools Panel -->
-                <div class="col-lg-4">
-                    <!-- Tools in Compact Grid -->
-                    <div class="row g-2 mb-3">
-                        <!-- Unified Album Upload - Full Width -->
-                        <div class="col-12">
-                            <div class="card h-100">
-                                <div class="card-header py-2">
-                                    <i class="bi bi-collection me-2" aria-hidden="true"></i>
-                                    <span>Album Upload</span>
-                                    <small class="text-muted ms-2">Photos & Videos</small>
-                                </div>
-                                <div class="card-body py-2">
-                                    <form id="unifiedUploadForm" method="POST" action="/upload_unified" enctype="multipart/form-data">
-                                        <div class="input-group input-group-sm mb-2">
-                                            <label for="unifiedAlbumName" class="visually-hidden">Album name</label>
-                                            <input id="unifiedAlbumName" name="album_name" class="form-control" 
-                                                   placeholder="Album Name" required aria-describedby="unified-album-help">
-                                            <button id="browseUnifiedAlbumsBtn" type="button" class="btn btn-outline-secondary"
-                                                    aria-label="Browse existing albums">
-                                                <i class="bi bi-folder2-open" aria-hidden="true"></i>
-                                            </button>
-                                        </div>
-                                        <div id="unifiedAlbumsList" style="display:none; position:absolute; z-index:1050; background:white; 
-                                                                          border:1px solid var(--border-color); border-radius:4px; 
-                                                                          max-width:300px; box-shadow:0 2px 4px rgba(0,0,0,0.1);" role="listbox"></div>
-                                        <label for="unifiedMediaFile" class="visually-hidden">Select media files</label>
-                                        <input class="form-control form-control-sm mb-2" type="file" 
-                                               id="unifiedMediaFile" name="mediaFile" 
-                                               accept="image/*,video/*" multiple
-                                               aria-describedby="unified-media-help">
-                                        <div class="row g-1 mb-2">
-                                            <div class="col-12">
-                                                <button class="btn btn-primary btn-sm w-100" type="submit">
-                                                    <i class="bi bi-upload me-1" aria-hidden="true"></i>Upload & Embed
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="progress mb-1" style="height:12px;" role="progressbar" aria-label="Upload progress">
-                                            <div id="unifiedUploadProgress" class="progress-bar bg-primary progress-bar-striped progress-bar-animated" style="width: 0%"></div>
-                                        </div>
-                                    </form>
-                                    <div id="unifiedUploadStatus" class="mt-1 small text-muted" aria-live="polite"></div>
-                                    <div id="unified-album-help" class="form-text small">Upload photos & videos to organized albums</div>
-                                    <div id="unified-media-help" class="form-text small">Supports images (JPEG, PNG, etc.) and videos (MP4, MOV, etc.)</div>
-                                </div>
-                            </div>
-                        </div>
-                                    </form>
-                                    <div id="photoUploadStatus" class="mt-1 small text-muted" aria-live="polite"></div>
-                                    <div id="embeddingStatus" class="small text-muted" aria-live="polite"></div>
-                                    <div id="album-help" class="form-text small">Organize photos in albums for better search</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Additional Tools Row -->
-                    <div class="row g-2">
-                        <!-- AI Generation -->
-                        <div class="col-6">
-                            <div class="card">
-                                <div class="card-header py-2">
-                                    <i class="bi bi-robot me-2" aria-hidden="true"></i>
-                                    <span>AI Plans</span>
-                                </div>
-                                <div class="card-body py-2">
-                                    <div class="row g-1 mb-2">
-                                        <div class="col-6">
-                                            <label for="summaryDuration" class="visually-hidden">Duration in seconds</label>
-                                            <input id="summaryDuration" class="form-control form-control-sm" 
-                                                   type="number" min="5" value="60" placeholder="Dur." 
-                                                   aria-label="Summary duration in seconds">
-                                        </div>
-                                        <div class="col-6">
-                                            <label for="summaryMaxSegs" class="visually-hidden">Number of segments</label>
-                                            <input id="summaryMaxSegs" class="form-control form-control-sm" 
-                                                   type="number" min="1" value="6" placeholder="Segs."
-                                                   aria-label="Maximum number of segments">
-                                        </div>
-                                    </div>
-                                    <button id="planSummaryBtn" class="btn btn-primary btn-sm w-100 mb-2">
-                                        <i class="bi bi-magic me-1" aria-hidden="true"></i>Generate Plan
-                                    </button>
-                                    <div id="planSummaryStatus" class="small text-muted" aria-live="polite"></div>
-                                    <div id="planPreview" style="display:none">
-                                        <div id="planItems" class="custom-scroll" style="max-height:60px; overflow:auto; 
-                                                                                         background:var(--bg-light); padding:0.25rem; 
-                                                                                         border-radius:4px; font-size:0.7rem;"></div>
-                                        <div class="row g-1 mt-1">
-                                            <div class="col-6">
-                                                <button id="executePlanBtn" class="btn btn-success btn-sm w-100">Execute</button>
-                                            </div>
-                                            <div class="col-6">
-                                                <button id="exportPlanBtn" class="btn btn-outline-secondary btn-sm w-100">Export</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Unified Album Search -->
-                        <div class="col-6">
-                            <div class="card">
-                                <div class="card-header py-2">
-                                    <i class="bi bi-search-heart me-2" aria-hidden="true"></i>
-                                    <span>Album Search</span>
-                                </div>
-                                <div class="card-body py-2">
-                                    <form id="unifiedAlbumSearchForm">
-                                        <div class="input-group input-group-sm mb-2">
-                                            <label for="albumSearchQuery" class="visually-hidden">Search albums</label>
-                                            <input id="albumSearchQuery" class="form-control" 
-                                                   placeholder="Search albums..." required
-                                                   aria-describedby="album-search-help">
-                                            <select id="albumSearchFilter" class="form-select" style="max-width: 80px;" 
-                                                    aria-label="Filter by media type">
-                                                <option value="">All</option>
-                                                <option value="photo">📷</option>
-                                                <option value="video">🎬</option>
-                                            </select>
-                                        </div>
-                                        <div class="input-group input-group-sm mb-2">
-                                            <input id="albumSearchSpecific" class="form-control" 
-                                                   placeholder="Specific album (optional)"
-                                                   aria-describedby="album-search-help">
-                                            <button id="browseSearchAlbumsBtn" type="button" class="btn btn-outline-secondary"
-                                                    aria-label="Browse albums for search">
-                                                <i class="bi bi-folder2-open" aria-hidden="true"></i>
-                                            </button>
-                                        </div>
-                                        <button class="btn btn-primary btn-sm w-100" type="submit">
-                                            <i class="bi bi-collection-play me-1" aria-hidden="true"></i>Search Albums
-                                        </button>
-                                    </form>
-                                    <div id="albumSearchResults" class="small text-muted custom-scroll mt-2" 
-                                         style="max-height:60px; overflow-y:auto;" aria-live="polite"></div>
-                                    <div id="album-search-help" class="form-text small">Search across organized albums</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Collapsible Recent Uploads -->
-                    <div class="card mt-2">
-                        <button class="card-header btn btn-link text-start py-2 border-0" 
-                                type="button" onclick="toggleSection('recentUploads')"
-                                aria-expanded="false" aria-controls="recentUploads-content">
-                            <div class="d-flex justify-content-between align-items-center w-100">
-                                <span><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Recent Uploads</span>
-                                <div>
-                                    <button id="refreshUploadsBtn" class="btn btn-outline-primary btn-sm me-1" 
-                                            onclick="event.stopPropagation();" aria-label="Refresh uploads list">
-                                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-                                    </button>
-                                    <button id="clearUploadsBtn" class="btn btn-outline-secondary btn-sm me-2" 
-                                            onclick="event.stopPropagation();" aria-label="Clear uploads list">
-                                        <i class="bi bi-trash" aria-hidden="true"></i>
-                                    </button>
-                                    <i class="bi bi-chevron-down" id="recentUploads-icon" aria-hidden="true"></i>
-                                </div>
-                            </div>
-                        </button>
-                        <div id="recentUploads-content" class="card-body py-2" style="display:none;">
-                            <div id="recentUploads" class="custom-scroll" 
-                                 style="max-height:120px; overflow:auto; font-size:0.8rem;" 
-                                 role="log" aria-live="polite"></div>
-                        </div>
+                <div class="col-md-9">
+                    <div class="search-input-group">
+                        <i class="bi bi-search search-icon"></i>
+                        <input type="text" 
+                               id="searchQuery" 
+                               class="form-control search-input" 
+                               placeholder="Search photos and videos using natural language... e.g., 'sunset on the beach', 'birthday party'"
+                               aria-label="Search query">
                     </div>
                 </div>
+                <div class="col-md-3">
+                    <button class="btn btn-primary w-100 search-btn" onclick="performSearch()">
+                        <i class="bi bi-search me-2"></i>Search
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3">
+                <select id="albumFilter" class="form-select" style="max-width: 300px;">
+                    <option value="">All Albums</option>
+                </select>
+            </div>
+        </div>
 
-                <!-- Map Visualization Panel -->
-                <div class="col-12 mb-3">
-                    <div class="card">
-                        <div class="card-header py-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h2 class="h6 mb-0">
-                                    <i class="bi bi-geo-alt me-2" aria-hidden="true"></i>Photo Locations Map
-                                </h2>
-                                <div class="d-flex align-items-center gap-2">
-                                    <span id="mapMarkerCount" class="badge bg-light text-dark">0 locations</span>
-                                    <button class="btn btn-outline-primary btn-sm" onclick="loadMapData()" 
-                                            aria-label="Refresh map">
-                                        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
-                                    </button>
-                                    <button class="btn btn-outline-secondary btn-sm" onclick="toggleMap()" 
-                                            aria-label="Toggle map visibility">
-                                        <i class="bi bi-eye" aria-hidden="true"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card-body p-0" id="mapContainer" style="display: block;">
-                            <div id="mediaMap" style="height: 500px; width: 100%;"></div>
-                        </div>
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#results-tab" role="tab">
+                    <i class="bi bi-grid-3x3-gap me-2"></i>Search Results
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#albums-tab" role="tab">
+                    <i class="bi bi-folder2-open me-2"></i>Browse Albums
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#upload-tab" role="tab">
+                    <i class="bi bi-cloud-upload me-2"></i>Upload Media
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#map-tab" role="tab">
+                    <i class="bi bi-geo-alt me-2"></i>Map View
+                </a>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Search Results Tab -->
+            <div class="tab-pane fade show active" id="results-tab" role="tabpanel">
+                <div id="searchStatus"></div>
+                
+                <div id="resultsContainer">
+                    <div class="empty-state">
+                        <i class="bi bi-search"></i>
+                        <h4>Start Searching</h4>
+                        <p class="text-muted">Use natural language to search through your photos and videos</p>
+                        <p class="text-muted small">Examples: "family gathering", "sunset views", "birthday celebration"</p>
                     </div>
                 </div>
+            </div>
 
-                <!-- Expanded Results Panel -->
-                <div class="col-lg-8">
-                    <div class="results-panel h-100">
-                        <div class="card-header sticky-top py-2" style="z-index: 10;">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h2 class="h6 mb-0">
-                                    <i class="bi bi-collection-play me-2" aria-hidden="true"></i>Search Results
-                                </h2>
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="badge bg-light text-dark">
-                                        <span id="resultsCount" aria-label="Number of results">0</span> results
-                                    </div>
-                                    <button class="btn btn-outline-secondary btn-sm" onclick="clearResults()" 
-                                            aria-label="Clear search results">
-                                        <i class="bi bi-x-lg" aria-hidden="true"></i>
-                                    </button>
-                                </div>
+            <!-- Albums Tab -->
+            <div class="tab-pane fade" id="albums-tab" role="tabpanel">
+                <div class="content-card">
+                    <h3 class="card-title">Your Albums</h3>
+                    <div id="albumsContainer">
+                        <div class="spinner-container">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
                             </div>
-                        </div>
-                        <div class="card-body p-2">
-                            <div id="results" aria-live="polite" aria-label="Search results" 
-                                 class="custom-scroll" style="min-height:calc(100vh - 250px); max-height:calc(100vh - 250px); overflow-y:auto;">
-                                <div class="text-center text-muted py-5">
-                                    <i class="bi bi-search" style="font-size: 4rem; opacity: 0.3;" aria-hidden="true"></i>
-                                    <div class="mt-3 h4">Ready to Search</div>
-                                    <div class="text-muted mb-3">Use the search bar above to find videos and photos</div>
-                                    <div class="small">
-                                        <span class="badge bg-primary me-2">Oracle VECTOR Search</span>
-                                        <span class="badge bg-success">Enhanced Similarity</span>
-                                    </div>
-                                </div>
-                            </div>
+                            <p class="text-muted mt-2">Loading albums...</p>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-        </main>
-        </main>
 
-        <!-- Playback modal -->
-        <div class="modal fade" id="playModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-xl modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Playback</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <video id="modalVideo" class="w-100" controls></video>
-                        <div id="modalInfo" class="mt-2 small-muted"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-        <script>
-            // Collapsible sections with accessibility
-            function toggleSection(sectionId) {
-                const content = document.getElementById(sectionId + '-content');
-                const icon = document.getElementById(sectionId + '-icon');
-                const button = document.querySelector(`[aria-controls="${sectionId}-content"]`);
-                
-                const isExpanded = content.style.display !== 'none';
-                
-                if (isExpanded) {
-                    content.style.display = 'none';
-                    icon.className = 'bi bi-chevron-down';
-                    if (button) button.setAttribute('aria-expanded', 'false');
-                } else {
-                    content.style.display = 'block';
-                    icon.className = 'bi bi-chevron-up';
-                    if (button) button.setAttribute('aria-expanded', 'true');
-                }
-                
-                // Announce state change to screen readers
-                const announcement = document.createElement('div');
-                announcement.setAttribute('aria-live', 'polite');
-                announcement.className = 'sr-only';
-                announcement.textContent = `Recent uploads section ${isExpanded ? 'collapsed' : 'expanded'}`;
-                document.body.appendChild(announcement);
-                setTimeout(() => document.body.removeChild(announcement), 1000);
-            }
-
-            const resultsContainer = document.getElementById('results');
-            const queryForm = document.getElementById('queryForm');
-            const uploadForm = document.getElementById('uploadForm');
-            const uploadProgress = document.getElementById('uploadProgress');
-            const uploadStatus = document.getElementById('uploadStatus');
-            const playModalEl = document.getElementById('playModal');
-            const playModal = new bootstrap.Modal(playModalEl);
-            const modalVideo = document.getElementById('modalVideo');
-            const modalInfo = document.getElementById('modalInfo');
-
-            function formatTime(s){
-                const m = Math.floor(s/60), sec = Math.floor(s%60).toString().padStart(2,'0');
-                return `${m}:${sec}`;
-            }
-
-            // Keyboard navigation enhancement
-            document.addEventListener('keydown', function(e) {
-                // Escape key to clear results
-                if (e.key === 'Escape' && !document.querySelector('.modal.show')) {
-                    clearResults();
-                    document.getElementById('prompt').focus();
-                }
-                
-                // Ctrl/Cmd + K to focus search
-                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-                    e.preventDefault();
-                    document.getElementById('prompt').focus();
-                }
-            });
-
-            // Enhanced search with loading states
-            async function doSearch(prompt){
-                if (!prompt.trim()) {
-                    clearResults();
-                    return;
-                }
-                
-                // Show loading state
-                resultsContainer.innerHTML = `
-                    <div class="text-center text-muted py-5">
-                        <div class="spinner-border text-primary" role="status" aria-label="Searching">
-                            <span class="visually-hidden">Searching...</span>
-                        </div>
-                        <div class="mt-3 h5">Searching across media...</div>
-                        <div class="text-muted">Using Oracle VECTOR similarity search</div>
-                    </div>
-                `;
-                updateResultsCount(0);
-                
-                try{
-                    // Send single `query` string — server will expand to [full phrase, words...] and return `by_query`
-                    const resp = await fetch('/search', { 
-                        method: 'POST', 
-                        headers: {'Content-Type':'application/json'}, 
-                        body: JSON.stringify({query:prompt}) 
-                    });
-                    const js = await resp.json();
+            <!-- Upload Tab -->
+            <div class="tab-pane fade" id="upload-tab" role="tabpanel">
+                <div class="content-card">
+                    <h3 class="card-title">Upload Media</h3>
                     
-                    // Prefer structured per-query results (by_query), fall back to older formats
-                    if(js.by_query){
-                        renderByQueryResults(js.by_query);
-                    }else if(js.results){
-                        renderResults(js.results || []);
-                    }else if(Array.isArray(js)){ // defensive
-                        renderResults(js);
-                    }else{
-                        resultsContainer.innerHTML = `
-                            <div class="text-center text-muted py-5">
-                                <i class="bi bi-info-circle" style="font-size: 3rem; opacity: 0.3;" aria-hidden="true"></i>
-                                <div class="mt-3 h5">No results found</div>
-                                <div class="text-muted">Try different search terms or check your spelling</div>
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        <div class="mb-4">
+                            <label for="albumName" class="form-label">Album Name</label>
+                            <input type="text" 
+                                   id="albumName" 
+                                   name="album_name" 
+                                   class="form-control" 
+                                   placeholder="Enter album name" 
+                                   required>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Files will be uploaded to OCI Object Storage and indexed with TwelveLabs AI
                             </div>
-                        `;
-                        updateResultsCount(0);
-                    }
-                    
-                    // Announce results to screen readers
-                    setTimeout(() => {
-                        const resultCount = document.getElementById('resultsCount').textContent;
-                        const announcement = document.createElement('div');
-                        announcement.setAttribute('aria-live', 'polite');
-                        announcement.className = 'sr-only';
-                        announcement.textContent = `Search completed. ${resultCount} results found for "${prompt}"`;
-                        document.body.appendChild(announcement);
-                        setTimeout(() => document.body.removeChild(announcement), 3000);
-                    }, 500);
-                    
-                }catch(err){
-                    resultsContainer.innerHTML = `
-                        <div class="text-center text-danger py-5">
-                            <i class="bi bi-exclamation-triangle" style="font-size: 3rem;" aria-hidden="true"></i>
-                            <div class="mt-3 h5">Search Error</div>
-                            <div class="text-muted">Unable to complete search: ${err.message}</div>
-                            <button class="btn btn-outline-primary mt-3" onclick="doSearch('${prompt.replace(/'/g, "\\'")}')">
-                                <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Retry Search
+                        </div>
+
+                        <div class="upload-zone" id="uploadZone">
+                            <input type="file" 
+                                   id="mediaFiles" 
+                                   name="mediaFile" 
+                                   accept="image/*,video/*" 
+                                   multiple 
+                                   class="d-none">
+                            <div class="upload-icon">
+                                <i class="bi bi-cloud-upload"></i>
+                            </div>
+                            <h5>Drop files here or click to browse</h5>
+                            <p class="text-muted mb-0">Supports photos and videos</p>
+                            <p class="text-muted small mt-2">Images will be optimized • Videos will be processed • AI embeddings will be generated</p>
+                        </div>
+
+                        <div id="selectedFiles" class="mt-3"></div>
+
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-upload me-2"></i>Upload & Process
                             </button>
                         </div>
-                    `;
-                    updateResultsCount(0);
-                    
-                    // Announce error to screen readers
-                    const announcement = document.createElement('div');
-                    announcement.setAttribute('aria-live', 'assertive');
-                    announcement.className = 'sr-only';
-                    announcement.textContent = `Search failed with error: ${err.message}`;
-                    document.body.appendChild(announcement);
-                    setTimeout(() => document.body.removeChild(announcement), 3000);
-                }
-            }
+                    </form>
 
-            function updateResultsCount(count) {
-                const countElement = document.getElementById('resultsCount');
-                if (countElement) {
-                    countElement.textContent = count;
-                }
-                
-                // Update aria-label for accessibility
-                const resultsContainer = document.getElementById('results');
-                if (resultsContainer) {
-                    resultsContainer.setAttribute('aria-label', `Search results: ${count} items found`);
-                }
-            }
-
-            function clearResults() {
-                resultsContainer.innerHTML = `
-                    <div class="text-center text-muted py-5">
-                        <i class="bi bi-search" style="font-size: 4rem; opacity: 0.3;" aria-hidden="true"></i>
-                        <div class="mt-3 h4">Ready to Search</div>
-                        <div class="text-muted mb-3">Use the search bar above to find videos and photos</div>
-                        <div class="small">
-                            <span class="badge bg-primary me-2">Oracle VECTOR Search</span>
-                            <span class="badge bg-success">Enhanced Similarity</span>
+                    <div id="uploadProgress" class="mt-4" style="display: none;">
+                        <div class="progress">
+                            <div id="uploadProgressBar" 
+                                 class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" 
+                                 style="width: 0%">
+                                0%
+                            </div>
                         </div>
+                        <div id="uploadStatus" class="mt-2 text-center text-muted"></div>
                     </div>
-                `;
-                updateResultsCount(0);
-                
-                // Clear search inputs
-                document.getElementById('prompt').value = '';
-                document.getElementById('unifiedQuery').value = '';
-                
-                // Announce to screen readers
-                const announcement = document.createElement('div');
-                announcement.setAttribute('aria-live', 'polite');
-                announcement.setAttribute('aria-atomic', 'true');
-                announcement.className = 'sr-only';
-                announcement.textContent = 'Search results cleared';
-                document.body.appendChild(announcement);
-                setTimeout(() => document.body.removeChild(announcement), 1000);
-            }
 
-            // Browse albums UI
-            const browseAlbumsBtn = document.getElementById('browseAlbumsBtn');
-            const albumsListDiv = document.getElementById('albumsList');
-            const albumNameInput = document.getElementById('albumName');
+                    <div id="uploadResults" class="mt-4"></div>
+                </div>
+            </div>
 
-            // Album browsing with search, pagination, selection highlight and click-outside close
-            async function loadAlbums(){
-                albumsListDiv.style.display = 'block';
-                albumsListDiv.innerHTML = `
-                    <div style="display:flex; gap:8px; margin-bottom:6px;"><input id="albumSearch" placeholder="Search albums" class="form-control form-control-sm" style="flex:1;" /><div><button id="albumPrev" class="btn btn-sm btn-outline-secondary">◀</button> <button id="albumNext" class="btn btn-sm btn-outline-secondary">▶</button></div></div>
-                    <div id="albumPage" style="max-height:200px; overflow:auto;"></div>
-                `;
-                try{
-                    const resp = await fetch('/list_albums');
-                    const js = await resp.json();
-                    if(js.error){ albumsListDiv.innerHTML = `<div class="text-danger">${js.error}</div>`; return; }
-                    const all = js.albums || [];
-                    if(!all.length){ albumsListDiv.querySelector('#albumPage').innerHTML = '<div class="small-muted">No albums</div>'; return; }
+            <!-- Map Tab -->
+            <div class="tab-pane fade" id="map-tab" role="tabpanel">
+                <div class="content-card">
+                    <h3 class="card-title">
+                        <i class="bi bi-geo-alt me-2"></i>Location Map
+                        <span class="badge bg-secondary ms-2" id="mapCount">0</span>
+                    </h3>
+                    <div id="map"></div>
+                    <p class="text-muted small mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Shows media items with GPS coordinates
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                    // client-side pagination
-                    const pageSize = 20;
-                    let page = 0;
-                    let filtered = all.slice();
+    <!-- Image Preview Modal -->
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imageModalLabel">Image Preview</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="modalImage" src="" alt="" style="max-width: 100%; max-height: 70vh; object-fit: contain;">
+                </div>
+            </div>
+        </div>
+    </div>
 
-                    const pageDiv = albumsListDiv.querySelector('#albumPage');
-                    const searchInput = albumsListDiv.querySelector('#albumSearch');
-                    const prevBtn = albumsListDiv.querySelector('#albumPrev');
-                    const nextBtn = albumsListDiv.querySelector('#albumNext');
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    
+    <script>
+        // Global variables
+        let map = null;
+        let markerClusterGroup = null;
+        let albums = [];
 
-                    function renderPage(){
-                        pageDiv.innerHTML = '';
-                        const start = page * pageSize;
-                        const slice = filtered.slice(start, start + pageSize);
-                        slice.forEach(a=>{
-                            const node = document.createElement('div');
-                            node.className = 'mb-1 album-item';
-                            node.innerHTML = `<a href="#" class="select-album">${a}</a>`;
-                            node.querySelector('.select-album').addEventListener('click', (e)=>{ e.preventDefault(); albumNameInput.value = a; highlightSelected(a); albumsListDiv.style.display='none'; });
-                            pageDiv.appendChild(node);
-                        });
-                        prevBtn.disabled = page === 0;
-                        nextBtn.disabled = (start + pageSize) >= filtered.length;
-                    }
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+            loadAlbums();
+            loadMapData();
+            setupUploadZone();
+            setupEnterKeySearch();
+        });
 
-                    function highlightSelected(name){
-                        pageDiv.querySelectorAll('.album-item').forEach(n=>{ n.classList.remove('bg-light'); });
-                        const found = Array.from(pageDiv.querySelectorAll('.select-album')).find(el => el.textContent === name);
-                        if(found) found.closest('.album-item').classList.add('bg-light');
-                    }
-
-                    searchInput.addEventListener('input', (e)=>{
-                        const q = (e.currentTarget.value || '').toLowerCase();
-                        filtered = all.filter(x => x.toLowerCase().includes(q));
-                        page = 0; renderPage();
-                    });
-
-                    prevBtn.addEventListener('click', ()=>{ if(page>0){ page--; renderPage(); } });
-                    nextBtn.addEventListener('click', ()=>{ if((page+1)*pageSize < filtered.length){ page++; renderPage(); } });
-
-                    renderPage();
-                }catch(err){ albumsListDiv.innerHTML = `<div class="text-danger">${err}</div>`; }
-            }
-
-            browseAlbumsBtn.addEventListener('click', (e)=>{ if(albumsListDiv.style.display==='block'){ albumsListDiv.style.display='none'; } else { loadAlbums(); } });
-
-            // Close albumsList when clicking outside
-            document.addEventListener('click', (e)=>{
-                const inside = albumsListDiv.contains(e.target) || browseAlbumsBtn.contains(e.target);
-                if(!inside && albumsListDiv.style.display === 'block') albumsListDiv.style.display = 'none';
+        // Initialize Leaflet map
+        function initializeMap() {
+            map = L.map('map').setView([37.7749, -122.4194], 4);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            markerClusterGroup = L.markerClusterGroup({
+                maxClusterRadius: 50,
+                spiderfyOnMaxZoom: true,
+                showCoverageOnHover: false
             });
+            
+            map.addLayer(markerClusterGroup);
+        }
 
-            // Recent uploads UI
-            const refreshUploadsBtn = document.getElementById('refreshUploadsBtn');
-            const clearUploadsBtn = document.getElementById('clearUploadsBtn');
-            const recentUploadsDiv = document.getElementById('recentUploads');
-
-            async function loadRecentUploads(){
-                recentUploadsDiv.innerHTML = '<div class="text-muted">Loading uploads…</div>';
-                try{
-                    const resp = await fetch('/list_uploads');
-                    const js = await resp.json();
-                    if(js.error){ recentUploadsDiv.innerHTML = `<div class="text-danger">${js.error}</div>`; return; }
-                    const uploads = js.uploads || [];
-                    if(!uploads.length){ recentUploadsDiv.innerHTML = '<div class="small-muted">No uploads found</div>'; return; }
-                    recentUploadsDiv.innerHTML = '';
-                    uploads.forEach(u => {
-                        const el = document.createElement('div');
-                        el.className = 'mb-2 p-2';
-                        const name = u.filename || (u.oci_path || u.par_url || 'unknown');
-                        el.innerHTML = `<div style="display:flex; justify-content:space-between; gap:8px;"><div style="flex:1"><strong>${name}</strong><div class="small-muted">${u.bucket ? u.bucket : ''} ${u.namespace ? u.namespace : ''}</div></div><div style="flex:0"><button class="btn btn-sm btn-outline-success create-embed-btn" data-id="${u.upload_task_id}">Create Embedding</button></div></div>`;
-                        recentUploadsDiv.appendChild(el);
-                    });
-                    // wire buttons
-                    recentUploadsDiv.querySelectorAll('.create-embed-btn').forEach(b=>{
-                        b.addEventListener('click', async (e)=>{
-                            const id = e.currentTarget.dataset.id;
-                            e.currentTarget.disabled = true; e.currentTarget.textContent = 'Queuing…';
-                            try{
-                                const r = await fetch('/create_embedding_from_upload', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ upload_task_id: id }) });
-                                const j = await r.json();
-                                if(j.error){ alert('Error: ' + j.error); e.currentTarget.disabled=false; e.currentTarget.textContent='Create Embedding'; return; }
-                                e.currentTarget.textContent = 'Queued';
-                            }catch(err){ alert('Request failed: '+err); e.currentTarget.disabled=false; e.currentTarget.textContent='Create Embedding'; }
-                        });
-                    });
-                }catch(err){ recentUploadsDiv.innerHTML = `<div class="text-danger">${err}</div>`; }
-            }
-
-            refreshUploadsBtn.addEventListener('click', (e)=>{ loadRecentUploads(); });
-            clearUploadsBtn.addEventListener('click', (e)=>{ recentUploadsDiv.innerHTML = ''; });
-            // Load on page ready
-            document.addEventListener('DOMContentLoaded', loadRecentUploads);
-
-            // Render grouped results returned as { queryString: [results...] }
-            function renderByQueryResults(byQuery){
-                const keys = Object.keys(byQuery || {});
-                let totalResults = 0;
+        // Load albums
+        async function loadAlbums() {
+            try {
+                const response = await fetch('/list_unified_albums');
+                const data = await response.json();
                 
-                // Count total results
-                keys.forEach(q => {
-                    totalResults += (byQuery[q] || []).length;
+                albums = data.albums || [];
+                
+                // Update album filter dropdown
+                const albumFilter = document.getElementById('albumFilter');
+                albumFilter.innerHTML = '<option value="">All Albums</option>';
+                albums.forEach(album => {
+                    const option = document.createElement('option');
+                    option.value = album.album_name;
+                    option.textContent = `${album.album_name} (${album.total_items || 0} items)`;
+                    albumFilter.appendChild(option);
                 });
                 
-                updateResultsCount(totalResults);
+                // Display albums grid
+                displayAlbums(albums);
+            } catch (error) {
+                console.error('Error loading albums:', error);
+                document.getElementById('albumsContainer').innerHTML = `
+                    <div class="status-message status-error">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Failed to load albums: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Display albums in grid
+        function displayAlbums(albums) {
+            const container = document.getElementById('albumsContainer');
+            
+            if (!albums || albums.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-folder2"></i>
+                        <h4>No Albums Yet</h4>
+                        <p class="text-muted">Upload media to create your first album</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const html = `
+                <div class="album-grid">
+                    ${albums.map(album => `
+                        <div class="album-card" onclick="searchAlbum('${album.album_name}')">
+                            <div class="d-flex align-items-center mb-3">
+                                <i class="bi bi-folder2-open text-primary" style="font-size: 2rem;"></i>
+                            </div>
+                            <div class="album-name">${album.album_name}</div>
+                            <div class="album-stats">
+                                <i class="bi bi-image me-1"></i>${album.photo_count || 0} photos
+                                <span class="mx-1">•</span>
+                                <i class="bi bi-camera-video me-1"></i>${album.video_count || 0} videos
+                            </div>
+                            <div class="album-stats mt-2">
+                                <small class="text-muted">
+                                    ${album.total_items || 0} total items
+                                </small>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        // Search album - view album contents
+        async function searchAlbum(albumName) {
+            document.getElementById('albumFilter').value = albumName;
+            document.getElementById('searchQuery').value = '';
+            
+            // Switch to results tab
+            const resultsTab = new bootstrap.Tab(document.querySelector('[href="#results-tab"]'));
+            resultsTab.show();
+            
+            showStatus(`Loading album: ${albumName}...`, 'info');
+            
+            try {
+                const response = await fetch(`/album_contents/${encodeURIComponent(albumName)}`);
+                const data = await response.json();
                 
-                if(!keys.length){ 
-                    resultsContainer.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-search" style="font-size: 3rem; opacity: 0.3;"></i><div class="mt-3 h6">No results found</div><div class="text-muted">Try different search terms</div></div>'; 
-                    return; 
+                if (data.error) {
+                    showStatus(data.error, 'error');
+                    return;
                 }
                 
-                resultsContainer.innerHTML = '';
+                displayResults(data.results || []);
+                showStatus(`${data.count || 0} items in ${albumName}`, 'success');
+            } catch (error) {
+                console.error('Album load error:', error);
+                showStatus(`Failed to load album: ${error.message}`, 'error');
+            }
+        }
+
+        // Perform search
+        async function performSearch() {
+            const query = document.getElementById('searchQuery').value.trim();
+            const albumFilter = document.getElementById('albumFilter').value;
+            
+            if (!query && !albumFilter) {
+                showStatus('Please enter a search query or select an album', 'error');
+                return;
+            }
+            
+            showStatus('Searching...', 'info');
+            
+            try {
+                const response = await fetch('/search_unified', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query || '*',
+                        album_filter: albumFilter || null,
+                        limit: 50
+                    })
+                });
                 
-                keys.forEach((q, qIdx)=>{
-                    const arr = byQuery[q] || [];
-                    const querySection = document.createElement('div');
-                    querySection.className = 'mb-4';
-                    querySection.innerHTML = `
-                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
-                            <h6 class="text-primary mb-0 fw-bold">
-                                <i class="bi bi-quote me-1"></i>"${q}"
-                            </h6>
-                            <span class="badge bg-primary">${arr.length} match${arr.length !== 1 ? 'es' : ''}</span>
-                        </div>
-                    `;
-                    
-                    if(!arr.length){
-                        querySection.innerHTML += '<div class="text-muted text-center py-2 small">No matches for this query</div>';
-                        resultsContainer.appendChild(querySection);
-                        return;
-                    }
-                    
-                    const resultsContainer2 = document.createElement('div');
-                    
-                    arr.forEach((r, idx) => {
-                        const resultItem = document.createElement('div');
-                        resultItem.className = 'result-item';
-                        resultItem.innerHTML = `
-                            <div class="d-flex align-items-center">
-                                <div class="me-3">
-                                    <i class="bi bi-play-circle-fill text-primary" style="font-size: 1.5rem;"></i>
-                                </div>
-                                <div class="flex-grow-1 min-width-0">
-                                    <div class="fw-bold text-truncate mb-1">${r.video_file ? r.video_file.split('/').pop() : 'Video Result '+(idx+1)}</div>
-                                    <div class="small text-muted">
-                                        <i class="bi bi-clock me-1"></i>
-                                        <span class="badge bg-light text-dark me-2">${formatTime(r.start_time)} → ${formatTime(r.end_time)}</span>
-                                        ${r.similarity_score ? `<span class="badge bg-success">${(r.similarity_score * 100).toFixed(1)}% match</span>` : ''}
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(data.error, 'error');
+                    return;
+                }
+                
+                displayResults(data.results || []);
+                showStatus(`Found ${data.count || 0} results`, 'success');
+            } catch (error) {
+                console.error('Search error:', error);
+                showStatus(`Search failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Display search results
+        function displayResults(results) {
+            const container = document.getElementById('resultsContainer');
+            
+            if (!results || results.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <h4>No Results Found</h4>
+                        <p class="text-muted">Try a different search query or check another album</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const html = `
+                <div class="results-grid">
+                    ${results.map(result => {
+                        const isVideo = result.file_type === 'video';
+                        const icon = isVideo ? 'camera-video-fill' : 'image-fill';
+                        const score = Math.round((result.score || 0) * 100);
+                        const mediaId = result.media_id;
+                        
+                        return `
+                            <div class="result-card" data-media-id="${mediaId}">
+                                <div class="result-thumbnail d-flex align-items-center justify-content-center" id="thumb-${mediaId}">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
                                     </div>
                                 </div>
-                                <div class="ms-2">
-                                    <button class="btn btn-primary btn-sm" data-url="${r.video_file}" data-start="${r.start_time}" data-end="${r.end_time}" title="Play segment">
-                                        <i class="bi bi-play-fill me-1"></i>Play
-                                    </button>
+                                <div class="result-info">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="result-filename">${result.file_name}</div>
+                                        ${score > 0 ? `<span class="score-badge">${score}%</span>` : ''}
+                                    </div>
+                                    <div class="result-meta">
+                                        <div><i class="bi bi-folder2 me-1"></i>${result.album_name}</div>
+                                        <div class="mt-1">
+                                            <i class="bi bi-${isVideo ? 'camera-video' : 'image'} me-1"></i>
+                                            ${isVideo ? 'Video' : 'Photo'}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         `;
-                        
-                        const playBtn = resultItem.querySelector('button[data-url]');
-                        playBtn.addEventListener('click', (e)=>{
-                            const u = e.currentTarget.dataset.url;
-                            const s = parseFloat(e.currentTarget.dataset.start);
-                            const t = parseFloat(e.currentTarget.dataset.end);
-                            openPlayback(u,s,t);
-                        });
-                        
-                        resultsContainer2.appendChild(resultItem);
-                    });
-                    
-                    querySection.appendChild(resultsContainer2);
-                    resultsContainer.appendChild(querySection);
-                });
-            }
-
-            function renderResults(results){
-                updateResultsCount(results.length);
+                    }).join('')}
+                </div>
+            `;
+            
+            container.innerHTML = html;
+            
+            // Load thumbnails asynchronously
+            results.forEach(result => {
+                loadThumbnail(result.media_id, result.file_type);
+            });
+        }
+        
+        // Load thumbnail for a media item
+        async function loadThumbnail(mediaId, fileType) {
+            try {
+                const response = await fetch(`/get_media_url/${mediaId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to get media URL');
+                }
                 
-                if(!results.length){
-                    resultsContainer.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-search" style="font-size: 3rem; opacity: 0.3;"></i><div class="mt-3 h6">No results found</div><div class="text-muted">Try different search terms</div></div>';
+                const data = await response.json();
+                const thumbElement = document.getElementById(`thumb-${mediaId}`);
+                
+                if (!thumbElement) return;
+                
+                if (fileType === 'photo') {
+                    // Display image thumbnail
+                    thumbElement.innerHTML = `
+                        <img src="${data.par_url}" 
+                             alt="${data.file_name}" 
+                             style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer;"
+                             onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\\'bi bi-image-fill text-danger\\' style=\\'font-size: 3rem;\\' title=\\'Image failed to load\\'></i>';">
+                    `;
+                    
+                    // Add click handler to show full image
+                    thumbElement.querySelector('img').addEventListener('click', function() {
+                        showImageModal(data.par_url, data.file_name);
+                    });
+                } else {
+                    // Display video thumbnail or placeholder
+                    thumbElement.innerHTML = `
+                        <i class="bi bi-camera-video-fill text-primary" style="font-size: 3rem; opacity: 0.5;"></i>
+                    `;
+                }
+            } catch (error) {
+                console.error(`Failed to load thumbnail for media ${mediaId}:`, error);
+                const thumbElement = document.getElementById(`thumb-${mediaId}`);
+                if (thumbElement) {
+                    thumbElement.innerHTML = `
+                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;" title="Failed to load thumbnail"></i>
+                    `;
+                }
+            }
+        }
+        
+        // Show full image in modal
+        function showImageModal(imageUrl, fileName) {
+            const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+            const modalImage = document.getElementById('modalImage');
+            const modalLabel = document.getElementById('imageModalLabel');
+            
+            modalImage.src = imageUrl;
+            modalImage.alt = fileName;
+            modalLabel.textContent = fileName;
+            
+            modal.show();
+        }
+
+        // Show status message
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('searchStatus');
+            const iconMap = {
+                success: 'check-circle',
+                error: 'exclamation-triangle',
+                info: 'info-circle'
+            };
+            
+            statusDiv.innerHTML = `
+                <div class="status-message status-${type}">
+                    <i class="bi bi-${iconMap[type]} me-2"></i>${message}
+                </div>
+            `;
+        }
+
+        // Setup enter key search
+        function setupEnterKeySearch() {
+            document.getElementById('searchQuery').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+        }
+
+        // Setup upload zone
+        function setupUploadZone() {
+            const uploadZone = document.getElementById('uploadZone');
+            const fileInput = document.getElementById('mediaFiles');
+            
+            uploadZone.addEventListener('click', () => fileInput.click());
+            
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+            
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+            
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                fileInput.files = e.dataTransfer.files;
+                displaySelectedFiles();
+            });
+            
+            fileInput.addEventListener('change', displaySelectedFiles);
+            
+            document.getElementById('uploadForm').addEventListener('submit', handleUpload);
+        }
+
+        // Display selected files
+        function displaySelectedFiles() {
+            const fileInput = document.getElementById('mediaFiles');
+            const container = document.getElementById('selectedFiles');
+            
+            if (!fileInput.files.length) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            const html = `
+                <div class="status-message status-info">
+                    <i class="bi bi-files me-2"></i>
+                    <strong>${fileInput.files.length} file(s) selected</strong>
+                    <ul class="mb-0 mt-2">
+                        ${Array.from(fileInput.files).map(file => `
+                            <li>${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        // Handle upload
+        async function handleUpload(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('mediaFiles');
+            const albumName = document.getElementById('albumName').value.trim();
+            
+            if (!fileInput.files.length) {
+                alert('Please select files to upload');
+                return;
+            }
+            
+            if (!albumName) {
+                alert('Please enter an album name');
+                return;
+            }
+            
+            // Add files and album name
+            Array.from(fileInput.files).forEach(file => {
+                formData.append('mediaFile', file);
+            });
+            formData.append('album_name', albumName);
+            formData.append('auto_embed', 'true');
+            
+            // Show progress
+            document.getElementById('uploadProgress').style.display = 'block';
+            updateProgress(0, 'Starting upload...');
+            
+            try {
+                const response = await fetch('/upload_unified', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showUploadResults(`Upload failed: ${data.error}`, 'error');
                     return;
                 }
-                resultsContainer.innerHTML = '';
-                results.forEach((r, idx) => {
-                    const resultItem = document.createElement('div');
-                    resultItem.className = 'result-item';
-                    resultItem.innerHTML = `
-                        <div class="d-flex align-items-center">
-                            <div class="me-3">
-                                <i class="bi bi-play-circle-fill text-primary" style="font-size: 1.5rem;"></i>
-                            </div>
-                            <div class="flex-grow-1 min-width-0">
-                                <div class="fw-bold">Result ${idx+1}</div>
-                                <div class="small text-muted text-truncate">${r.video_file}</div>
-                                <div class="small text-muted">
-                                    <i class="bi bi-clock me-1"></i>
-                                    <span class="badge bg-light text-dark me-2">${formatTime(r.start_time)} → ${formatTime(r.end_time)}</span>
-                                    ${r.similarity_score ? `<span class="badge bg-success">${(r.similarity_score * 100).toFixed(1)}% match</span>` : ''}
-                                </div>
-                            </div>
-                            <div class="ms-2">
-                                <button class="btn btn-primary btn-sm" data-url="${r.video_file}" data-start="${r.start_time}" data-end="${r.end_time}" title="Play segment">
-                                    <i class="bi bi-play-fill me-1"></i>Play
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                    const playBtn = resultItem.querySelector('button');
-                    playBtn.addEventListener('click', (e)=>{
-                        const u = e.currentTarget.dataset.url;
-                        const s = parseFloat(e.currentTarget.dataset.start);
-                        const t = parseFloat(e.currentTarget.dataset.end);
-                        openPlayback(u,s,t);
-                    });
-                    resultsContainer.appendChild(resultItem);
-                });
-            }
-
-            function openPlayback(url, start, end){
-                modalVideo.pause();
-                modalVideo.src = url;
-                modalInfo.textContent = `Segment: ${formatTime(start)} → ${formatTime(end)}`;
-                modalVideo.currentTime = start;
-                // When metadata loaded, ensure we seek and play
-                modalVideo.addEventListener('loadedmetadata', function once(){
-                    modalVideo.currentTime = start;
-                    const playPromise = modalVideo.play();
-                    if(playPromise && playPromise.catch) playPromise.catch(()=>{});
-                    modalVideo.removeEventListener('loadedmetadata', once);
-                });
-
-                // Stop at end time
-                const onTime = () => { if(modalVideo.currentTime + 0.25 >= end) { modalVideo.pause(); modalVideo.removeEventListener('timeupdate', onTime); } };
-                modalVideo.addEventListener('timeupdate', onTime);
-                playModal.show();
-            }
-
-            queryForm.addEventListener('submit', (e)=>{ e.preventDefault(); doSearch(document.getElementById('prompt').value); });
-
-            uploadForm.addEventListener('submit', (e)=>{
-                e.preventDefault();
-                const fileInput = document.getElementById('videoFile');
-                const bucket = document.getElementById('bucket').value;
-                if(!fileInput.files.length) return alert('Select a file');
-                const file = fileInput.files[0];
-
-                const fd = new FormData();
-                fd.append('videoFile', file);
-                if(bucket) fd.append('bucket', bucket);
-                // Do not auto-create embeddings; user will click Create Embedding after confirmation
-                fd.append('embed', 'false');
-
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', '/upload', true);
-                xhr.upload.onprogress = function(evt){
-                    if(evt.lengthComputable){
-                        const pct = Math.round((evt.loaded/evt.total)*100);
-                        uploadProgress.style.width = pct + '%';
-                        uploadProgress.textContent = pct + '%';
-                    }
-                };
-                xhr.onreadystatechange = function(){
-                    if(xhr.readyState === 4){
-                        try{
-                            const data = JSON.parse(xhr.responseText);
-                            if(data.error){ uploadStatus.textContent = 'Upload failed: ' + data.error; return; }
-                            // Show uploaded info and Create Embedding button
-                            const oci_path = data.oci_path || '';
-                            const par = data.par_url || '';
-                            uploadStatus.innerHTML = `Uploaded to: <code>${oci_path}</code> — <a href="${par}" target="_blank">Open PAR</a>`;
-                            const btn = document.createElement('button');
-                            btn.className = 'btn btn-sm btn-outline-primary mt-2';
-                            btn.textContent = 'Create Embedding';
-                            btn.addEventListener('click', async ()=>{
-                                btn.disabled = true; btn.textContent = 'Creating…';
-                                try{
-                                    const body = {};
-                                    if(oci_path) body.oci_path = oci_path;
-                                    if(par) body.par_url = par;
-                                    const resp = await fetch('/create_embedding', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-                                    const js = await resp.json();
-                                    if(js.error){ uploadStatus.textContent = 'Embedding request failed: ' + js.error; btn.disabled=false; btn.textContent='Create Embedding'; return; }
-                                    uploadStatus.textContent = 'Embedding queued. Task: ' + js.task_id;
-                                    const poll = setInterval(async ()=>{
-                                        try{
-                                            const s = await fetch('/task_status/' + js.task_id);
-                                            const sj = await s.json();
-                                            uploadStatus.textContent = `Task ${js.task_id}: ${sj.status}` + (sj.error ? ' — ' + sj.error : '');
-                                            if(sj.status === 'done' || sj.status === 'failed'){ clearInterval(poll); btn.disabled=false; btn.textContent='Create Embedding'; }
-                                        }catch(err){ clearInterval(poll); uploadStatus.textContent = 'Status poll failed: ' + err; btn.disabled=false; btn.textContent='Create Embedding'; }
-                                    }, 3000);
-                                }catch(err){ uploadStatus.textContent = 'Embedding request error: ' + err; btn.disabled=false; btn.textContent='Create Embedding'; }
-                            });
-                            uploadStatus.appendChild(btn);
-                        }catch(err){ uploadStatus.textContent = 'Unexpected server response'; }
-                    }
-                };
-                xhr.send(fd);
-            });
-
-            // Optional: close modal stops playback
-            playModalEl.addEventListener('hidden.bs.modal', ()=>{ modalVideo.pause(); modalVideo.src = ''; });
-
-            // Plan summary using Pegasus
-            const planBtn = document.getElementById('planSummaryBtn');
-            const planStatus = document.getElementById('planSummaryStatus');
-            const planPreview = document.getElementById('planPreview');
-            const planJsonPre = document.getElementById('planJson');
-            const executeBtn = document.getElementById('executePlanBtn');
-            const exportBtn = document.getElementById('exportPlanBtn');
-            const planValidation = document.getElementById('planValidation');
-
-            function clientValidatePlan(plan, duration_limit, max_segments){
-                const errs = [];
-                if(!plan || typeof plan !== 'object') { errs.push('Plan must be an object'); return errs; }
-                if(!Array.isArray(plan.plan)) errs.push('Missing plan array');
-                if(typeof plan.narrative !== 'string') errs.push('Missing narrative string');
-                if(Array.isArray(plan.plan)){
-                    if(typeof max_segments === 'number' && plan.plan.length > max_segments) errs.push(`Plan has ${plan.plan.length} items (max ${max_segments})`);
-                    let total = 0;
-                    plan.plan.forEach((it, idx)=>{
-                        if(typeof it !== 'object') { errs.push(`plan[${idx}] must be an object`); return; }
-                        if(!it.video_file || typeof it.video_file !== 'string') errs.push(`plan[${idx}].video_file missing or invalid`);
-                        const s = Number(it.start); const e = Number(it.end);
-                        if(isNaN(s) || isNaN(e)) errs.push(`plan[${idx}] start/end must be numeric`);
-                        else if(e <= s) errs.push(`plan[${idx}] end must be > start`);
-                        else total += (e - s);
-                    });
-                    if(typeof duration_limit === 'number' && total > duration_limit + 1e-6) errs.push(`Total duration ${total.toFixed(2)}s exceeds limit ${duration_limit}s`);
-                }
-                return errs;
-            }
-
-            planBtn.addEventListener('click', async ()=>{
-                const prompt = document.getElementById('prompt').value || '';
-                if(!prompt) return alert('Enter a prompt to generate a plan from');
-                const duration = Number(document.getElementById('summaryDuration').value || '60');
-                const maxSegs = Number(document.getElementById('summaryMaxSegs').value || '6');
-                planBtn.disabled = true; planBtn.textContent = 'Planning…'; planStatus.textContent = 'Requesting plan from Pegasus…';
-                planPreview.style.display = 'none'; planValidation.textContent = '';
-                try{
-                    const body = { queries: [prompt], duration_limit: duration, max_segments: maxSegs };
-                    const resp = await fetch('/plan_summary', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-                    const js = await resp.json();
-                    if(js.error){ planStatus.textContent = 'Error: ' + js.error; return; }
-                    if(js.plan){
-                        planStatus.textContent = 'Plan received (task: ' + js.task_id + ')';
-                        planPreview.style.display = 'block';
-                        let currentPlan = js.plan;
-                        planJsonPre.textContent = JSON.stringify(currentPlan, null, 2);
-                        const errs = clientValidatePlan(currentPlan, duration, maxSegs);
-                        if(errs.length){ planValidation.innerHTML = '<strong class="text-warning">Validation issues:</strong><br>' + errs.map(e=>'<div>'+e+'</div>').join(''); }
-                        else { planValidation.innerHTML = '<span class="text-success">Plan looks valid</span>'; }
-                        // render plan items with thumbnails and enable drag/drop reordering
-                        const itemsContainer = document.getElementById('planItems');
-                        itemsContainer.innerHTML = '';
-                        currentPlan.plan.forEach((it, idx)=>{
-                            const node = document.createElement('div');
-                            node.className = 'd-flex align-items-center gap-2 mb-2 plan-item';
-                            node.draggable = true;
-                            node.dataset.idx = idx;
-                            node.innerHTML = `<img src="/static/background-1400.jpg" alt="thumb" width="120" height="68" style="object-fit:cover; border-radius:6px;"> <div style="flex:1"><div><strong>${it.video_file.split('/').pop()}</strong></div><div class="small-muted">${formatTime(it.start)} → ${formatTime(it.end)}</div></div>`;
-                            // fetch thumbnail
-                            fetch(`/thumbnail_preview?path=${encodeURIComponent(it.video_file)}&time=${(it.start||0)+0.5}`)
-                                .then(r=>r.json()).then(j=>{ if(j.data_url){ node.querySelector('img').src = j.data_url; } });
-
-                            // drag handlers
-                            node.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', node.dataset.idx); node.classList.add('dragging'); });
-                            node.addEventListener('dragend', (e)=>{ node.classList.remove('dragging'); });
-                            node.addEventListener('dragover', (e)=>{ e.preventDefault(); node.classList.add('dragover'); });
-                            node.addEventListener('dragleave', (e)=>{ node.classList.remove('dragover'); });
-                            node.addEventListener('drop', (e)=>{
-                                e.preventDefault(); node.classList.remove('dragover');
-                                const from = Number(e.dataTransfer.getData('text/plain'));
-                                const to = Number(node.dataset.idx);
-                                if(from === to) return;
-                                const item = currentPlan.plan.splice(from,1)[0];
-                                currentPlan.plan.splice(to,0,item);
-                                // re-render items with updated indices
-                                planJsonPre.textContent = JSON.stringify(currentPlan, null, 2);
-                                // re-run rendering (simple approach: trigger planBtn click to refresh UI)
-                                // but to avoid recursion, re-render here
-                                itemsContainer.querySelectorAll('.plan-item').forEach(n=>n.remove());
-                                currentPlan.plan.forEach((it2, idx2)=>{
-                                    // reuse small snippet to create nodes
-                                    const n2 = document.createElement('div');
-                                    n2.className = 'd-flex align-items-center gap-2 mb-2 plan-item';
-                                    n2.draggable = true; n2.dataset.idx = idx2;
-                                    n2.innerHTML = `<img src="/static/background-1400.jpg" alt="thumb" width="120" height="68" style="object-fit:cover; border-radius:6px;"> <div style="flex:1"><div><strong>${it2.video_file.split('/').pop()}</strong></div><div class="small-muted">${formatTime(it2.start)} → ${formatTime(it2.end)}</div></div>`;
-                                    fetch(`/thumbnail_preview?path=${encodeURIComponent(it2.video_file)}&time=${(it2.start||0)+0.5}`).then(r=>r.json()).then(j=>{ if(j.data_url) n2.querySelector('img').src = j.data_url; });
-                                    // same drag handlers
-                                    n2.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', n2.dataset.idx); n2.classList.add('dragging'); });
-                                    n2.addEventListener('dragend', (e)=>{ n2.classList.remove('dragging'); });
-                                    n2.addEventListener('dragover', (e)=>{ e.preventDefault(); n2.classList.add('dragover'); });
-                                    n2.addEventListener('dragleave', (e)=>{ n2.classList.remove('dragover'); });
-                                    n2.addEventListener('drop', (e)=>{ e.preventDefault(); n2.classList.remove('dragover'); const from2 = Number(e.dataTransfer.getData('text/plain')); const to2 = Number(n2.dataset.idx); if(from2===to2) return; const item2 = currentPlan.plan.splice(from2,1)[0]; currentPlan.plan.splice(to2,0,item2); planJsonPre.textContent = JSON.stringify(currentPlan, null, 2); });
-                                    itemsContainer.appendChild(n2);
-                                });
-                            });
-                            itemsContainer.appendChild(node);
-                        });
-                        // wire execute button to POST the plan to /execute_plan or fallback to /build_summary
-                        executeBtn.onclick = async ()=>{
-                            executeBtn.disabled = true; executeBtn.textContent = 'Executing…';
-                            try{
-                                // Try POST to /execute_plan (server may implement this runner)
-                                const exResp = await fetch('/execute_plan', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({plan: js.plan, upload: true}) });
-                                const exJson = await exResp.json();
-                                if(exJson.error){ planStatus.textContent = 'Execution failed: ' + exJson.error; }
-                                else if(exJson.task_id){ planStatus.textContent = 'Execution queued as summary task: ' + exJson.task_id; }
-                                else { planStatus.textContent = 'Execution response: ' + JSON.stringify(exJson); }
-                            }catch(err){
-                                // fallback: call server-side build_summary with queries (best-effort)
-                                planStatus.textContent = 'Execution endpoint failed; falling back to build_summary';
-                                try{
-                                    const fb = await fetch('/build_summary', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ queries:[prompt], duration_limit: duration, max_segments: maxSegs, upload:true }) });
-                                    const fbj = await fb.json();
-                                    if(fbj.task_id) planStatus.textContent = 'Fallback build queued: ' + fbj.task_id;
-                                    else planStatus.textContent = 'Fallback build response: ' + JSON.stringify(fbj);
-                                }catch(e2){ planStatus.textContent = 'Fallback also failed: ' + e2; }
-                            } finally { executeBtn.disabled = false; executeBtn.textContent = 'Execute Plan'; }
-                        };
-                        exportBtn.onclick = ()=>{
-                            const blob = new Blob([JSON.stringify(js.plan, null, 2)], {type:'application/json'});
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a'); a.href = url; a.download = 'pegasus_plan.json'; a.click();
-                            URL.revokeObjectURL(url);
-                        };
-                    }else{ planStatus.textContent = 'Unexpected response'; }
-                }catch(err){ planStatus.textContent = 'Request failed: ' + err; }
-                finally{ planBtn.disabled = false; planBtn.textContent = 'Plan'; }
-            });
-
-            // ========== PHOTO ALBUM FUNCTIONALITY ==========
-            const photoUploadForm = document.getElementById('photoUploadForm');
-            const photoUploadStatus = document.getElementById('photoUploadStatus');
-            const createEmbeddingsBtn = document.getElementById('createEmbeddingsBtn');
-            const embeddingStatus = document.getElementById('embeddingStatus');
-            const unifiedSearchForm = document.getElementById('unifiedSearchForm');
-            const unifiedSearchResults = document.getElementById('unifiedSearchResults');
-
-            let uploadedPhotos = [];
-
-            if (photoUploadForm) {
-                photoUploadForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const albumName = document.getElementById('albumName').value;
-                    const photoFiles = document.getElementById('photoFile').files;
-                    
-                    if (!photoFiles.length) {
-                        photoUploadStatus.textContent = 'Please select photo(s)';
-                        return;
-                    }
-
-                    photoUploadStatus.textContent = `Uploading ${photoFiles.length} photo(s)...`;
-                    uploadedPhotos = [];
-
-                    for (let i = 0; i < photoFiles.length; i++) {
-                        const formData = new FormData();
-                        formData.append('photo', photoFiles[i]);
-                        formData.append('album_name', albumName);
-
-                        try {
-                            const resp = await fetch('/upload_photo', { method: 'POST', body: formData });
-                            const js = await resp.json();
-                            if (js.error) {
-                                photoUploadStatus.textContent = `Error: ${js.error}`;
-                            } else {
-                                uploadedPhotos.push(js);
-                                photoUploadStatus.textContent = `Uploaded ${i+1}/${photoFiles.length} photos`;
-                            }
-                        } catch (err) {
-                            photoUploadStatus.textContent = `Upload error: ${err}`;
-                        }
-                    }
-
-                    if (uploadedPhotos.length > 0) {
-                        photoUploadStatus.textContent = `✓ Uploaded ${uploadedPhotos.length} photo(s) to album "${albumName}"`;
-                        createEmbeddingsBtn.disabled = false;
-                    }
-                });
-            }
-
-            if (createEmbeddingsBtn) {
-                createEmbeddingsBtn.addEventListener('click', async () => {
-                    if (!uploadedPhotos.length) {
-                        embeddingStatus.textContent = 'No photos to process';
-                        return;
-                    }
-
-                    createEmbeddingsBtn.disabled = true;
-                    embeddingStatus.textContent = `Creating embeddings for ${uploadedPhotos.length} photo(s)...`;
-
-                    const albumName = uploadedPhotos[0].album_name;
-                    const photoUrls = uploadedPhotos.map(p => p.oci_path || p.photo_url);
-
-                    try {
-                        const resp = await fetch('/create_photo_embeddings', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ album_name: albumName, photo_urls: photoUrls })
-                        });
-                        const js = await resp.json();
-                        if (js.error) {
-                            embeddingStatus.textContent = `Error: ${js.error}`;
-                        } else {
-                            embeddingStatus.textContent = `✓ Created ${js.success} embeddings (${js.failed} failed)`;
-                            if (js.errors && js.errors.length) {
-                                embeddingStatus.textContent += `\nErrors: ${js.errors.join(', ')}`;
-                            }
-                        }
-                    } catch (err) {
-                        embeddingStatus.textContent = `Embedding error: ${err}`;
-                    } finally {
-                        createEmbeddingsBtn.disabled = false;
-                    }
-                });
-            }
-
-            if (unifiedSearchForm) {
-                unifiedSearchForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const query = document.getElementById('unifiedQuery').value;
-                    unifiedSearchResults.innerHTML = '<div class="text-muted">Searching photos and videos...</div>';
-
-                    try {
-                        // Send single `query` string to allow server to expand to multiple prompts
-                        const resp = await fetch('/search_unified', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ query: query, top_k_photos: 5, top_k_videos: 5 })
-                        });
-                        const js = await resp.json();
-
-                        if (js.error) {
-                            unifiedSearchResults.innerHTML = `<div class="text-danger">Error: ${js.error}</div>`;
-                            return;
-                        }
-
-                        // If server returned `by_query`, render per-prompt grouped results
-                        if(js.by_query){
-                            let html = '';
-                            const keys = Object.keys(js.by_query || {});
-                            if(!keys.length) { unifiedSearchResults.innerHTML = '<div class="text-muted text-center"><i class="bi bi-search"></i><br>No results</div>'; return; }
-                            keys.forEach(k => {
-                                const group = js.by_query[k];
-                                html += `<div class="mb-3"><h6 class="text-primary"><i class="bi bi-quote me-1"></i>"${k}"</h6>`;
-                                
-                                // photos
-                                if(group.photos && group.photos.length){
-                                    html += '<div class="mb-2"><h6 class="small text-success"><i class="bi bi-images me-1"></i>Photos</h6>';
-                                    group.photos.forEach(p => { 
-                                        html += `<div class="small mb-1 p-1" style="background:#f8f9fa; border-radius:3px;">
-                                                   <i class="bi bi-image me-1"></i>${p.photo_file.split('/').pop()} 
-                                                   <span class="text-muted">(${p.album_name})</span>
-                                                   <span class="badge bg-success ms-1">${(p.similarity_score*100).toFixed(1)}%</span>
-                                                 </div>`; 
-                                    });
-                                    html += '</div>';
-                                } else { 
-                                    html += '<div class="small text-muted mb-2"><i class="bi bi-images me-1"></i>No photos found</div>'; 
-                                }
-
-                                // videos
-                                if(group.videos && group.videos.length){
-                                    html += '<div class="mb-2"><h6 class="small text-info"><i class="bi bi-camera-video me-1"></i>Videos</h6>';
-                                    group.videos.forEach(v => { 
-                                        html += `<div class="small mb-1 p-1" style="background:#f8f9fa; border-radius:3px;">
-                                                   <i class="bi bi-play-circle me-1"></i>${v.video_file.split('/').pop()} 
-                                                   <span class="text-muted">(${formatTime(v.start_time)}-${formatTime(v.end_time)})</span>
-                                                   <span class="badge bg-info ms-1">${(v.similarity_score*100).toFixed(1)}%</span>
-                                                 </div>`; 
-                                    });
-                                    html += '</div>';
-                                } else { 
-                                    html += '<div class="small text-muted mb-2"><i class="bi bi-camera-video me-1"></i>No videos found</div>'; 
-                                }
-                                html += '</div>';
-                            });
-                            unifiedSearchResults.innerHTML = html;
-                            return;
-                        }
-
-                        // Fallback: older response shape keyed by the original query string
-                        const summary = js.summary && js.summary[query];
-                        if(summary){
-                            let html = `<h6>Results for "${query}"</h6>`;
-                            html += `<p class="mb-2"><strong>${summary.total_count}</strong> total (${summary.photo_count} photos, ${summary.video_count} videos)</p>`;
-
-                            if (summary.photo_count > 0 && js.photos && js.photos[query]) {
-                                html += '<h6 class="mt-2">📷 Photos</h6><ul class="list-unstyled">';
-                                js.photos[query].forEach(p => {
-                                    html += `<li class="mb-1">• ${p.photo_file.split('/').pop()} (${p.album_name}) - ${(p.similarity_score*100).toFixed(1)}%</li>`;
-                                });
-                                html += '</ul>';
-                            } else {
-                                html += '<p class="small-muted">No photos found</p>';
-                            }
-
-                            if (summary.video_count > 0 && js.videos && js.videos[query]) {
-                                html += '<h6 class="mt-2">🎥 Videos</h6><ul class="list-unstyled">';
-                                js.videos[query].forEach(v => {
-                                    html += `<li class="mb-1">• ${v.video_file.split('/').pop()} (${formatTime(v.start_time)}-${formatTime(v.end_time)}) - ${(v.similarity_score*100).toFixed(1)}%</li>`;
-                                });
-                                html += '</ul>';
-                            } else {
-                                html += '<p class="small-muted">No videos found</p>';
-                            }
-
-                            unifiedSearchResults.innerHTML = html;
-                        }else{
-                            unifiedSearchResults.innerHTML = '<div class="text-muted">No results</div>';
-                        }
-                    } catch (err) {
-                        unifiedSearchResults.innerHTML = `<div class="text-danger">Search error: ${err}</div>`;
-                    }
-                });
-            }
-
-            // ==================== UNIFIED ALBUM SYSTEM ====================
-            
-            const unifiedUploadForm = document.getElementById('unifiedUploadForm');
-            const unifiedUploadProgress = document.getElementById('unifiedUploadProgress');
-            const unifiedUploadStatus = document.getElementById('unifiedUploadStatus');
-            const unifiedEmbeddingsBtn = document.getElementById('unifiedEmbeddingsBtn');
-            const browseUnifiedAlbumsBtn = document.getElementById('browseUnifiedAlbumsBtn');
-            const unifiedAlbumsList = document.getElementById('unifiedAlbumsList');
-            const unifiedAlbumSearchForm = document.getElementById('unifiedAlbumSearchForm');
-            const albumSearchResults = document.getElementById('albumSearchResults');
-            const browseSearchAlbumsBtn = document.getElementById('browseSearchAlbumsBtn');
-            
-            let currentAlbums = [];
-            let uploadedMedia = [];
-
-            // Load albums list
-            async function loadUnifiedAlbums() {
-                console.log('🔍 Loading unified albums...');
-                try {
-                    const resp = await fetch('/list_unified_albums');
-                    console.log('📡 Response status:', resp.status);
-                    
-                    if (!resp.ok) {
-                        console.error('❌ Response not OK:', resp.status, resp.statusText);
-                        return [];
-                    }
-                    
-                    const js = await resp.json();
-                    console.log('📋 Albums response:', js);
-                    
-                    if (js.albums) {
-                        currentAlbums = js.albums;
-                        console.log('✅ Loaded', js.albums.length, 'albums');
-                        return js.albums;
-                    } else {
-                        console.warn('⚠️ No albums property in response');
-                        return [];
-                    }
-                } catch (err) {
-                    console.error('❌ Failed to load albums:', err);
-                }
-                return [];
-            }
-
-            // Show albums dropdown
-            async function showUnifiedAlbumsDropdown(inputElement, listElement) {
-                console.log('🎯 Showing albums dropdown for:', inputElement.id);
-                const albums = await loadUnifiedAlbums();
-                console.log('📂 Albums to display:', albums.length);
                 
-                if (!albums.length) {
-                    listElement.innerHTML = '<div class="p-2 text-muted">No albums found</div>';
-                    console.log('📂 No albums found, showing placeholder');
+                // Monitor progress via SSE
+                const taskId = data.task_id;
+                if (taskId) {
+                    const eventSource = new EventSource(`/progress/${taskId}`);
+                    
+                    eventSource.onmessage = (event) => {
+                        const progress = JSON.parse(event.data);
+                        updateProgress(progress.percent, progress.message);
+                        
+                        if (progress.stage === 'complete' || progress.stage === 'error') {
+                            eventSource.close();
+                            
+                            if (progress.stage === 'complete') {
+                                showUploadResults(`Successfully uploaded ${data.success_count || fileInput.files.length} file(s)!`, 'success');
+                                loadAlbums(); // Refresh albums
+                                
+                                // Reset form
+                                setTimeout(() => {
+                                    document.getElementById('uploadForm').reset();
+                                    document.getElementById('selectedFiles').innerHTML = '';
+                                    document.getElementById('uploadProgress').style.display = 'none';
+                                }, 3000);
+                            } else {
+                                showUploadResults('Upload encountered errors', 'error');
+                            }
+                        }
+                    };
+                    
+                    eventSource.onerror = () => {
+                        eventSource.close();
+                        showUploadResults('Connection to upload progress lost', 'error');
+                    };
                 } else {
-                    console.log('📂 Building album list with', albums.length, 'albums');
-                    listElement.innerHTML = albums.map(album => 
-                        `<div class="album-item p-2 border-bottom" data-album="${album.album_name}" style="cursor:pointer;">
-                            <strong>${album.album_name}</strong>
-                            <small class="text-muted d-block">${album.total_items} items (${album.photo_count} photos, ${album.video_count} videos)</small>
-                         </div>`
-                    ).join('');
-                    
-                    // Add click handlers
-                    listElement.querySelectorAll('.album-item').forEach(item => {
-                        item.addEventListener('click', () => {
-                            console.log('📁 Album selected:', item.dataset.album);
-                            inputElement.value = item.dataset.album;
-                            listElement.style.display = 'none';
-                        });
-                    });
+                    updateProgress(100, 'Upload complete!');
+                    showUploadResults('Upload completed successfully', 'success');
                 }
-                listElement.style.display = 'block';
-                console.log('📂 Dropdown displayed');
+            } catch (error) {
+                console.error('Upload error:', error);
+                showUploadResults(`Upload failed: ${error.message}`, 'error');
             }
+        }
 
-            // Unified upload form handler with real-time progress
-            if (unifiedUploadForm) {
-                console.log('Attaching unified upload form handler');
-                unifiedUploadForm.addEventListener('submit', async (e) => {
-                    console.log('Form submit event triggered');
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    const formData = new FormData(unifiedUploadForm);
-                    const files = formData.getAll('mediaFile');
-                    const albumName = formData.get('album_name');
-                    
-                    console.log('🔍 DEBUG: Files selected:', files.length);
-                    files.forEach((file, index) => {
-                        console.log(`🔍 DEBUG: File ${index + 1}: ${file.name} (${file.size} bytes, ${file.type})`);
-                    });
-                    console.log('🔍 DEBUG: Album:', albumName);
-                    
-                    if (!files.length || !albumName) {
-                        unifiedUploadStatus.textContent = 'Please select files and album name';
-                        return false;
-                    }
-                    
-                    // Show progress container
-                    const progressContainer = document.getElementById('unifiedUploadProgress').parentElement;
-                    if (progressContainer) {
-                        progressContainer.style.display = 'block';
-                    }
-                    
-                    unifiedUploadStatus.textContent = `Starting upload of ${files.length} file(s)...`;
-                    unifiedUploadProgress.style.width = '0%';
-                    uploadedMedia = [];
-                    
-                    try {
-                        // Send ALL files in one request
-                        const batchFormData = new FormData();
-                        files.forEach(file => batchFormData.append('mediaFile', file));
-                        batchFormData.append('album_name', albumName);
-                        batchFormData.append('auto_embed', 'true');
-                        
-                        // Start upload request
-                        const resp = await fetch('/upload_unified', {
-                            method: 'POST',
-                            body: batchFormData
-                        });
-                        
-                        const js = await resp.json();
-                        if (js.error) {
-                            unifiedUploadStatus.textContent = `Error uploading: ${js.error}`;
-                            return;
-                        }
-                        
-                        // Connect to progress stream
-                        const taskId = js.task_id;
-                        if (taskId) {
-                            console.log(`📊 Connecting to progress stream for task ${taskId}`);
-                            const eventSource = new EventSource(`/progress/${taskId}`);
-                            
-                            eventSource.onmessage = (event) => {
-                                const progress = JSON.parse(event.data);
-                                console.log('📊 Progress update:', progress);
-                                
-                                // Update progress bar
-                                unifiedUploadProgress.style.width = `${progress.percent}%`;
-                                
-                                // Update status message with stage information
-                                let stageIcon = '⏳';
-                                if (progress.stage === 'upload') stageIcon = '☁️';
-                                else if (progress.stage === 'metadata') stageIcon = '💾';
-                                else if (progress.stage === 'embedding') stageIcon = '🧠';
-                                else if (progress.stage === 'db_store') stageIcon = '📊';
-                                else if (progress.stage === 'complete') stageIcon = '✅';
-                                else if (progress.stage === 'error') stageIcon = '❌';
-                                
-                                unifiedUploadStatus.textContent = `${stageIcon} ${progress.message} (${progress.percent}%)`;
-                                
-                                // Close connection when complete or error
-                                if (progress.stage === 'complete' || progress.stage === 'error') {
-                                    eventSource.close();
-                                    
-                                    if (progress.stage === 'complete') {
-                                        // Display results summary
-                                        const successCount = js.success_count || 0;
-                                        const failedCount = js.failed_count || 0;
-                                        const totalFiles = js.total_files || files.length;
-                                        
-                                        let summaryHTML = `<div class="upload-summary">`;
-                                        summaryHTML += `<h4>✅ Upload Complete</h4>`;
-                                        summaryHTML += `<p>Processed ${totalFiles} file(s): ${successCount} succeeded, ${failedCount} failed</p>`;
-                                        
-                                        if (js.results && js.results.length > 0) {
-                                            summaryHTML += `<ul class="upload-results">`;
-                                            js.results.forEach(result => {
-                                                const icon = result.success ? '✅' : '❌';
-                                                const status = result.success ? 'success' : 'failed';
-                                                const errorMsg = result.error ? ` - ${result.error}` : '';
-                                                summaryHTML += `<li class="${status}">${icon} ${result.filename}${errorMsg}</li>`;
-                                            });
-                                            summaryHTML += `</ul>`;
-                                        }
-                                        
-                                        summaryHTML += `</div>`;
-                                        unifiedUploadStatus.innerHTML = summaryHTML;
-                                        
-                                        uploadedMedia.push(js);
-                                        unifiedEmbeddingsBtn.disabled = false;
-                                        
-                                        // Reset form after delay
-                                        setTimeout(() => {
-                                            unifiedUploadForm.reset();
-                                            unifiedUploadProgress.style.width = '0%';
-                                        }, 5000);
-                                    }
-                                }
-                            };
-                            
-                            eventSource.onerror = (error) => {
-                                console.error('❌ EventSource error:', error);
-                                eventSource.close();
-                                unifiedUploadStatus.textContent = '❌ Error connecting to progress stream';
-                            };
-                        } else {
-                            // Fallback if no task_id
-                            const progress = 100;
-                            unifiedUploadProgress.style.width = `${progress}%`;
-                            unifiedUploadStatus.textContent = `✅ Uploaded ${files.length} files. Check results above.`;
-                        }
-                        
-                    } catch (error) {
-                        console.error('❌ Upload error:', error);
-                        unifiedUploadStatus.textContent = `❌ Upload failed: ${error.message}`;
-                    }
-                    
-                    return false;
-                });
-            }
-
-            // File input change event for debugging
-            const unifiedFileInput = document.getElementById('unifiedMediaFile');
-            if (unifiedFileInput) {
-                unifiedFileInput.addEventListener('change', (e) => {
-                    const files = e.target.files;
-                    console.log(`🔍 File input changed: ${files.length} files selected`);
-                    for (let i = 0; i < files.length; i++) {
-                        console.log(`🔍 File ${i + 1}: ${files[i].name} (${files[i].size} bytes, ${files[i].type})`);
-                    }
-                });
-            }
-
-            // Browse albums buttons
-            if (browseUnifiedAlbumsBtn) {
-                console.log('🔗 Setting up browse unified albums button');
-                browseUnifiedAlbumsBtn.addEventListener('click', () => {
-                    console.log('🔽 Browse unified albums button clicked');
-                    const albumInput = document.getElementById('unifiedAlbumName');
-                    showUnifiedAlbumsDropdown(albumInput, unifiedAlbumsList);
-                });
-            } else {
-                console.warn('⚠️ browseUnifiedAlbumsBtn not found');
-            }
+        // Update progress bar
+        function updateProgress(percent, message) {
+            const progressBar = document.getElementById('uploadProgressBar');
+            const statusDiv = document.getElementById('uploadStatus');
             
-            if (browseSearchAlbumsBtn) {
-                console.log('🔗 Setting up browse search albums button');
-                browseSearchAlbumsBtn.addEventListener('click', () => {
-                    console.log('🔽 Browse search albums button clicked');
-                    const albumInput = document.getElementById('albumSearchSpecific');
-                    const searchAlbumsList = document.createElement('div');
-                    searchAlbumsList.style.cssText = unifiedAlbumsList.style.cssText;
-                    albumInput.parentNode.appendChild(searchAlbumsList);
-                    showUnifiedAlbumsDropdown(albumInput, searchAlbumsList);
-                });
-            } else {
-                console.warn('⚠️ browseSearchAlbumsBtn not found');
-            }
+            progressBar.style.width = `${percent}%`;
+            progressBar.textContent = `${percent}%`;
+            statusDiv.textContent = message;
+        }
 
-            // Click outside to close dropdowns
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('#browseUnifiedAlbumsBtn') && !e.target.closest('#unifiedAlbumsList')) {
-                    unifiedAlbumsList.style.display = 'none';
+        // Show upload results
+        function showUploadResults(message, type) {
+            const resultsDiv = document.getElementById('uploadResults');
+            const iconMap = {
+                success: 'check-circle-fill',
+                error: 'exclamation-triangle-fill'
+            };
+            
+            resultsDiv.innerHTML = `
+                <div class="status-message status-${type}">
+                    <i class="bi bi-${iconMap[type]} me-2"></i>${message}
+                </div>
+            `;
+        }
+
+        // Load map data
+        async function loadMapData() {
+            try {
+                const response = await fetch('/media_with_gps');
+                const data = await response.json();
+                const mediaItems = data.media || [];
+                
+                markerClusterGroup.clearLayers();
+                
+                mediaItems.forEach(item => {
+                    if (item.latitude && item.longitude) {
+                        const marker = L.marker([item.latitude, item.longitude])
+                            .bindPopup(`
+                                <strong>${item.file_name}</strong><br>
+                                <small>Album: ${item.album_name}</small>
+                            `);
+                        markerClusterGroup.addLayer(marker);
+                    }
+                });
+                
+                document.getElementById('mapCount').textContent = mediaItems.length;
+                
+                if (mediaItems.length > 0) {
+                    const bounds = markerClusterGroup.getBounds();
+                    map.fitBounds(bounds, { padding: [50, 50] });
                 }
-            });
+            } catch (error) {
+                console.error('Error loading map data:', error);
+            }
+        }
 
-            // Create embeddings for current album
-            if (unifiedEmbeddingsBtn) {
-                unifiedEmbeddingsBtn.addEventListener('click', async () => {
-                    const albumName = document.getElementById('unifiedAlbumName').value;
-                    if (!albumName) {
-                        unifiedUploadStatus.textContent = 'Please specify an album name';
-                        return;
-                    }
-                    
-                    unifiedEmbeddingsBtn.disabled = true;
-                    unifiedUploadStatus.textContent = `Creating embeddings for album "${albumName}"...`;
-                    
-                    try {
-                        const resp = await fetch('/create_unified_embeddings', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ album_name: albumName })
-                        });
-                        
-                        const js = await resp.json();
-                        if (js.error) {
-                            unifiedUploadStatus.textContent = `Error: ${js.error}`;
-                        } else {
-                            unifiedUploadStatus.textContent = `✓ Embedding creation started for ${js.processing_count} items (Task: ${js.task_id})`;
-                        }
-                    } catch (err) {
-                        unifiedUploadStatus.textContent = `Embedding error: ${err}`;
-                    } finally {
-                        unifiedEmbeddingsBtn.disabled = false;
-                    }
-                });
-            }
-
-            // Unified album search
-            if (unifiedAlbumSearchForm) {
-                unifiedAlbumSearchForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    
-                    const query = document.getElementById('albumSearchQuery').value;
-                    const fileType = document.getElementById('albumSearchFilter').value;
-                    const albumName = document.getElementById('albumSearchSpecific').value;
-                    
-                    if (!query.trim()) {
-                        albumSearchResults.innerHTML = '<div class="text-muted">Please enter a search query</div>';
-                        return;
-                    }
-                    
-                    albumSearchResults.innerHTML = '<div class="text-muted">Searching albums...</div>';
-                    
-                    try {
-                        const searchParams = { query: query };
-                        if (fileType) searchParams.file_type = fileType;
-                        if (albumName) searchParams.album_name = albumName;
-                        
-                        const resp = await fetch('/search_unified_album', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify(searchParams)
-                        });
-                        
-                        const js = await resp.json();
-                        if (js.error) {
-                            albumSearchResults.innerHTML = `<div class="text-danger">Error: ${js.error}</div>`;
-                            return;
-                        }
-                        
-                        if (!js.results || !js.results.length) {
-                            albumSearchResults.innerHTML = '<div class="text-muted text-center"><i class="bi bi-search"></i><br>No results found</div>';
-                            return;
-                        }
-                        
-                        let html = `<div class="small text-success mb-1">Found ${js.results.length} results:</div>`;
-                        js.results.forEach(result => {
-                            const isPhoto = result.file_type === 'photo';
-                            const icon = isPhoto ? 'bi-image' : 'bi-play-circle';
-                            const similarity = (1 - result.distance) * 100; // Convert distance to similarity %
-                            
-                            html += `<div class="small mb-1 p-1" style="background:#f8f9fa; border-radius:3px;">
-                                       <i class="bi ${icon} me-1"></i>${result.file_name}
-                                       <span class="text-muted">(${result.album_name})</span>
-                                       <span class="badge bg-primary ms-1">${similarity.toFixed(1)}%</span>
-                                     </div>`;
-                        });
-                        
-                        albumSearchResults.innerHTML = html;
-                        
-                    } catch (err) {
-                        albumSearchResults.innerHTML = `<div class="text-danger">Search error: ${err}</div>`;
-                    }
-                });
-            }
-
-            // Load albums on page load
-            loadUnifiedAlbums();
-        </script>
-        
-        <!-- Leaflet JS for maps -->
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
-                integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-        <!-- Leaflet MarkerCluster JS -->
-        <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-        
-        <script>
-            // Map initialization and functions
-            let mediaMap = null;
-            let markersGroup = null;
-            
-            function initMap() {
-                if (mediaMap) return; // Already initialized
-                
-                // Initialize map centered on US
-                mediaMap = L.map('mediaMap').setView([39.8283, -98.5795], 4);
-                
-                // Add OpenStreetMap tiles
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors',
-                    maxZoom: 19
-                }).addTo(mediaMap);
-                
-                // Initialize marker cluster group
-                markersGroup = L.markerClusterGroup({
-                    chunkedLoading: true,
-                    spiderfyOnMaxZoom: true,
-                    showCoverageOnHover: false,
-                    zoomToBoundsOnClick: true
-                });
-                
-                mediaMap.addLayer(markersGroup);
-                
-                console.log('📍 Map initialized');
-            }
-            
-            async function loadMapData() {
-                try {
-                    initMap();
-                    
-                    const response = await fetch('/media_with_gps');
-                    const data = await response.json();
-                    
-                    if (data.error) {
-                        console.error('Error loading map data:', data.error);
-                        return;
-                    }
-                    
-                    // Clear existing markers
-                    markersGroup.clearLayers();
-                    
-                    // Add markers for each media item
-                    data.media.forEach(item => {
-                        if (item.latitude && item.longitude) {
-                            const marker = L.marker([item.latitude, item.longitude]);
-                            
-                            // Create popup with media info
-                            const popupContent = `
-                                <div style="min-width: 200px;">
-                                    <h6>${item.file_name}</h6>
-                                    <p class="mb-1">
-                                        <strong>Album:</strong> ${item.album_name}<br>
-                                        <strong>Location:</strong> ${item.city || 'Unknown'}, ${item.country || ''}<br>
-                                        ${item.capture_date ? `<strong>Date:</strong> ${new Date(item.capture_date).toLocaleDateString()}<br>` : ''}
-                                        ${item.camera_model ? `<strong>Camera:</strong> ${item.camera_model}` : ''}
-                                    </p>
-                                    <a href="${item.thumbnail_url}" target="_blank" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-image"></i> View
-                                    </a>
-                                </div>
-                            `;
-                            
-                            marker.bindPopup(popupContent);
-                            markersGroup.addLayer(marker);
-                        }
-                    });
-                    
-                    // Update count
-                    document.getElementById('mapMarkerCount').textContent = `${data.count} locations`;
-                    
-                    // Fit bounds to show all markers
-                    if (data.count > 0) {
-                        mediaMap.fitBounds(markersGroup.getBounds(), { padding: [50, 50] });
-                    }
-                    
-                    console.log(`📍 Loaded ${data.count} locations on map`);
-                    
-                } catch (error) {
-                    console.error('Error loading map data:', error);
-                }
-            }
-            
-            function toggleMap() {
-                const mapContainer = document.getElementById('mapContainer');
-                const toggleButton = event.currentTarget;
-                const icon = toggleButton.querySelector('i');
-                
-                if (mapContainer.style.display === 'none') {
-                    mapContainer.style.display = 'block';
-                    icon.className = 'bi bi-eye';
-                    
-                    // Invalidate map size after showing
-                    setTimeout(() => {
-                        if (mediaMap) mediaMap.invalidateSize();
-                    }, 100);
-                } else {
-                    mapContainer.style.display = 'none';
-                    icon.className = 'bi bi-eye-slash';
-                }
-            }
-            
-            // Load map data on page load
-            document.addEventListener('DOMContentLoaded', () => {
-                setTimeout(() => {
-                    loadMapData();
-                }, 1000); // Wait 1 second to let other things load first
-            });
-        </script>
-    </body>
+        // Refresh map when tab is shown
+        document.querySelector('[href="#map-tab"]').addEventListener('shown.bs.tab', function() {
+            setTimeout(() => map.invalidateSize(), 100);
+        });
+    </script>
+</body>
 </html>
