@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Virtual environments
+twelvelabvideoai/bin/
+twelvelabvideoai/include/
+twelvelabvideoai/lib/
+twelvelabvideoai/pyvenv.cfg
+twelvelabvideoai/lib64
+
+# Environment variables
+.env
+*.env
+
+# OCI config and credentials
+.oci/
+twelvelabvideoai/.oci/
+twelvelabvideoai/wallet/
+**/wallet/
+**/*.sso
+**/*.p12
+**/*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite
+
+# Backup files
+*.backup
+*.bak
+*_backup
+
+# Task tracking
+*_tasks.json
+upload_tasks.json
+summary_tasks.json
+video_task_ids.json
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
