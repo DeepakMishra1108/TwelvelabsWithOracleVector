@@ -62,6 +62,31 @@ tmp/
 temp/
 *.tmp
 
+# Cache files
+.par_cache.json
+*.cache
+
+# Test and debug files
+test_flask_app.py
+test_minimal_flask.py
+test_working_flask.py
+check_*.py
+cleanup_*.py
+count_*.py
+debug_*.py
+
+# Upload scripts (temporary)
+upload_unified_fixed.py
+upload_unified_rewrite.py
+
+# Domain-specific configs
+.env.domain
+nginx-*.conf
+
+# Sample data
+sample/
+samples/
+
 # macOS
 .DS_Store
 .AppleDouble
