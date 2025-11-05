@@ -679,11 +679,18 @@
             const html = `
                 <div class="album-grid">
                     ${albums.map(album => `
-                        <div class="album-card" onclick="searchAlbum('${album.album_name}')">
-                            <div class="d-flex align-items-center mb-3">
-                                <i class="bi bi-folder2-open text-primary" style="font-size: 2rem;"></i>
+                        <div class="album-card">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex align-items-center" onclick="searchAlbum('${album.album_name}')" style="cursor: pointer; flex: 1;">
+                                    <i class="bi bi-folder2-open text-primary" style="font-size: 2rem;"></i>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger" 
+                                        onclick="event.stopPropagation(); deleteAlbum('${album.album_name}')"
+                                        title="Delete Album">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </div>
-                            <div class="album-name">${album.album_name}</div>
+                            <div class="album-name" onclick="searchAlbum('${album.album_name}')" style="cursor: pointer;">${album.album_name}</div>
                             <div class="album-stats">
                                 <i class="bi bi-image me-1"></i>${album.photo_count || 0} photos
                                 <span class="mx-1">•</span>
@@ -793,10 +800,18 @@
                         
                         return `
                             <div class="result-card" data-media-id="${mediaId}">
-                                <div class="result-thumbnail d-flex align-items-center justify-content-center" id="thumb-${mediaId}">
-                                    <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                        <span class="visually-hidden">Loading...</span>
+                                <div class="position-relative">
+                                    <div class="result-thumbnail d-flex align-items-center justify-content-center" id="thumb-${mediaId}">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
                                     </div>
+                                    <button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-2" 
+                                            onclick="deleteMedia(${mediaId}, '${result.file_name}', '${result.album_name}')"
+                                            title="Delete this media"
+                                            style="opacity: 0.9; padding: 0.25rem 0.5rem;">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </div>
                                 <div class="result-info">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
@@ -1096,6 +1111,92 @@
                 }
             } catch (error) {
                 console.error('Error loading map data:', error);
+            }
+        }
+
+        // Delete individual media item
+        async function deleteMedia(mediaId, fileName, albumName) {
+            if (!confirm(`Are you sure you want to delete "${fileName}"?\n\nThis will permanently remove the ${albumName.includes('video') || fileName.includes('.mp4') ? 'video' : 'photo'} from:\n• The database\n• OCI Object Storage\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/delete_media/${mediaId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(`Failed to delete: ${data.error}`);
+                    return;
+                }
+                
+                // Remove the card from UI
+                const card = document.querySelector(`[data-media-id="${mediaId}"]`);
+                if (card) {
+                    card.style.transition = 'opacity 0.3s';
+                    card.style.opacity = '0';
+                    setTimeout(() => card.remove(), 300);
+                }
+                
+                // Show success message
+                showStatus(data.message, 'success');
+                
+                // Refresh albums list
+                loadAlbums();
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert(`Failed to delete media: ${error.message}`);
+            }
+        }
+
+        // Delete entire album
+        async function deleteAlbum(albumName) {
+            if (!confirm(`⚠️ DELETE ENTIRE ALBUM?\n\nAlbum: "${albumName}"\n\nThis will permanently delete:\n• All photos and videos in this album\n• All files from OCI Object Storage\n• All AI embeddings and metadata\n\nThis action CANNOT be undone.\n\nAre you absolutely sure?`)) {
+                return;
+            }
+            
+            // Second confirmation for safety
+            const confirmText = prompt(`To confirm, type the album name: ${albumName}`);
+            if (confirmText !== albumName) {
+                alert('Album name did not match. Deletion cancelled.');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/delete_album/${encodeURIComponent(albumName)}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(`Failed to delete album: ${data.error}`);
+                    return;
+                }
+                
+                // Show success message
+                alert(data.message);
+                
+                // Refresh albums list
+                loadAlbums();
+                
+                // Clear results if showing this album
+                const albumFilter = document.getElementById('albumFilter');
+                if (albumFilter.value === albumName) {
+                    albumFilter.value = '';
+                    document.getElementById('resultsContainer').innerHTML = `
+                        <div class="empty-state">
+                            <i class="bi bi-search"></i>
+                            <h4>Start Searching</h4>
+                            <p class="text-muted">Use natural language to search through your photos and videos</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Delete album error:', error);
+                alert(`Failed to delete album: ${error.message}`);
             }
         }
 

@@ -133,7 +133,7 @@ def create_photo_embedding_flask_safe(file_path, album_name, media_id=None, **kw
         client = TwelveLabs(api_key=os.getenv("TWELVE_LABS_API_KEY"))
         
         # Create embedding task
-        task = client.embed.create(
+        task = client.embed.tasks.create(
             model_name="Marengo-retrieval-2.7",
             image_url=file_path
         )
@@ -231,10 +231,10 @@ def create_video_embedding_flask_safe(file_path, album_name, **kwargs):
         
         client = TwelveLabs(api_key=os.getenv("TWELVE_LABS_API_KEY"))
         
-        # Create embedding task - TwelveLabs API uses 'url' not 'video_url'
-        task = client.embed.create(
+        # Create embedding task - TwelveLabs API correct format
+        task = client.embed.tasks.create(
             model_name="Marengo-retrieval-2.7",
-            url=file_path,  # Changed from video_url to url
+            video_url=file_path,
             video_clip_length=kwargs.get('clip_length', 10)
         )
         
@@ -1316,6 +1316,136 @@ def get_media_url(media_id):
         
     except Exception as e:
         logger.error(f"❌ Failed to get media URL: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/delete_media/<int:media_id>', methods=['DELETE'])
+def delete_media(media_id):
+    """Delete a single media item (image or video) from database and OCI"""
+    try:
+        logger.info(f"🗑️ Deleting media ID: {media_id}")
+        
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        
+        # Get media info before deleting
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """SELECT file_path, file_name, file_type, album_name 
+                   FROM album_media WHERE id = :id""",
+                {'id': media_id}
+            )
+            result = cursor.fetchone()
+            
+            if not result:
+                return jsonify({'error': 'Media not found'}), 404
+            
+            file_path, file_name, file_type, album_name = result
+            
+            # Delete from OCI if path exists
+            if file_path and file_path.startswith('oci://'):
+                try:
+                    # Parse OCI path: oci://namespace/bucket/object
+                    path_parts = file_path[6:].split('/', 2)
+                    if len(path_parts) == 3:
+                        namespace, bucket, object_name = path_parts
+                        
+                        config = _load_oci_config()
+                        if config and oci:
+                            obj_client = oci.object_storage.ObjectStorageClient(config)
+                            obj_client.delete_object(
+                                namespace_name=namespace,
+                                bucket_name=bucket,
+                                object_name=object_name
+                            )
+                            logger.info(f"✅ Deleted from OCI: {object_name}")
+                except Exception as oci_err:
+                    logger.warning(f"⚠️ Could not delete from OCI: {oci_err}")
+            
+            # Delete from database
+            cursor.execute("DELETE FROM album_media WHERE id = :id", {'id': media_id})
+            conn.commit()
+            
+            logger.info(f"✅ Deleted media ID {media_id}: {file_name}")
+            return jsonify({
+                'success': True,
+                'message': f'Deleted {file_type} "{file_name}" from {album_name}',
+                'media_id': media_id
+            })
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to delete media: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/delete_album/<album_name>', methods=['DELETE'])
+def delete_album(album_name):
+    """Delete an entire album and all its media from database and OCI"""
+    try:
+        logger.info(f"🗑️ Deleting album: {album_name}")
+        
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get all media in album
+            cursor.execute(
+                """SELECT id, file_path, file_name, file_type 
+                   FROM album_media WHERE album_name = :album_name""",
+                {'album_name': album_name}
+            )
+            media_items = cursor.fetchall()
+            
+            if not media_items:
+                return jsonify({'error': 'Album not found or empty'}), 404
+            
+            deleted_count = 0
+            oci_errors = []
+            
+            # Delete each media item from OCI
+            for media_id, file_path, file_name, file_type in media_items:
+                if file_path and file_path.startswith('oci://'):
+                    try:
+                        # Parse OCI path: oci://namespace/bucket/object
+                        path_parts = file_path[6:].split('/', 2)
+                        if len(path_parts) == 3:
+                            namespace, bucket, object_name = path_parts
+                            
+                            config = _load_oci_config()
+                            if config and oci:
+                                obj_client = oci.object_storage.ObjectStorageClient(config)
+                                obj_client.delete_object(
+                                    namespace_name=namespace,
+                                    bucket_name=bucket,
+                                    object_name=object_name
+                                )
+                                logger.info(f"✅ Deleted from OCI: {object_name}")
+                    except Exception as oci_err:
+                        logger.warning(f"⚠️ Could not delete {file_name} from OCI: {oci_err}")
+                        oci_errors.append(file_name)
+                
+                deleted_count += 1
+            
+            # Delete all media from database
+            cursor.execute(
+                "DELETE FROM album_media WHERE album_name = :album_name",
+                {'album_name': album_name}
+            )
+            conn.commit()
+            
+            message = f'Deleted album "{album_name}" with {deleted_count} items'
+            if oci_errors:
+                message += f' (OCI errors for {len(oci_errors)} files)'
+            
+            logger.info(f"✅ {message}")
+            return jsonify({
+                'success': True,
+                'message': message,
+                'deleted_count': deleted_count,
+                'oci_errors': oci_errors
+            })
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to delete album: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/config_debug')
