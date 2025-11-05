@@ -89,6 +89,20 @@ except Exception as e:
     search_photos_flask_safe = None
     FLASK_SAFE_SEARCH_AVAILABLE = False
 
+# Import video slicing utilities
+try:
+    from video_upload_handler import (
+        check_video_duration, 
+        prepare_video_for_upload, 
+        create_video_metadata,
+        cleanup_chunks
+    )
+    VIDEO_SLICING_AVAILABLE = True
+    logger.info("✅ Video slicing utilities imported successfully")
+except Exception as e:
+    logger.warning(f"⚠️ Video slicing not available: {e}")
+    VIDEO_SLICING_AVAILABLE = False
+
 # No longer need wrapper - using Flask-safe album manager directly
 # flask_safe_album_manager is imported from unified_album_manager_flask_safe
 if UNIFIED_ALBUM_AVAILABLE and flask_safe_album_manager:
@@ -664,6 +678,82 @@ def upload_unified():
                     logger.warning(f"⚠️ [{file_index}/{len(all_files)}] Skipping unsupported file: {file.filename} ({mime_type})")
                     continue
                 
+                # For videos, check duration and slice if needed
+                video_chunks = []
+                original_video_path = None
+                is_chunked_video = False
+                
+                if file_type == 'video' and VIDEO_SLICING_AVAILABLE:
+                    try:
+                        import tempfile
+                        from pathlib import Path
+                        
+                        send_file_progress('validate', 6, 'Checking video duration...')
+                        
+                        # Save video to temp file for duration check
+                        temp_video = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix)
+                        file.stream.seek(0)
+                        file.save(temp_video.name)
+                        temp_video.close()
+                        original_video_path = temp_video.name
+                        
+                        # Check duration
+                        duration_info = check_video_duration(temp_video.name)
+                        
+                        if duration_info.get('needs_slicing'):
+                            # Video exceeds duration limit - slice it
+                            estimated_chunks = duration_info.get('estimated_chunks', 2)
+                            send_file_progress('slice', 7, 
+                                f'⚠️ Video duration: {duration_info["duration_formatted"]} exceeds 120-min limit. '
+                                f'Slicing into {estimated_chunks} chunks...')
+                            
+                            logger.info(f"✂️ Video {file.filename} needs slicing: {duration_info['duration_formatted']}")
+                            
+                            def slice_progress_callback(stage, percent, message):
+                                # Map slicing progress to 7-9% of overall progress
+                                overall_slice_percent = 7 + (percent * 0.02)
+                                send_file_progress('slice', int(overall_slice_percent), message)
+                            
+                            prep_result = prepare_video_for_upload(
+                                temp_video.name,
+                                progress_callback=slice_progress_callback
+                            )
+                            
+                            if not prep_result['success']:
+                                file_result['error'] = f'Video slicing failed: {prep_result.get("error", "Unknown error")}'
+                                failed_count += 1
+                                results.append(file_result)
+                                if os.path.exists(temp_video.name):
+                                    os.unlink(temp_video.name)
+                                continue
+                            
+                            video_chunks = prep_result['files']
+                            is_chunked_video = True
+                            
+                            send_file_progress('slice', 9, 
+                                f'✅ Sliced into {len(video_chunks)} chunks - uploading each chunk...')
+                            logger.info(f"✅ Video sliced into {len(video_chunks)} chunks")
+                        else:
+                            # Video is within limits
+                            send_file_progress('validate', 7, 
+                                f'✅ Video duration: {duration_info["duration_formatted"]} - within limits')
+                            logger.info(f"✅ Video {file.filename} duration OK: {duration_info['duration_formatted']}")
+                            video_chunks = [temp_video.name]
+                            is_chunked_video = False
+                        
+                        # Reset file stream since we saved it
+                        file.stream.seek(0)
+                        
+                    except Exception as slice_error:
+                        logger.error(f"❌ Error checking/slicing video: {slice_error}")
+                        send_file_progress('validate', 7, f'⚠️ Could not check video duration: {str(slice_error)}')
+                        # Continue with original file
+                        video_chunks = []
+                        is_chunked_video = False
+                        if original_video_path and os.path.exists(original_video_path):
+                            os.unlink(original_video_path)
+                        original_video_path = None
+                
                 # Extract metadata from photos (EXIF, GPS, etc.)
                 extracted_metadata = None
                 if file_type == 'photo' and METADATA_EXTRACTOR_AVAILABLE:
@@ -678,6 +768,109 @@ def upload_unified():
                         logger.warning(f"⚠️ Could not extract metadata: {meta_error}")
                         extracted_metadata = None
                 
+                # If video was sliced, upload chunks separately
+                if file_type == 'video' and is_chunked_video and video_chunks:
+                    send_file_progress('upload', 10, f'Uploading {len(video_chunks)} video chunks to OCI...')
+                    
+                    chunk_media_ids = []
+                    chunk_upload_errors = []
+                    
+                    for chunk_idx, chunk_path in enumerate(video_chunks, 1):
+                        try:
+                            # Create chunk-specific object name
+                            from pathlib import Path
+                            chunk_filename = Path(chunk_path).name
+                            chunk_object_name = f"albums/{album_name}/{file_type}s/chunks/{chunk_filename}"
+                            
+                            chunk_progress_start = 10 + ((chunk_idx - 1) / len(video_chunks)) * 30
+                            chunk_progress_range = 30 / len(video_chunks)
+                            
+                            send_file_progress('upload', int(chunk_progress_start), 
+                                f'Uploading chunk {chunk_idx}/{len(video_chunks)}: {chunk_filename}...')
+                            
+                            logger.info(f"🚀 Uploading chunk {chunk_idx}/{len(video_chunks)}: {chunk_filename}")
+                            
+                            # Upload chunk
+                            with open(chunk_path, 'rb') as chunk_file:
+                                obj_client.put_object(namespace, bucket, chunk_object_name, chunk_file)
+                            
+                            # Create PAR URL for chunk
+                            chunk_oci_path = f'oci://{namespace}/{bucket}/{chunk_object_name}'
+                            chunk_par_url = _get_par_url_for_oci(chunk_oci_path)
+                            
+                            send_file_progress('upload', int(chunk_progress_start + chunk_progress_range * 0.5), 
+                                f'✅ Chunk {chunk_idx} uploaded, storing metadata...')
+                            
+                            # Store metadata for chunk
+                            chunk_metadata_dict = {
+                                'file_name': chunk_filename,
+                                'file_type': file_type,
+                                'album_name': album_name,
+                                'oci_path': chunk_oci_path,
+                                'par_url': chunk_par_url,
+                                'is_chunk': True,
+                                'chunk_index': chunk_idx,
+                                'total_chunks': len(video_chunks),
+                                'original_filename': file.filename
+                            }
+                            
+                            # Get chunk metadata (duration, size)
+                            chunk_vid_metadata = create_video_metadata(
+                                chunk_path,
+                                is_chunk=True,
+                                chunk_index=chunk_idx,
+                                total_chunks=len(video_chunks)
+                            )
+                            chunk_metadata_dict.update(chunk_vid_metadata)
+                            
+                            chunk_media_id = flask_safe_album_manager.store_metadata(
+                                file_name=chunk_filename,
+                                file_type=file_type,
+                                album_name=album_name,
+                                oci_path=chunk_oci_path,
+                                par_url=chunk_par_url,
+                                metadata=chunk_metadata_dict
+                            )
+                            
+                            chunk_media_ids.append(chunk_media_id)
+                            logger.info(f"✅ Chunk {chunk_idx} metadata stored with media_id: {chunk_media_id}")
+                            
+                        except Exception as chunk_error:
+                            error_msg = f'Chunk {chunk_idx} upload failed: {str(chunk_error)}'
+                            logger.error(f"❌ {error_msg}")
+                            chunk_upload_errors.append(error_msg)
+                            send_file_progress('upload', int(chunk_progress_start), 
+                                f'⚠️ Chunk {chunk_idx} failed: {str(chunk_error)}')
+                    
+                    # Cleanup temp files
+                    if original_video_path and os.path.exists(original_video_path):
+                        os.unlink(original_video_path)
+                    for chunk_path in video_chunks:
+                        if os.path.exists(chunk_path):
+                            os.unlink(chunk_path)
+                    
+                    # Check if all chunks uploaded successfully
+                    if chunk_upload_errors:
+                        file_result['error'] = f'Some chunks failed: {"; ".join(chunk_upload_errors[:3])}'
+                        failed_count += 1
+                        results.append(file_result)
+                        continue
+                    
+                    # Success - mark file as processed with chunks
+                    file_result['success'] = True
+                    file_result['media_id'] = chunk_media_ids
+                    file_result['is_chunked'] = True
+                    file_result['chunk_count'] = len(video_chunks)
+                    success_count += 1
+                    results.append(file_result)
+                    
+                    send_file_progress('upload', 40, 
+                        f'✅ All {len(video_chunks)} chunks uploaded successfully!')
+                    
+                    logger.info(f"✅ [{file_index}/{len(all_files)}] Successfully processed (chunked): {file.filename}")
+                    continue
+                
+                # Standard upload (non-chunked or non-video)
                 send_file_progress('upload', 10, f'Uploading {file.filename} to OCI...')
                 
                 # Create album-specific object path

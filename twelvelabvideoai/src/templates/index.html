@@ -318,6 +318,48 @@
             border: 1px solid rgba(37, 99, 235, 0.2);
         }
         
+        /* Status Log */
+        .status-log {
+            line-height: 1.6;
+        }
+        
+        .status-log .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .status-log .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .status-log .log-timestamp {
+            color: #6b7280;
+            margin-right: 8px;
+        }
+        
+        .status-log .log-stage {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: 8px;
+            text-transform: uppercase;
+        }
+        
+        .status-log .log-stage-init { background: #dbeafe; color: #1e40af; }
+        .status-log .log-stage-validate { background: #e0e7ff; color: #4338ca; }
+        .status-log .log-stage-slice { background: #fef3c7; color: #b45309; }
+        .status-log .log-stage-upload { background: #ddd6fe; color: #6d28d9; }
+        .status-log .log-stage-metadata { background: #fbcfe8; color: #be185d; }
+        .status-log .log-stage-embed { background: #bfdbfe; color: #1e40af; }
+        .status-log .log-stage-complete { background: #d1fae5; color: #065f46; }
+        .status-log .log-stage-error { background: #fecaca; color: #991b1b; }
+        
+        .status-log .log-message {
+            color: #374151;
+        }
+        
         /* Loading Spinner */
         .spinner-container {
             text-align: center;
@@ -555,6 +597,20 @@
                             </div>
                         </div>
                         <div id="uploadStatus" class="mt-2 text-center text-muted"></div>
+                        
+                        <!-- Detailed Status Log -->
+                        <div class="card mt-3">
+                            <div class="card-header bg-light">
+                                <small class="text-muted">
+                                    <i class="bi bi-list-ul me-2"></i>Processing Details
+                                </small>
+                            </div>
+                            <div class="card-body p-0">
+                                <div id="uploadStatusLog" class="status-log" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; padding: 10px; background: #f8f9fa;">
+                                    <!-- Status updates will appear here -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="uploadResults" class="mt-4"></div>
@@ -1001,7 +1057,8 @@
             
             // Show progress
             document.getElementById('uploadProgress').style.display = 'block';
-            updateProgress(0, 'Starting upload...');
+            document.getElementById('uploadStatusLog').innerHTML = ''; // Clear previous log
+            updateProgress(0, 'Starting upload...', 'init');
             
             try {
                 const response = await fetch('/upload_unified', {
@@ -1023,7 +1080,7 @@
                     
                     eventSource.onmessage = (event) => {
                         const progress = JSON.parse(event.data);
-                        updateProgress(progress.percent, progress.message);
+                        updateProgress(progress.percent, progress.message, progress.stage || 'upload');
                         
                         if (progress.stage === 'complete' || progress.stage === 'error') {
                             eventSource.close();
@@ -1059,13 +1116,36 @@
         }
 
         // Update progress bar
-        function updateProgress(percent, message) {
+        function updateProgress(percent, message, stage = 'upload') {
             const progressBar = document.getElementById('uploadProgressBar');
             const statusDiv = document.getElementById('uploadStatus');
             
             progressBar.style.width = `${percent}%`;
             progressBar.textContent = `${percent}%`;
             statusDiv.textContent = message;
+            
+            // Add to status log
+            addStatusLogEntry(stage, message);
+        }
+        
+        // Add entry to status log
+        function addStatusLogEntry(stage, message) {
+            const logDiv = document.getElementById('uploadStatusLog');
+            if (!logDiv) return;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-timestamp">${timestamp}</span>
+                <span class="log-stage log-stage-${stage}">${stage}</span>
+                <span class="log-message">${message}</span>
+            `;
+            
+            logDiv.appendChild(entry);
+            
+            // Auto-scroll to bottom
+            logDiv.scrollTop = logDiv.scrollHeight;
         }
 
         // Show upload results
