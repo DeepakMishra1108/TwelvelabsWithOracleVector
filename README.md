@@ -1,5 +1,7 @@
 # VideoEncodeTwelveLabs
 
+**Last Updated:** November 6, 2025
+
 Video and photo AI platform with TwelveLabs Marengo embeddings, unified search, GPS metadata extraction, and Oracle DB storage.
 
 ## ✨ Features
