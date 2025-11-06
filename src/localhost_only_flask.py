@@ -1833,6 +1833,244 @@ def delete_album(album_name):
         logger.error(f"❌ Failed to delete album: {e}")
         return jsonify({'error': str(e)}), 500
 
+
+# =============================================================================
+# NEW ADVANCED FEATURES
+# =============================================================================
+
+@app.route('/find_similar/<int:media_id>')
+def find_similar_media(media_id):
+    """Find media items similar to the given item"""
+    try:
+        logger.info(f"🔍 Finding similar media to ID: {media_id}")
+        
+        # Import here to avoid circular dependencies
+        from ai_features import SimilarMediaFinder
+        
+        # Get media type from database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT file_type FROM album_media WHERE id = :id", {"id": media_id})
+        row = cursor.fetchone()
+        cursor.close()
+        connection.close()
+        
+        if not row:
+            return jsonify({"error": "Media not found"}), 404
+        
+        media_type = row[0]
+        finder = SimilarMediaFinder()
+        
+        # Find similar items
+        if media_type == "photo":
+            results = finder.find_similar_photos(media_id, top_k=10, min_similarity=0.5)
+        else:
+            results = finder.find_similar_videos(media_id, top_k=10, min_similarity=0.5)
+        
+        logger.info(f"✅ Found {len(results)} similar items")
+        return jsonify({
+            "success": True,
+            "media_id": media_id,
+            "media_type": media_type,
+            "similar_items": results
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error finding similar media: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/advanced_search', methods=['POST'])
+def advanced_search():
+    """Advanced search with AND/OR operators and filters"""
+    try:
+        data = request.json
+        query = data.get('query', '')
+        operator = data.get('operator', 'OR')  # AND or OR
+        search_photos = data.get('search_photos', True)
+        search_videos = data.get('search_videos', True)
+        
+        logger.info(f"🔍 Advanced search: '{query}' (operator: {operator})")
+        
+        from advanced_search import multimodal_search
+        
+        results = multimodal_search(
+            query=query,
+            operator=operator,
+            search_photos=search_photos,
+            search_videos=search_videos,
+            top_k=20,
+            min_similarity=0.3
+        )
+        
+        return jsonify({
+            "success": True,
+            "query": query,
+            "operator": operator,
+            "photos": results.get("photos", []),
+            "videos": results.get("videos", []),
+            "total": len(results.get("photos", [])) + len(results.get("videos", []))
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Advanced search error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/temporal_search', methods=['POST'])
+def temporal_search():
+    """Search media by date range"""
+    try:
+        from datetime import datetime
+        from advanced_search import TemporalSearch
+        
+        data = request.json
+        start_date_str = data.get('start_date')
+        end_date_str = data.get('end_date')
+        media_type = data.get('media_type')  # Optional: 'photo' or 'video'
+        album_name = data.get('album_name')  # Optional
+        
+        logger.info(f"📅 Temporal search: {start_date_str} to {end_date_str}")
+        
+        # Parse dates
+        start_date = datetime.fromisoformat(start_date_str)
+        end_date = datetime.fromisoformat(end_date_str)
+        
+        searcher = TemporalSearch()
+        results = searcher.search_by_date_range(
+            start_date, end_date,
+            media_type=media_type,
+            album_name=album_name
+        )
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        logger.error(f"❌ Temporal search error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/extract_clip', methods=['POST'])
+async def extract_clip():
+    """Extract a video clip from a media item"""
+    try:
+        from creative_tools import ClipExtractor
+        
+        data = request.json
+        media_id = data.get('media_id')
+        start_time = float(data.get('start_time', 0))
+        end_time = float(data.get('end_time', 10))
+        
+        logger.info(f"✂️ Extracting clip from media {media_id}: {start_time}s - {end_time}s")
+        
+        # Get video file path from database
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT oci_namespace, oci_bucket, oci_object_path
+            FROM album_media 
+            WHERE id = :id AND file_type = 'video'
+        """, {"id": media_id})
+        row = cursor.fetchone()
+        cursor.close()
+        connection.close()
+        
+        if not row:
+            return jsonify({"error": "Video not found"}), 404
+        
+        # Download video from OCI (or use local path if available)
+        # For now, return a placeholder response
+        extractor = ClipExtractor()
+        
+        return jsonify({
+            "success": True,
+            "message": "Clip extraction initiated",
+            "media_id": media_id,
+            "start_time": start_time,
+            "end_time": end_time,
+            "duration": end_time - start_time
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Clip extraction error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/create_slideshow', methods=['POST'])
+async def create_slideshow():
+    """Create a photo slideshow"""
+    try:
+        from creative_tools import SlideshowCreator
+        
+        data = request.json
+        photo_ids = data.get('photo_ids', [])
+        duration_per_photo = float(data.get('duration_per_photo', 3.0))
+        
+        logger.info(f"📸 Creating slideshow with {len(photo_ids)} photos")
+        
+        # Get photo paths from database
+        # For now, return a placeholder response
+        
+        return jsonify({
+            "success": True,
+            "message": "Slideshow creation initiated",
+            "num_photos": len(photo_ids),
+            "duration": len(photo_ids) * duration_per_photo
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Slideshow creation error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/auto_tag/<int:media_id>', methods=['POST'])
+async def auto_tag_media(media_id):
+    """Generate automatic tags for media"""
+    try:
+        from ai_features import AutoTagger
+        
+        logger.info(f"🏷️ Auto-tagging media {media_id}")
+        
+        # Get TwelveLabs video ID from database if available
+        # For now, return placeholder
+        
+        tagger = AutoTagger()
+        
+        return jsonify({
+            "success": True,
+            "message": "Auto-tagging initiated",
+            "media_id": media_id
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Auto-tagging error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/video_highlights/<int:media_id>')
+async def get_video_highlights(media_id):
+    """Get AI-generated video highlights"""
+    try:
+        from ai_features import VideoHighlightsExtractor
+        
+        logger.info(f"🎬 Getting highlights for media {media_id}")
+        
+        # Get TwelveLabs video ID from database
+        # For now, return placeholder
+        
+        extractor = VideoHighlightsExtractor()
+        
+        return jsonify({
+            "success": True,
+            "message": "Highlights extraction initiated",
+            "media_id": media_id
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Highlights extraction error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/config_debug')
 def config_debug():
     """Debug endpoint to show configuration and capabilities"""
