@@ -564,10 +564,13 @@ python scripts/refresh_environment.py --help
 
 ## Notes
 
-- Photo and video embeddings are stored as float32 BLOBs (not Oracle VECTOR type)
-- Client-side cosine similarity search implemented
+- **Photo and video embeddings use Oracle VECTOR type for native vector search**
+  - `video_embeddings` table: `VECTOR(1024, float64)` with vector index
+  - `album_media` table (unified): `VECTOR(1024, FLOAT32)` with vector index
+  - Legacy `photo_embeddings` table: Uses BLOB (deprecated, use unified albums)
+- **Native database-side vector similarity search** with Oracle VECTOR indexes
 - PAR URLs cached for OCI object access
-- All search results ranked by similarity score
+- All search results ranked by similarity score using Oracle's native vector distance functions
 - Web UI supports drag/drop for Pegasus plan editing
 
 ## 🚀 Production Deployment on OCI
