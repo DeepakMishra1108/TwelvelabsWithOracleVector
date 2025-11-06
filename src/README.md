@@ -54,9 +54,12 @@ This directory contains the core application code for the TwelvelabsVideoAI proj
 
 ## Running the Application
 
+**Important**: Always run the Flask application from the project root directory, not from within src/.
+
 To run the Flask application:
 
 ```bash
+# From project root (required)
 cd /path/to/TwelvelabsVideoAI
 python src/localhost_only_flask.py
 ```
@@ -64,10 +67,13 @@ python src/localhost_only_flask.py
 Or with live logging:
 
 ```bash
+# From project root
 python src/localhost_only_flask.py 2>&1 | tee flask_live.log
 ```
 
 The application will start on `http://localhost:8080`
+
+**Note**: Do NOT run `python localhost_only_flask.py` from within the src/ directory. The app needs to be run from the project root to properly access the `twelvelabvideoai/` utilities and configuration files.
 
 ## Architecture
 
