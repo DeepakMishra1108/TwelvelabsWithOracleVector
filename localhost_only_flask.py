@@ -12,6 +12,7 @@ import logging
 import uuid
 import datetime
 import queue
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, render_template, jsonify, Response, stream_with_context
 from dotenv import load_dotenv
@@ -75,18 +76,20 @@ except Exception as e:
     get_full_metadata = None
     METADATA_EXTRACTOR_AVAILABLE = False
 
-# Import Flask-safe search
+# Import Flask-safe search (unified search for photos and videos)
 try:
-    # Add parent directory to path to import search_flask_safe
+    # Add parent directory to path to import search modules
     parent_dir = os.path.dirname(current_dir)
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
-    from search_flask_safe import search_photos_flask_safe
+    
+    # Import unified search that handles both photos and video segments
+    from search_unified_flask_safe import search_unified_flask_safe
     FLASK_SAFE_SEARCH_AVAILABLE = True
-    logger.info("✅ Flask-safe search imported successfully")
+    logger.info("✅ Flask-safe unified search imported successfully")
 except Exception as e:
-    logger.warning(f"⚠️ Flask-safe search not available: {e}")
-    search_photos_flask_safe = None
+    logger.warning(f"⚠️ Flask-safe unified search not available: {e}")
+    search_unified_flask_safe = None
     FLASK_SAFE_SEARCH_AVAILABLE = False
 
 # Import video slicing utilities
@@ -823,13 +826,18 @@ def upload_unified():
                             )
                             chunk_metadata_dict.update(chunk_vid_metadata)
                             
-                            chunk_media_id = flask_safe_album_manager.store_metadata(
-                                file_name=chunk_filename,
-                                file_type=file_type,
+                            # Store chunk metadata using correct method
+                            chunk_media_id = flask_safe_album_manager.store_media_metadata(
                                 album_name=album_name,
-                                oci_path=chunk_oci_path,
-                                par_url=chunk_par_url,
-                                metadata=chunk_metadata_dict
+                                file_name=chunk_filename,
+                                file_path=chunk_oci_path,
+                                file_type=file_type,
+                                oci_namespace=namespace,
+                                oci_bucket=bucket,
+                                oci_object_path=chunk_object_name,
+                                video_duration=chunk_vid_metadata.get('duration_seconds', 0),
+                                start_time=0,
+                                end_time=chunk_vid_metadata.get('duration_seconds', 0)
                             )
                             
                             chunk_media_ids.append(chunk_media_id)
@@ -856,6 +864,87 @@ def upload_unified():
                         results.append(file_result)
                         continue
                     
+                    send_file_progress('upload', 40, 
+                        f'✅ All {len(video_chunks)} chunks uploaded successfully!')
+                    
+                    # Generate embeddings for each chunk if auto_embed is enabled
+                    if auto_embed and EMBEDDING_AVAILABLE:
+                        send_file_progress('embedding', 45, 
+                            f'Generating embeddings for {len(video_chunks)} chunks...')
+                        
+                        chunk_embedding_tasks = []
+                        for chunk_idx, (chunk_media_id, chunk_path_orig) in enumerate(zip(chunk_media_ids, video_chunks), 1):
+                            try:
+                                # Get chunk info from metadata
+                                from pathlib import Path
+                                chunk_filename = Path(chunk_path_orig).name
+                                chunk_object_name = f"albums/{album_name}/{file_type}s/chunks/{chunk_filename}"
+                                chunk_oci_path = f'oci://{namespace}/{bucket}/{chunk_object_name}'
+                                chunk_par_url = _get_par_url_for_oci(chunk_oci_path)
+                                
+                                progress_base = 45 + ((chunk_idx - 1) / len(video_chunks)) * 40
+                                send_file_progress('embedding', int(progress_base), 
+                                    f'Creating embeddings for chunk {chunk_idx}/{len(video_chunks)}...')
+                                
+                                logger.info(f"🧠 Generating embeddings for chunk {chunk_idx}: {chunk_filename}")
+                                
+                                # Create embedding task
+                                embedding_task_id = str(uuid.uuid4())
+                                _upload_tasks[embedding_task_id] = {
+                                    'status': 'pending',
+                                    'media_id': chunk_media_id,
+                                    'album_name': album_name,
+                                    'filename': f'{file.filename} (chunk {chunk_idx}/{len(video_chunks)})',
+                                    'file_type': file_type,
+                                    'oci_path': chunk_oci_path,
+                                    'par_url': chunk_par_url,
+                                    'is_chunk': True,
+                                    'chunk_index': chunk_idx,
+                                    'total_chunks': len(video_chunks),
+                                    'created_at': time.time()
+                                }
+                                
+                                # Start background embedding task
+                                def run_chunk_embedding_task(tid, upload_tid, media_id, par_url, chunk_idx, total_chunks):
+                                    try:
+                                        _upload_tasks[tid]['status'] = 'running'
+                                        logger.info(f'🎬 Creating embeddings for chunk {chunk_idx}/{total_chunks}')
+                                        
+                                        embedding_ids = create_unified_embedding_flask_safe(
+                                            par_url, file_type, album_name, media_id=media_id
+                                        )
+                                        
+                                        if embedding_ids:
+                                            _upload_tasks[tid]['status'] = 'completed'
+                                            _upload_tasks[tid]['embedding_ids'] = embedding_ids
+                                            _upload_tasks[tid]['completed_at'] = time.time()
+                                            logger.info(f'✅ Chunk {chunk_idx} embedding completed')
+                                        else:
+                                            _upload_tasks[tid]['status'] = 'failed'
+                                            _upload_tasks[tid]['error'] = f'Chunk {chunk_idx} embedding failed'
+                                            logger.error(f'❌ Chunk {chunk_idx} embedding failed')
+                                    except Exception as e:
+                                        logger.exception(f'❌ Chunk {chunk_idx} embedding error: {e}')
+                                        _upload_tasks[tid]['status'] = 'failed'
+                                        _upload_tasks[tid]['error'] = str(e)
+                                
+                                # Start thread for this chunk's embedding
+                                thread = threading.Thread(
+                                    target=run_chunk_embedding_task,
+                                    args=(embedding_task_id, upload_task_id, chunk_media_id, 
+                                          chunk_par_url, chunk_idx, len(video_chunks))
+                                )
+                                thread.daemon = True
+                                thread.start()
+                                chunk_embedding_tasks.append(embedding_task_id)
+                                
+                            except Exception as embed_error:
+                                logger.error(f"❌ Failed to start embedding for chunk {chunk_idx}: {embed_error}")
+                        
+                        send_file_progress('embedding', 85, 
+                            f'✅ Started embedding generation for all {len(video_chunks)} chunks')
+                        logger.info(f"🚀 Started {len(chunk_embedding_tasks)} embedding tasks for chunks")
+                    
                     # Success - mark file as processed with chunks
                     file_result['success'] = True
                     file_result['media_id'] = chunk_media_ids
@@ -864,8 +953,8 @@ def upload_unified():
                     success_count += 1
                     results.append(file_result)
                     
-                    send_file_progress('upload', 40, 
-                        f'✅ All {len(video_chunks)} chunks uploaded successfully!')
+                    send_file_progress('complete', 100, 
+                        f'✅ Video uploaded and split into {len(video_chunks)} chunks!')
                     
                     logger.info(f"✅ [{file_index}/{len(all_files)}] Successfully processed (chunked): {file.filename}")
                     continue
@@ -1360,29 +1449,29 @@ def search_unified():
         if not UNIFIED_ALBUM_AVAILABLE:
             return jsonify({'error': 'Unified album system not available'}), 500
         
-        # Try Flask-safe vector search first (Oracle Vector DB), fall back to basic search
+        # Try Flask-safe unified vector search (photos + video segments)
         results = []
         search_method = "unknown"
         
-        if FLASK_SAFE_SEARCH_AVAILABLE and search_photos_flask_safe:
-            logger.info("🧠 Using Flask-safe Vector DB search")
-            search_method = "vector_flask_safe"
+        if FLASK_SAFE_SEARCH_AVAILABLE and search_unified_flask_safe:
+            logger.info("🧠 Using Flask-safe Unified Vector DB search (photos + videos)")
+            search_method = "vector_unified_flask_safe"
             
             try:
-                # search_photos_flask_safe returns list of results directly
-                photo_results = search_photos_flask_safe(
+                # search_unified_flask_safe returns list of results directly
+                results = search_unified_flask_safe(
                     query_text=query,
                     album_name=album_filter,
                     top_k=limit,
                     min_similarity=min_similarity
                 )
                 
-                # Results are already in the correct format
-                results = photo_results if photo_results else []
-                logger.info(f"✅ Flask-safe search found {len(results)} photos")
+                logger.info(f"✅ Unified search found {len(results)} results")
+                logger.info(f"   📸 Photos: {len([r for r in results if r.get('file_type')=='photo'])}")
+                logger.info(f"   🎬 Videos: {len([r for r in results if r.get('file_type')=='video'])}")
                         
             except Exception as e:
-                logger.error(f"Flask-safe vector search failed: {e}", exc_info=True)
+                logger.error(f"Flask-safe unified vector search failed: {e}", exc_info=True)
                 results = []
         
         elif 'unified_search' in globals() and BASIC_SEARCH_AVAILABLE:
@@ -1471,7 +1560,7 @@ def embedding_status(task_id):
 
 @app.route('/get_media_url/<int:media_id>')
 def get_media_url(media_id):
-    """Get PAR URL for a specific media item"""
+    """Get PAR URL for a specific media item with optional video segment info"""
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
         
@@ -1500,15 +1589,119 @@ def get_media_url(media_id):
         if not par_url:
             return jsonify({'error': 'Failed to generate PAR URL'}), 500
         
-        return jsonify({
+        response_data = {
             'media_id': media_id,
             'par_url': par_url,
             'file_name': file_name,
             'file_type': file_type
-        })
+        }
+        
+        # For videos, check if there's segment info in request
+        segment_start = request.args.get('segment_start', type=float)
+        segment_end = request.args.get('segment_end', type=float)
+        
+        if segment_start is not None and segment_end is not None:
+            response_data['segment_start'] = segment_start
+            response_data['segment_end'] = segment_end
+        
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"❌ Failed to get media URL: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/video_thumbnail/<int:media_id>')
+def video_thumbnail(media_id):
+    """Generate and serve a video thumbnail at a specific timestamp
+    
+    Query parameters:
+        timestamp: Time in seconds (default: segment_start or 0)
+    """
+    try:
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        from flask import send_file
+        import tempfile
+        import subprocess
+        
+        # Get timestamp from query params
+        timestamp = request.args.get('timestamp', type=float, default=0)
+        
+        # Get media details from database
+        sql = """
+        SELECT file_path, file_name
+        FROM album_media
+        WHERE id = :media_id AND file_type = 'video'
+        """
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, {'media_id': media_id})
+            result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({'error': 'Video not found'}), 404
+        
+        file_path = result[0]
+        file_name = result[1]
+        
+        # Generate PAR URL
+        par_url = _get_par_url_for_oci(file_path)
+        if not par_url:
+            return jsonify({'error': 'Failed to generate PAR URL'}), 500
+        
+        # Generate thumbnail directly from URL using FFmpeg (no full download needed!)
+        temp_thumbnail = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+        temp_thumbnail.close()
+        
+        try:
+            # FFmpeg can read directly from HTTP URL and extract a frame
+            # This is MUCH faster than downloading the whole video
+            cmd = [
+                'ffmpeg',
+                '-ss', str(timestamp),       # Seek to timestamp BEFORE input (fast seek)
+                '-i', par_url,               # Input from PAR URL directly
+                '-vframes', '1',             # Extract only 1 frame
+                '-q:v', '2',                 # High quality
+                '-vf', 'scale=320:-1',       # Resize to thumbnail
+                '-y',                        # Overwrite
+                temp_thumbnail.name
+            ]
+            
+            # Run FFmpeg with timeout
+            logger.info(f"🖼️ Generating thumbnail for media {media_id} at {timestamp}s...")
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=15  # 15 second timeout
+            )
+            
+            if result.returncode == 0 and os.path.exists(temp_thumbnail.name):
+                logger.info(f"✅ Thumbnail generated for media {media_id}")
+                return send_file(
+                    temp_thumbnail.name,
+                    mimetype='image/jpeg',
+                    as_attachment=False,
+                    download_name=f"{Path(file_name).stem}_t{int(timestamp)}.jpg"
+                )
+            else:
+                logger.error(f"❌ FFmpeg failed: {result.stderr.decode()}")
+                return jsonify({'error': 'Failed to generate thumbnail'}), 500
+                
+        except subprocess.TimeoutExpired:
+            logger.error(f"❌ Thumbnail generation timed out")
+            return jsonify({'error': 'Thumbnail generation timed out'}), 500
+        finally:
+            # Cleanup happens after send_file completes
+            try:
+                if os.path.exists(temp_thumbnail.name):
+                    os.unlink(temp_thumbnail.name)
+            except:
+                pass
+        
+    except Exception as e:
+        logger.exception(f"❌ Failed to generate video thumbnail: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/delete_media/<int:media_id>', methods=['DELETE'])

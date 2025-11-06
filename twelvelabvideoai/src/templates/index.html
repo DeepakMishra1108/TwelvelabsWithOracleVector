@@ -854,14 +854,23 @@
                         const score = Math.round((result.score || 0) * 100);
                         const mediaId = result.media_id;
                         
+                        // Format timestamp for videos
+                        const hasSegment = isVideo && result.segment_start !== null && result.segment_start !== undefined;
+                        const segmentInfo = hasSegment ? formatTimestamp(result.segment_start, result.segment_end) : '';
+                        
                         return `
-                            <div class="result-card" data-media-id="${mediaId}">
+                            <div class="result-card" data-media-id="${mediaId}" data-segment-start="${result.segment_start || ''}" data-segment-end="${result.segment_end || ''}">
                                 <div class="position-relative">
-                                    <div class="result-thumbnail d-flex align-items-center justify-content-center" id="thumb-${mediaId}">
+                                    <div class="result-thumbnail d-flex align-items-center justify-content-center" id="thumb-${mediaId}-${result.segment_start || 0}">
                                         <div class="spinner-border spinner-border-sm text-primary" role="status">
                                             <span class="visually-hidden">Loading...</span>
                                         </div>
                                     </div>
+                                    ${hasSegment ? `
+                                        <span class="position-absolute bottom-0 start-0 m-2 badge bg-dark" style="opacity: 0.9;">
+                                            <i class="bi bi-clock me-1"></i>${segmentInfo}
+                                        </span>
+                                    ` : ''}
                                     <button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-2" 
                                             onclick="deleteMedia(${mediaId}, '${result.file_name}', '${result.album_name}')"
                                             title="Delete this media"
@@ -878,7 +887,7 @@
                                         <div><i class="bi bi-folder2 me-1"></i>${result.album_name}</div>
                                         <div class="mt-1">
                                             <i class="bi bi-${isVideo ? 'camera-video' : 'image'} me-1"></i>
-                                            ${isVideo ? 'Video' : 'Photo'}
+                                            ${isVideo ? (hasSegment ? 'Video Segment' : 'Video') : 'Photo'}
                                         </div>
                                     </div>
                                 </div>
@@ -892,25 +901,26 @@
             
             // Load thumbnails asynchronously
             results.forEach(result => {
-                loadThumbnail(result.media_id, result.file_type);
+                loadThumbnail(result.media_id, result.file_type, result.segment_start, result.segment_end);
             });
         }
         
         // Load thumbnail for a media item
-        async function loadThumbnail(mediaId, fileType) {
+        async function loadThumbnail(mediaId, fileType, segmentStart, segmentEnd) {
             try {
-                const response = await fetch(`/get_media_url/${mediaId}`);
-                if (!response.ok) {
-                    throw new Error('Failed to get media URL');
-                }
-                
-                const data = await response.json();
-                const thumbElement = document.getElementById(`thumb-${mediaId}`);
+                // Use unique ID that includes segment start time
+                const thumbId = `thumb-${mediaId}-${segmentStart || 0}`;
+                const thumbElement = document.getElementById(thumbId);
                 
                 if (!thumbElement) return;
                 
                 if (fileType === 'photo') {
                     // Display image thumbnail
+                    const response = await fetch(`/get_media_url/${mediaId}`);
+                    if (!response.ok) throw new Error('Failed to get media URL');
+                    
+                    const data = await response.json();
+                    
                     thumbElement.innerHTML = `
                         <img src="${data.par_url}" 
                              alt="${data.file_name}" 
@@ -922,21 +932,97 @@
                     thumbElement.querySelector('img').addEventListener('click', function() {
                         showImageModal(data.par_url, data.file_name);
                     });
-                } else {
-                    // Display video thumbnail or placeholder
+                } else if (fileType === 'video') {
+                    // For video segments, use thumbnail endpoint
+                    const timestamp = segmentStart || 0;
+                    const thumbnailUrl = `/video_thumbnail/${mediaId}?timestamp=${timestamp}`;
+                    
                     thumbElement.innerHTML = `
-                        <i class="bi bi-camera-video-fill text-primary" style="font-size: 3rem; opacity: 0.5;"></i>
+                        <img src="${thumbnailUrl}" 
+                             alt="Video thumbnail at ${formatTime(timestamp)}" 
+                             style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer;"
+                             onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\\'bi bi-camera-video-fill text-warning\\' style=\\'font-size: 3rem; opacity: 0.5;\\' title=\\'Thumbnail generation failed\\'></i>';">
                     `;
+                    
+                    // Add click handler to play video at specific timestamp
+                    thumbElement.querySelector('img').addEventListener('click', async function() {
+                        const response = await fetch(`/get_media_url/${mediaId}`);
+                        const data = await response.json();
+                        showVideoModal(data.par_url, data.file_name, timestamp, segmentEnd);
+                    });
                 }
             } catch (error) {
                 console.error(`Failed to load thumbnail for media ${mediaId}:`, error);
-                const thumbElement = document.getElementById(`thumb-${mediaId}`);
+                const thumbId = `thumb-${mediaId}-${segmentStart || 0}`;
+                const thumbElement = document.getElementById(thumbId);
                 if (thumbElement) {
                     thumbElement.innerHTML = `
                         <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;" title="Failed to load thumbnail"></i>
                     `;
                 }
             }
+        }
+        
+        // Format timestamp helper
+        function formatTimestamp(startSec, endSec) {
+            const start = formatTime(startSec);
+            const end = formatTime(endSec);
+            return `${start} - ${end}`;
+        }
+        
+        // Format seconds to MM:SS or HH:MM:SS
+        function formatTime(seconds) {
+            if (!seconds && seconds !== 0) return '00:00';
+            
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            if (hours > 0) {
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+        }
+        
+        // Show video in modal with optional start time
+        function showVideoModal(videoUrl, fileName, startTime, endTime) {
+            const modal = new bootstrap.Modal(document.getElementById('videoModal') || createVideoModal());
+            const modalVideo = document.getElementById('modalVideo');
+            const modalLabel = document.getElementById('videoModalLabel');
+            
+            modalVideo.src = videoUrl;
+            modalLabel.textContent = fileName + (startTime ? ` (${formatTime(startTime)})` : '');
+            
+            // Set start time if provided
+            modalVideo.addEventListener('loadedmetadata', function() {
+                if (startTime) {
+                    modalVideo.currentTime = startTime;
+                }
+            }, { once: true });
+            
+            modal.show();
+        }
+        
+        // Create video modal if it doesn't exist
+        function createVideoModal() {
+            const modalHtml = `
+                <div class="modal fade" id="videoModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="videoModalLabel">Video</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-0">
+                                <video id="modalVideo" controls style="width: 100%; max-height: 70vh;"></video>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            return document.getElementById('videoModal');
         }
         
         // Show full image in modal

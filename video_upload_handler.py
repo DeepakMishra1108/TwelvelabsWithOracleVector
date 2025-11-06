@@ -33,14 +33,28 @@ def check_video_duration(video_path):
     """
     try:
         slicer = VideoSlicer(video_path)
-        info = slicer.get_video_info()
+        
+        # Get duration (this returns seconds as float)
+        duration = slicer.get_video_duration()
+        
+        if duration is None:
+            raise ValueError("Could not determine video duration")
+        
+        # Check if slicing is needed
         needs_slicing = slicer.needs_slicing(MAX_VIDEO_DURATION_MINUTES)
+        
+        # Calculate estimated chunks if slicing is needed
+        estimated_chunks = 1
+        if needs_slicing:
+            chunks_info = slicer.calculate_chunks()
+            if chunks_info:
+                estimated_chunks = chunks_info['num_chunks']
         
         result = {
             'needs_slicing': needs_slicing,
-            'duration_seconds': info['duration_seconds'],
-            'duration_formatted': info['duration_formatted'],
-            'estimated_chunks': info['estimated_chunks'] if needs_slicing else 1
+            'duration_seconds': duration,
+            'duration_formatted': slicer.format_duration(duration),
+            'estimated_chunks': estimated_chunks
         }
         
         logger.info(f"📹 Video duration check: {result['duration_formatted']} - "
@@ -193,9 +207,10 @@ def create_video_metadata(video_path, is_chunk=False, chunk_index=None, total_ch
     # Get duration
     try:
         slicer = VideoSlicer(video_path)
-        info = slicer.get_video_info()
-        metadata['duration'] = info['duration_formatted']
-        metadata['duration_seconds'] = info['duration_seconds']
+        duration = slicer.get_video_duration()
+        if duration:
+            metadata['duration'] = slicer.format_duration(duration)
+            metadata['duration_seconds'] = duration
     except Exception as e:
         logger.warning(f"Could not get video duration for {path.name}: {e}")
     
