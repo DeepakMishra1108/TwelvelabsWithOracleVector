@@ -285,9 +285,34 @@ Built on Oracle's carrier-grade infrastructure, this platform provides:
 ### **Advanced AI Features**
 - 🎬 **Pegasus Integration**: AI-powered video editing plans and summaries
 - 🤖 **TwelveLabs Marengo-2.7**: State-of-the-art multimodal AI
-- � **Video Analysis**: Generate titles, topics, hashtags, summaries, chapters
+- 📹 **Video Analysis**: Generate titles, topics, hashtags, summaries, chapters
 - 🎯 **Scene Detection**: Automatic video segmentation by scene
-- 🔄 **Embedding Generation**: 1024-dimensional float32 vectors per segment
+- �� **Embedding Generation**: 1024-dimensional float32 vectors per segment
+- ✨ **Video Highlights Extraction**: Automatically identify and extract key moments from videos
+- 🏷️ **Auto-Tagging System**: AI-generated tags, topics, and hashtags for all media
+- 🔍 **Similar Media Finder**: Vector similarity search to find related photos/videos
+- 🛡️ **Content Moderation**: Detect inappropriate or sensitive content automatically
+- 🎬 **AI Thumbnail Suggestions**: Get best frame recommendations for video thumbnails
+
+### **Advanced Search Capabilities**
+- 🔍 **Multi-Modal Search**: Boolean operators (AND/OR) across photos and videos
+  - Example: "beach AND sunset" or "red car OR blue truck"
+- 📅 **Temporal Search**: Date range filtering, recent media, search by year/month
+- 🎯 **Semantic Search with Context**: Combine natural language with filters (date, album, location)
+- 🔄 **Hybrid Search**: Vector similarity + SQL filtering in single query
+
+### **Creative Tools & Video Editing**
+- 🎬 **Video Montage Generator**: Create compilations from clips with transitions
+  - Support for fade, dissolve, wipe transitions
+  - Optional background music integration
+- 🖼️ **Photo Slideshow Creator**: Convert photos to videos with transitions
+  - Configurable display duration per photo
+  - Custom resolution and music support
+- ✂️ **Clip Extractor**: Extract specific video segments by timestamp
+  - Precise frame-accurate extraction
+  - Batch extraction support for multiple clips
+- 📹 **Video Processing**: Built-in ffmpeg integration for professional editing
+
 
 ### **Modern Web Interface**
 - 🌐 **Responsive UI**: Bootstrap 5 with beautiful, intuitive design
@@ -563,6 +588,50 @@ Built on Oracle's carrier-grade infrastructure, this platform provides:
 | **Zero Trust** | ✅ IAM + mTLS | ⚠️ Varies |
 | **Compliance Certs** | ✅ 70+ certifications | ⚠️ Fewer options |
 | **Data Residency** | ✅ 40+ regions | ⚠️ Limited regions |
+
+---
+
+## 📡 API Endpoints Reference
+
+### **Media Upload & Management**
+- `POST /upload` - Upload photos/videos with multipart support
+- `POST /create_album` - Create new photo/video album
+- `GET /albums` - List all albums
+- `DELETE /delete_media/<id>` - Delete individual media item
+- `DELETE /delete_album/<name>` - Delete entire album
+
+### **AI-Powered Search**
+- `POST /search_photos` - Natural language photo search
+- `POST /search_videos` - Natural language video search
+- `POST /search_unified` - Search across photos and videos
+- `POST /advanced_search` - Multi-modal search with AND/OR operators
+- `POST /temporal_search` - Search by date range
+
+### **AI Features**
+- `GET /find_similar/<media_id>` - Find similar photos/videos using vector similarity
+- `POST /auto_tag/<media_id>` - Generate AI tags, topics, hashtags
+- `GET /video_highlights/<media_id>` - Get AI-generated video highlights
+- `POST /moderate_content/<media_id>` - Analyze content for moderation
+
+### **Creative Tools**
+- `POST /extract_clip` - Extract video segment by timestamp
+- `POST /create_slideshow` - Generate photo slideshow video
+- `POST /create_montage` - Create video montage with transitions
+- `GET /suggest_thumbnails/<video_id>` - AI thumbnail suggestions
+
+### **Location & Metadata**
+- `GET /media_by_location` - Find media by GPS coordinates
+- `GET /map_data` - Get all media with location data for map visualization
+- `GET /metadata/<media_id>` - Get detailed EXIF/GPS metadata
+
+### **Configuration & Utilities**
+- `GET /` - Main UI dashboard
+- `GET /config_debug` - View system configuration (debug mode only)
+- `GET /upload_progress` - Server-Sent Events for upload tracking
+
+**Note**: Full API documentation available in [ADVANCED_FEATURES.md](./ADVANCED_FEATURES.md)
+
+---
 
 ## 🚀 Quick Start
 
