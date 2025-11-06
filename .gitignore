@@ -41,6 +41,8 @@ twelvelabvideoai/wallet/
 
 # Logs
 *.log
+flask_live.log
+flask_output.log
 
 # Database
 *.db
@@ -59,7 +61,7 @@ video_task_ids.json
 
 # Temporary files
 tmp/
-temp/
+# temp/ is now used for archived scripts and should be tracked
 *.tmp
 
 # Cache files
