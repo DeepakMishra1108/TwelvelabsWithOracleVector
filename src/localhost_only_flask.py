@@ -17,10 +17,12 @@ from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, render_template, jsonify, Response, stream_with_context
 from dotenv import load_dotenv
 
-# Add src to path
+# Add twelvelabvideoai/src to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.join(current_dir, 'twelvelabvideoai', 'src')
-sys.path.insert(0, src_dir)
+# Go up one level from src/ to project root, then into twelvelabvideoai/src
+project_root = os.path.dirname(current_dir)
+twelvelabs_src_dir = os.path.join(project_root, 'twelvelabvideoai', 'src')
+sys.path.insert(0, twelvelabs_src_dir)
 
 # Load environment variables early
 try:
@@ -78,12 +80,8 @@ except Exception as e:
 
 # Import Flask-safe search (unified search for photos and videos)
 try:
-    # Add parent directory to path to import search modules
-    parent_dir = os.path.dirname(current_dir)
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
-    
     # Import unified search that handles both photos and video segments
+    # Now in the same directory (src/)
     from search_unified_flask_safe import search_unified_flask_safe
     FLASK_SAFE_SEARCH_AVAILABLE = True
     logger.info("✅ Flask-safe unified search imported successfully")
@@ -94,6 +92,7 @@ except Exception as e:
 
 # Import video slicing utilities
 try:
+    # Now in the same directory (src/)
     from video_upload_handler import (
         check_video_duration, 
         prepare_video_for_upload, 
@@ -342,7 +341,7 @@ except Exception as e:
     OCI_CONFIG_AVAILABLE = False
 
 # Create Flask app - LOCALHOST ONLY CONFIGURATION
-TEMPLATES_DIR = os.path.join(src_dir, 'templates')
+TEMPLATES_DIR = os.path.join(twelvelabs_src_dir, 'templates')
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
 
 # LOCALHOST ONLY CONFIGURATION
