@@ -832,9 +832,17 @@ def admin_delete_user(user_id):
 @app.route('/')
 @login_required
 def index():
-    """Main page"""
+    """Main page with RBAC context"""
     try:
-        return render_template('index.html', user=current_user)
+        return render_template(
+            'index.html', 
+            user=current_user,
+            can_upload=can_upload(current_user),
+            can_edit=can_edit(current_user),
+            can_delete=can_delete(current_user),
+            can_create_album=can_create_album(current_user),
+            can_admin=can_admin(current_user)
+        )
     except Exception as e:
         logger.error(f"Template error: {e}")
         return f"Template error: {e}", 500
