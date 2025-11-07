@@ -34,6 +34,7 @@ def create_query_cache_table():
             logger.info("🔧 Creating QUERY_EMBEDDING_CACHE table with Oracle 23ai in-memory features...")
             
             # Create table with in-memory optimization
+            # Note: Only one INMEMORY clause allowed - combining all settings
             cursor.execute("""
                 CREATE TABLE query_embedding_cache (
                     id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -44,9 +45,7 @@ def create_query_cache_table():
                     last_used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     usage_count NUMBER DEFAULT 1
                 )
-                INMEMORY
-                INMEMORY PRIORITY HIGH
-                INMEMORY MEMCOMPRESS FOR QUERY LOW
+                INMEMORY PRIORITY HIGH MEMCOMPRESS FOR QUERY LOW
             """)
             
             # Create index on query_text for fast lookups
