@@ -361,6 +361,195 @@
             color: #374151;
         }
         
+        /* Processing Overlay - Full Page Block */
+        .processing-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .processing-modal {
+            background: white;
+            border-radius: 16px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.4s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from { 
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to { 
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .processing-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            border-bottom: none;
+        }
+        
+        .processing-header h4 {
+            color: white;
+        }
+        
+        .processing-body {
+            padding: 2rem;
+            overflow-y: auto;
+            max-height: calc(90vh - 180px);
+        }
+        
+        .processing-footer {
+            padding: 1rem 2rem;
+            border-top: 1px solid #e5e7eb;
+            background: #f9fafb;
+            text-align: center;
+        }
+        
+        /* Step Indicator */
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            position: relative;
+            padding: 0 10px;
+        }
+        
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 25px;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background: #e5e7eb;
+            z-index: 0;
+        }
+        
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            flex: 1;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .step-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #f3f4f6;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .step-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #6b7280;
+            margin-bottom: 0.25rem;
+        }
+        
+        .step-status {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            min-height: 1rem;
+        }
+        
+        /* Step States */
+        .step.pending .step-icon {
+            background: #f3f4f6;
+            color: #9ca3af;
+        }
+        
+        .step.active .step-icon {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        
+        .step.active .step-label {
+            color: #667eea;
+            font-weight: 700;
+        }
+        
+        .step.completed .step-icon {
+            background: #10b981;
+            color: white;
+        }
+        
+        .step.completed .step-label {
+            color: #059669;
+        }
+        
+        .step.skipped .step-icon {
+            background: #e5e7eb;
+            color: #9ca3af;
+        }
+        
+        .step.skipped .step-label {
+            color: #9ca3af;
+        }
+        
+        .step.error .step-icon {
+            background: #ef4444;
+            color: white;
+            animation: shake 0.5s;
+        }
+        
+        .step.error .step-label {
+            color: #dc2626;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 4px 16px rgba(102, 126, 234, 0.5);
+            }
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        
         /* Loading Spinner */
         .spinner-container {
             text-align: center;
@@ -731,6 +920,111 @@
                             </div>
                         </div>
                     </div>
+
+    <!-- Processing Overlay Modal - Blocks entire UI during video processing -->
+    <div id="processingOverlay" class="processing-overlay" style="display: none;">
+        <div class="processing-modal">
+            <div class="processing-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-hourglass-split me-2"></i>
+                    Processing Your Media
+                </h4>
+            </div>
+            
+            <div class="processing-body">
+                <!-- Current Step Indicator -->
+                <div class="step-indicator mb-4">
+                    <div class="step" id="step-upload">
+                        <div class="step-icon">
+                            <i class="bi bi-upload"></i>
+                        </div>
+                        <div class="step-label">Upload</div>
+                        <div class="step-status"></div>
+                    </div>
+                    
+                    <div class="step" id="step-compress">
+                        <div class="step-icon">
+                            <i class="bi bi-file-zip"></i>
+                        </div>
+                        <div class="step-label">Compress</div>
+                        <div class="step-status"></div>
+                    </div>
+                    
+                    <div class="step" id="step-slice">
+                        <div class="step-icon">
+                            <i class="bi bi-scissors"></i>
+                        </div>
+                        <div class="step-label">Slice</div>
+                        <div class="step-status"></div>
+                    </div>
+                    
+                    <div class="step" id="step-index">
+                        <div class="step-icon">
+                            <i class="bi bi-cpu"></i>
+                        </div>
+                        <div class="step-label">AI Index</div>
+                        <div class="step-status"></div>
+                    </div>
+                    
+                    <div class="step" id="step-complete">
+                        <div class="step-icon">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+                        <div class="step-label">Complete</div>
+                        <div class="step-status"></div>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="progress mb-3" style="height: 30px;">
+                    <div id="overlayProgressBar" 
+                         class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                         role="progressbar" 
+                         style="width: 0%">
+                        <span class="fw-bold">0%</span>
+                    </div>
+                </div>
+                
+                <!-- Status Message -->
+                <div id="overlayStatus" class="text-center mb-3">
+                    <h5 class="mb-2" id="overlayStatusTitle">Preparing...</h5>
+                    <p class="text-muted mb-0" id="overlayStatusMessage">Initializing upload process...</p>
+                </div>
+                
+                <!-- Time Estimate -->
+                <div id="overlayTimeEstimate" class="text-center text-muted small mb-3" style="display: none;">
+                    <i class="bi bi-clock me-1"></i>
+                    <span id="estimatedTime">Calculating...</span>
+                </div>
+                
+                <!-- Detailed Log -->
+                <div class="card">
+                    <div class="card-header bg-light py-2">
+                        <small class="text-muted">
+                            <i class="bi bi-list-check me-1"></i>Activity Log
+                        </small>
+                    </div>
+                    <div id="overlayDetailLog" class="p-3" style="max-height: 200px; overflow-y: auto; background: #f8f9fa; font-family: 'Courier New', monospace; font-size: 0.85rem;">
+                        <!-- Detailed logs appear here -->
+                    </div>
+                </div>
+                
+                <!-- Warning Message -->
+                <div class="alert alert-warning mt-3 mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Please wait:</strong> Do not close this window or navigate away. 
+                    Processing large videos may take several minutes.
+                </div>
+            </div>
+            
+            <!-- Optional: Cancel button for very long operations -->
+            <div class="processing-footer">
+                <button id="cancelProcessBtn" class="btn btn-outline-danger btn-sm" style="display: none;" onclick="cancelProcessing()">
+                    <i class="bi bi-x-circle me-1"></i>Cancel Processing
+                </button>
+            </div>
+        </div>
+    </div>
 
                     <div id="uploadResults" class="mt-4"></div>
                 </div>
@@ -1370,8 +1664,20 @@
                 return;
             }
             
+            // Calculate total file size and check if video processing needed
+            const files = Array.from(fileInput.files);
+            const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+            const hasLargeVideo = files.some(f => 
+                f.type.startsWith('video/') && f.size > 100 * 1024 * 1024
+            );
+            
+            // Show processing overlay for large files or videos
+            if (hasLargeVideo || totalSize > 100 * 1024 * 1024) {
+                showProcessingOverlay(files, totalSize);
+            }
+            
             // Add files and album name
-            Array.from(fileInput.files).forEach(file => {
+            files.forEach(file => {
                 formData.append('mediaFile', file);
             });
             formData.append('album_name', albumName);
@@ -1391,6 +1697,7 @@
                 const data = await response.json();
                 
                 if (data.error) {
+                    hideProcessingOverlay();
                     showUploadResults(`Upload failed: ${data.error}`, 'error');
                     return;
                 }
@@ -1403,36 +1710,44 @@
                     eventSource.onmessage = (event) => {
                         const progress = JSON.parse(event.data);
                         updateProgress(progress.percent, progress.message, progress.stage || 'upload');
+                        updateProcessingOverlay(progress.stage, progress.percent, progress.message);
                         
                         if (progress.stage === 'complete' || progress.stage === 'error') {
                             eventSource.close();
                             
-                            if (progress.stage === 'complete') {
-                                showUploadResults(`Successfully uploaded ${data.success_count || fileInput.files.length} file(s)!`, 'success');
-                                loadAlbums(); // Refresh albums
+                            setTimeout(() => {
+                                hideProcessingOverlay();
                                 
-                                // Reset form
-                                setTimeout(() => {
-                                    document.getElementById('uploadForm').reset();
-                                    document.getElementById('selectedFiles').innerHTML = '';
-                                    document.getElementById('uploadProgress').style.display = 'none';
-                                }, 3000);
-                            } else {
-                                showUploadResults('Upload encountered errors', 'error');
-                            }
+                                if (progress.stage === 'complete') {
+                                    showUploadResults(`Successfully uploaded ${data.success_count || fileInput.files.length} file(s)!`, 'success');
+                                    loadAlbums(); // Refresh albums
+                                    
+                                    // Reset form
+                                    setTimeout(() => {
+                                        document.getElementById('uploadForm').reset();
+                                        document.getElementById('selectedFiles').innerHTML = '';
+                                        document.getElementById('uploadProgress').style.display = 'none';
+                                    }, 3000);
+                                } else {
+                                    showUploadResults('Upload encountered errors', 'error');
+                                }
+                            }, 1000); // Brief delay to show completion
                         }
                     };
                     
                     eventSource.onerror = () => {
                         eventSource.close();
+                        hideProcessingOverlay();
                         showUploadResults('Connection to upload progress lost', 'error');
                     };
                 } else {
+                    hideProcessingOverlay();
                     updateProgress(100, 'Upload complete!');
                     showUploadResults('Upload completed successfully', 'success');
                 }
             } catch (error) {
                 console.error('Upload error:', error);
+                hideProcessingOverlay();
                 showUploadResults(`Upload failed: ${error.message}`, 'error');
             }
         }
@@ -2767,6 +3082,250 @@
         // Show Bulk Clip Extractor (placeholder for future enhancement)
         function showBulkClipExtractor() {
             showStatus('Batch Clip Extraction feature coming soon! Use the "Clip" button on individual videos for now.', 'info');
+        }
+
+        // ====================================================================
+        // PROCESSING OVERLAY FUNCTIONS - Full Page Block During Processing
+        // ====================================================================
+        
+        let processingStartTime = null;
+        let estimatedTotalTime = null;
+        
+        /**
+         * Show the processing overlay and block UI
+         */
+        function showProcessingOverlay(files, totalSize) {
+            processingStartTime = Date.now();
+            
+            // Calculate estimated time based on file size
+            // Rough estimates from performance test:
+            // - Upload: varies by network
+            // - Compression: 0.28 MB/s (if needed)
+            // - Slicing: 236 MB/s (very fast)
+            // - Indexing: ~15-45 minutes for large files
+            
+            const totalSizeMB = totalSize / (1024 * 1024);
+            const hasVideo = files.some(f => f.type.startsWith('video/'));
+            
+            // Estimate total time (very rough)
+            let estimatedMinutes = 2; // Base upload time
+            
+            if (hasVideo) {
+                if (totalSizeMB > 1000) {
+                    // Large video - may need compression
+                    estimatedMinutes += Math.ceil(totalSizeMB * 1.2); // ~1.2 min per MB for compression
+                } else {
+                    estimatedMinutes += Math.ceil(totalSizeMB * 0.1); // Just upload + indexing
+                }
+            }
+            
+            estimatedTotalTime = estimatedMinutes * 60 * 1000; // Convert to ms
+            
+            // Show overlay
+            const overlay = document.getElementById('processingOverlay');
+            overlay.style.display = 'flex';
+            
+            // Initialize steps
+            setStepState('upload', 'pending');
+            setStepState('compress', 'pending');
+            setStepState('slice', 'pending');
+            setStepState('index', 'pending');
+            setStepState('complete', 'pending');
+            
+            // Update time estimate
+            updateTimeEstimate();
+            
+            // Clear log
+            document.getElementById('overlayDetailLog').innerHTML = '';
+            
+            // Add initial log entry
+            addDetailLogEntry('init', `Starting upload for ${files.length} file(s), total size: ${totalSizeMB.toFixed(2)} MB`);
+            
+            // Disable body scroll
+            document.body.style.overflow = 'hidden';
+        }
+        
+        /**
+         * Update processing overlay with current progress
+         */
+        function updateProcessingOverlay(stage, percent, message) {
+            // Update progress bar
+            const progressBar = document.getElementById('overlayProgressBar');
+            progressBar.style.width = `${percent}%`;
+            progressBar.querySelector('span').textContent = `${percent}%`;
+            
+            // Update status message
+            const stageNames = {
+                'init': 'Initializing',
+                'validate': 'Validating Files',
+                'slice': 'Slicing Video',
+                'upload': 'Uploading to Cloud',
+                'compress': 'Compressing Video',
+                'metadata': 'Storing Metadata',
+                'embedding': 'Creating AI Index',
+                'embed': 'Creating AI Index',
+                'complete': 'Complete',
+                'error': 'Error'
+            };
+            
+            document.getElementById('overlayStatusTitle').textContent = stageNames[stage] || 'Processing';
+            document.getElementById('overlayStatusMessage').textContent = message;
+            
+            // Update step indicators
+            if (percent < 20) {
+                setStepState('upload', 'active');
+            } else if (percent < 40 && (stage === 'compress' || message.toLowerCase().includes('compress'))) {
+                setStepState('upload', 'completed');
+                setStepState('compress', 'active');
+            } else if (percent < 40 && (stage === 'slice' || message.toLowerCase().includes('slice') || message.toLowerCase().includes('chunk'))) {
+                setStepState('upload', 'completed');
+                setStepState('compress', 'skipped');
+                setStepState('slice', 'active');
+            } else if (percent < 50) {
+                setStepState('upload', 'completed');
+                if (stage === 'compress' || message.toLowerCase().includes('compress')) {
+                    setStepState('compress', 'completed');
+                } else {
+                    setStepState('compress', 'skipped');
+                }
+                if (stage === 'slice' || message.toLowerCase().includes('slice')) {
+                    setStepState('slice', 'completed');
+                } else {
+                    setStepState('slice', 'skipped');
+                }
+            } else if (percent < 95) {
+                setStepState('upload', 'completed');
+                setStepState('compress', 'completed');
+                setStepState('slice', 'skipped');
+                setStepState('index', 'active');
+            } else {
+                setStepState('upload', 'completed');
+                setStepState('compress', 'skipped');
+                setStepState('slice', 'skipped');
+                setStepState('index', 'completed');
+                setStepState('complete', 'active');
+            }
+            
+            // Add to detail log
+            addDetailLogEntry(stage, message);
+            
+            // Update time estimate
+            updateTimeEstimate();
+        }
+        
+        /**
+         * Set step state (pending, active, completed, skipped, error)
+         */
+        function setStepState(stepName, state) {
+            const step = document.getElementById(`step-${stepName}`);
+            if (!step) return;
+            
+            // Remove all state classes
+            step.classList.remove('pending', 'active', 'completed', 'skipped', 'error');
+            
+            // Add new state
+            step.classList.add(state);
+            
+            // Update status text
+            const statusEl = step.querySelector('.step-status');
+            const statusText = {
+                'pending': '',
+                'active': '⏳ In progress',
+                'completed': '✅ Done',
+                'skipped': '⊘ Skipped',
+                'error': '❌ Failed'
+            };
+            statusEl.textContent = statusText[state] || '';
+        }
+        
+        /**
+         * Add entry to detail log
+         */
+        function addDetailLogEntry(stage, message) {
+            const logDiv = document.getElementById('overlayDetailLog');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const entry = document.createElement('div');
+            entry.style.marginBottom = '4px';
+            entry.style.padding = '4px 0';
+            entry.style.borderBottom = '1px solid #e5e7eb';
+            
+            const stageColors = {
+                'init': '#3b82f6',
+                'validate': '#8b5cf6',
+                'slice': '#f59e0b',
+                'upload': '#6366f1',
+                'compress': '#f59e0b',
+                'metadata': '#ec4899',
+                'embedding': '#3b82f6',
+                'embed': '#3b82f6',
+                'complete': '#10b981',
+                'error': '#ef4444'
+            };
+            
+            entry.innerHTML = `
+                <span style="color: #6b7280; margin-right: 8px;">${timestamp}</span>
+                <span style="color: ${stageColors[stage] || '#6b7280'}; font-weight: 600; margin-right: 8px;">[${stage.toUpperCase()}]</span>
+                <span>${message}</span>
+            `;
+            
+            logDiv.appendChild(entry);
+            
+            // Auto-scroll to bottom
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        /**
+         * Update time estimate display
+         */
+        function updateTimeEstimate() {
+            if (!processingStartTime || !estimatedTotalTime) return;
+            
+            const elapsed = Date.now() - processingStartTime;
+            const remaining = Math.max(0, estimatedTotalTime - elapsed);
+            
+            const minutes = Math.floor(remaining / 60000);
+            const seconds = Math.floor((remaining % 60000) / 1000);
+            
+            const timeEstDiv = document.getElementById('overlayTimeEstimate');
+            const timeText = document.getElementById('estimatedTime');
+            
+            if (remaining > 5000) {
+                timeEstDiv.style.display = 'block';
+                if (minutes > 0) {
+                    timeText.textContent = `Estimated time remaining: ${minutes}m ${seconds}s`;
+                } else {
+                    timeText.textContent = `Estimated time remaining: ${seconds}s`;
+                }
+            } else {
+                timeEstDiv.style.display = 'block';
+                timeText.textContent = 'Almost done...';
+            }
+        }
+        
+        /**
+         * Hide processing overlay
+         */
+        function hideProcessingOverlay() {
+            const overlay = document.getElementById('processingOverlay');
+            overlay.style.display = 'none';
+            
+            // Re-enable body scroll
+            document.body.style.overflow = '';
+            
+            // Reset variables
+            processingStartTime = null;
+            estimatedTotalTime = null;
+        }
+        
+        /**
+         * Cancel processing (optional - for future implementation)
+         */
+        function cancelProcessing() {
+            if (confirm('Are you sure you want to cancel? This may leave incomplete uploads.')) {
+                hideProcessingOverlay();
+                showUploadResults('Processing canceled by user', 'error');
+            }
         }
     </script>
 </body>
