@@ -1687,6 +1687,12 @@ def search_unified():
                 }
                 normalized_results.append(normalized_result)
         
+        # Debug: Log if any results have ai_tags
+        results_with_tags = [r for r in normalized_results if r.get('ai_tags')]
+        logger.info(f"📊 {len(results_with_tags)} out of {len(normalized_results)} results have ai_tags")
+        if results_with_tags:
+            logger.info(f"🏷️ Sample ai_tags: {results_with_tags[0].get('ai_tags')[:100]}...")
+        
         logger.info(f"✅ Found {len(normalized_results)} results using {search_method} search")
         
         return jsonify({
