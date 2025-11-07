@@ -48,10 +48,12 @@ check_network() {
         IFS='|' read -r url name <<< "$service"
         printf "  Testing %-20s ... " "$name"
         
-        if timeout 10 curl -s -o /dev/null -w "%{http_code}" "$url" | grep -q "^[23]"; then
+        HTTP_CODE=$(timeout 10 curl -s -o /dev/null -w "%{http_code}" "$url")
+        # Accept 2xx, 3xx, and 404 (TwelveLabs API returns 404 for root endpoint)
+        if echo "$HTTP_CODE" | grep -qE "^(2|3|404)"; then
             print_success "OK"
         else
-            print_error "FAILED"
+            print_error "FAILED (HTTP $HTTP_CODE)"
             all_ok=false
         fi
     done

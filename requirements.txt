@@ -1,7 +1,11 @@
 flask
+flask-login
+flask-wtf
 oracledb
 python-dotenv
 twelvelabs
 oci
 Pillow
 geopy
+bcrypt
+email-validator

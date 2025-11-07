@@ -270,11 +270,16 @@ class SimilarMediaFinder:
                 similarity = 1.0 - float(row[3])  # Convert distance to similarity
                 if similarity >= min_similarity:
                     results.append({
-                        "id": row[0],
+                        "media_id": row[0],
+                        "id": row[0],  # Keep for backwards compatibility
                         "album_name": row[1],
                         "file_name": row[2],
-                        "similarity": similarity,
-                        "type": "photo"
+                        "score": similarity,
+                        "similarity": similarity,  # Keep for backwards compatibility
+                        "file_type": "photo",
+                        "type": "photo",  # Keep for backwards compatibility
+                        "segment_start": None,
+                        "segment_end": None
                     })
             
             cursor.close()
@@ -343,11 +348,16 @@ class SimilarMediaFinder:
                 similarity = 1.0 - float(row[3])  # Convert distance to similarity
                 if similarity >= min_similarity:
                     results.append({
-                        "id": row[0],
+                        "media_id": row[0],
+                        "id": row[0],  # Keep for backwards compatibility
                         "album_name": row[1],
                         "file_name": row[2],
-                        "similarity": similarity,
-                        "type": "video"
+                        "score": similarity,
+                        "similarity": similarity,  # Keep for backwards compatibility
+                        "file_type": "video",
+                        "type": "video",  # Keep for backwards compatibility
+                        "segment_start": None,
+                        "segment_end": None
                     })
             
             cursor.close()

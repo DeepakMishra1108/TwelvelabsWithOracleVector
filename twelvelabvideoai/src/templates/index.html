@@ -448,13 +448,33 @@
                     </h1>
                     <p class="app-subtitle">AI-Powered Media Search & Management</p>
                 </div>
-                <div>
+                <div class="d-flex align-items-center gap-3">
                     <span class="badge bg-primary">
                         <i class="bi bi-database me-1"></i>Oracle Vector DB
                     </span>
-                    <span class="badge bg-success ms-2">
+                    <span class="badge bg-success">
                         <i class="bi bi-cpu me-1"></i>TwelveLabs AI
                     </span>
+                    {% if user %}
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle me-1"></i>{{ user.username }}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                            <li><h6 class="dropdown-header">
+                                <i class="bi bi-shield-fill me-1"></i>Role: <strong>{{ user.role }}</strong>
+                            </h6></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/user/profile">
+                                <i class="bi bi-person me-2"></i>Profile
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="/logout">
+                                <i class="bi bi-box-arrow-right me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -481,10 +501,66 @@
                     </button>
                 </div>
             </div>
-            <div class="mt-3">
+            <div class="mt-3 d-flex gap-2 align-items-center">
                 <select id="albumFilter" class="form-select" style="max-width: 300px;">
                     <option value="">All Albums</option>
                 </select>
+                <button class="btn btn-outline-secondary" onclick="toggleAdvancedSearch()">
+                    <i class="bi bi-funnel"></i> Advanced
+                </button>
+            </div>
+            
+            <!-- Advanced Search Panel (Hidden by default) -->
+            <div id="advancedSearchPanel" class="mt-3" style="display: none;">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title mb-3">Advanced Search Options</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Search Mode</label>
+                                <select id="searchMode" class="form-select">
+                                    <option value="simple">Simple Search</option>
+                                    <option value="and">AND (all terms must match)</option>
+                                    <option value="or">OR (any term can match)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Media Type</label>
+                                <select id="mediaTypeFilter" class="form-select">
+                                    <option value="">All Types</option>
+                                    <option value="photo">Photos Only</option>
+                                    <option value="video">Videos Only</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Date From</label>
+                                <input type="date" id="dateFrom" class="form-control">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Date To</label>
+                                <input type="date" id="dateTo" class="form-control">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-3" onclick="performAdvancedSearch()">
+                            <i class="bi bi-search"></i> Search with Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Creative Tools Section -->
+        <div class="mb-4">
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-outline-primary" onclick="showMontageCreator()">
+                    <i class="bi bi-film me-2"></i>Create Video Montage
+                </button>
+                <button class="btn btn-outline-success" onclick="showSlideshowCreator()">
+                    <i class="bi bi-images me-2"></i>Create Photo Slideshow
+                </button>
+                <button class="btn btn-outline-info" onclick="showBulkClipExtractor()">
+                    <i class="bi bi-scissors me-2"></i>Batch Clip Extraction
+                </button>
             </div>
         </div>
 
@@ -889,6 +965,45 @@
                                             <i class="bi bi-${isVideo ? 'camera-video' : 'image'} me-1"></i>
                                             ${isVideo ? (hasSegment ? 'Video Segment' : 'Video') : 'Photo'}
                                         </div>
+                                    </div>
+                                    <div class="mt-2 d-flex gap-1 flex-wrap">
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="findSimilar(${mediaId}, '${result.file_name}')"
+                                                title="Find similar ${isVideo ? 'videos' : 'photos'}">
+                                            <i class="bi bi-collection"></i> Similar
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-info" 
+                                                onclick="autoTag(${mediaId}, '${result.file_name}')"
+                                                title="Generate AI tags">
+                                            <i class="bi bi-tags"></i> Tags
+                                        </button>
+                                        ${isVideo ? `
+                                        <button class="btn btn-sm btn-outline-success" 
+                                                onclick="showClipExtractor(${mediaId}, '${result.file_name}')"
+                                                title="Extract video clip">
+                                            <i class="bi bi-scissors"></i> Clip
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning" 
+                                                onclick="analyzeVideo(${mediaId}, '${result.file_name}')"
+                                                title="Video analysis: titles, topics, summary, chapters">
+                                            <i class="bi bi-bar-chart"></i> Analyze
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-info" 
+                                                onclick="getVideoHighlights(${mediaId}, '${result.file_name}')"
+                                                title="Extract key moments">
+                                            <i class="bi bi-stars"></i> Highlights
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" 
+                                                onclick="suggestThumbnails(${mediaId}, '${result.file_name}')"
+                                                title="AI thumbnail suggestions">
+                                            <i class="bi bi-image"></i> Thumbs
+                                        </button>
+                                        ` : ''}
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                onclick="moderateContent(${mediaId}, '${result.file_name}')"
+                                                title="Content moderation check">
+                                            <i class="bi bi-shield-check"></i> Moderate
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1370,6 +1485,707 @@
         document.querySelector('[href="#map-tab"]').addEventListener('shown.bs.tab', function() {
             setTimeout(() => map.invalidateSize(), 100);
         });
+
+        // =====================================================================
+        // ADVANCED FEATURES
+        // =====================================================================
+
+        // Toggle Advanced Search Panel
+        function toggleAdvancedSearch() {
+            const panel = document.getElementById('advancedSearchPanel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Perform Advanced Search
+        async function performAdvancedSearch() {
+            try {
+                const query = document.getElementById('searchQuery').value.trim();
+                const mode = document.getElementById('searchMode').value;
+                const mediaType = document.getElementById('mediaTypeFilter').value;
+                const dateFrom = document.getElementById('dateFrom').value;
+                const dateTo = document.getElementById('dateTo').value;
+                const album = document.getElementById('albumFilter').value;
+                
+                if (!query) {
+                    alert('Please enter a search query');
+                    return;
+                }
+                
+                showStatus('Searching with advanced filters...', 'info');
+                
+                const payload = { query, mode };
+                if (mediaType) payload.media_type = mediaType;
+                if (dateFrom) payload.date_from = dateFrom;
+                if (dateTo) payload.date_to = dateTo;
+                if (album) payload.album = album;
+                
+                const response = await fetch('/advanced_search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                displayResults(data.results || []);
+                showStatus(`Found ${data.results.length} results`, 'success');
+            } catch (error) {
+                console.error('Advanced search error:', error);
+                showStatus(`Error: ${error.message}`, 'danger');
+            }
+        }
+
+        // Find Similar Media
+        async function findSimilar(mediaId, fileName) {
+            try {
+                showStatus(`Finding similar media to ${fileName}...`, 'info');
+                
+                const response = await fetch(`/find_similar/${mediaId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                if (data.similar_items && data.similar_items.length > 0) {
+                    showStatus(`Found ${data.similar_items.length} similar items!`, 'success');
+                    displayResults(data.similar_items);
+                } else {
+                    showStatus('No similar items found', 'warning');
+                }
+            } catch (error) {
+                console.error('Find similar error:', error);
+                showStatus(`Error finding similar media: ${error.message}`, 'danger');
+            }
+        }
+
+        // Auto-tag Media
+        async function autoTag(mediaId, fileName) {
+            try {
+                showStatus(`Generating AI tags for ${fileName}...`, 'info');
+                
+                const response = await fetch(`/auto_tag/${mediaId}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                const tags = data.tags || {};
+                let message = `Tags for ${fileName}:\\n\\n`;
+                
+                if (tags.title) message += `Title: ${tags.title}\\n`;
+                if (tags.topics && tags.topics.length > 0) {
+                    message += `Topics: ${tags.topics.join(', ')}\\n`;
+                }
+                if (tags.hashtags && tags.hashtags.length > 0) {
+                    message += `Hashtags: ${tags.hashtags.join(' ')}`;
+                }
+                
+                alert(message);
+                showStatus('Tags generated successfully!', 'success');
+            } catch (error) {
+                console.error('Auto-tag error:', error);
+                showStatus(`Error generating tags: ${error.message}`, 'danger');
+            }
+        }
+
+        // Show Clip Extractor Modal
+        function showClipExtractor(mediaId, fileName) {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Extract Video Clip</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>File:</strong> ${fileName}</p>
+                            <div class="mb-3">
+                                <label class="form-label">Start Time (seconds)</label>
+                                <input type="number" class="form-control" id="clipStartTime" value="0" min="0" step="0.1">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">End Time (seconds)</label>
+                                <input type="number" class="form-control" id="clipEndTime" value="10" min="0.1" step="0.1">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="extractClip(${mediaId})">
+                                <i class="bi bi-scissors"></i> Extract Clip
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        }
+
+        // Extract Clip
+        async function extractClip(mediaId) {
+            try {
+                const startTime = parseFloat(document.getElementById('clipStartTime').value);
+                const endTime = parseFloat(document.getElementById('clipEndTime').value);
+                
+                if (startTime >= endTime) {
+                    alert('End time must be greater than start time');
+                    return;
+                }
+                
+                showStatus('Extracting clip...', 'info');
+                
+                const response = await fetch('/extract_clip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        media_id: mediaId,
+                        start_time: startTime,
+                        end_time: endTime
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                showStatus(data.message || 'Clip extraction initiated!', 'success');
+                bootstrap.Modal.getInstance(document.querySelector('.modal.show')).hide();
+            } catch (error) {
+                console.error('Extract clip error:', error);
+                showStatus(`Error extracting clip: ${error.message}`, 'danger');
+            }
+        }
+
+        // Show status message
+        function showStatus(message, type = 'info') {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+            alert.style.zIndex = '9999';
+            alert.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        // Video Analysis - Comprehensive
+        async function analyzeVideo(mediaId, fileName) {
+            try {
+                showStatus(`Analyzing video: ${fileName}...`, 'info');
+                
+                const response = await fetch(`/video_analysis/${mediaId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        types: ['title', 'topics', 'hashtags', 'summary', 'chapters']
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                // Display results in a modal
+                const analysis = data.analysis || {};
+                let content = `<h5>Video Analysis: ${fileName}</h5>`;
+                
+                if (analysis.title) {
+                    content += `<p><strong>Title:</strong> ${analysis.title}</p>`;
+                }
+                if (analysis.summary) {
+                    content += `<p><strong>Summary:</strong> ${analysis.summary}</p>`;
+                }
+                if (analysis.topics && analysis.topics.length > 0) {
+                    content += `<p><strong>Topics:</strong> ${analysis.topics.join(', ')}</p>`;
+                }
+                if (analysis.hashtags && analysis.hashtags.length > 0) {
+                    content += `<p><strong>Hashtags:</strong> ${analysis.hashtags.join(' ')}</p>`;
+                }
+                if (analysis.chapters && analysis.chapters.length > 0) {
+                    content += `<p><strong>Chapters:</strong></p><ul>`;
+                    analysis.chapters.forEach(ch => {
+                        content += `<li>${ch.title} (${ch.start}s - ${ch.end}s)</li>`;
+                    });
+                    content += `</ul>`;
+                }
+                
+                showModal('Video Analysis', content);
+                showStatus('Video analysis complete!', 'success');
+            } catch (error) {
+                console.error('Video analysis error:', error);
+                showStatus(`Error: ${error.message}`, 'danger');
+            }
+        }
+
+        // Get Video Highlights
+        async function getVideoHighlights(mediaId, fileName) {
+            try {
+                showStatus(`Extracting highlights from: ${fileName}...`, 'info');
+                
+                const response = await fetch(`/video_highlights/${mediaId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                showModal('Video Highlights', `
+                    <p>Key moments identified for: <strong>${fileName}</strong></p>
+                    <p>${data.message}</p>
+                `);
+                showStatus('Highlights extraction complete!', 'success');
+            } catch (error) {
+                console.error('Highlights error:', error);
+                showStatus(`Error: ${error.message}`, 'danger');
+            }
+        }
+
+        // Suggest Thumbnails
+        async function suggestThumbnails(mediaId, fileName) {
+            try {
+                showStatus(`Getting thumbnail suggestions for: ${fileName}...`, 'info');
+                
+                const response = await fetch(`/thumbnail_suggestions/${mediaId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                let content = `<h5>AI Thumbnail Suggestions for ${fileName}</h5>`;
+                if (data.suggestions && data.suggestions.length > 0) {
+                    content += '<div class="list-group">';
+                    data.suggestions.forEach((sug, idx) => {
+                        content += `
+                            <div class="list-group-item">
+                                <strong>#${idx + 1}</strong> at ${sug.timestamp}s 
+                                <span class="badge bg-success">${Math.round(sug.score * 100)}%</span>
+                                <br><small>${sug.reason}</small>
+                            </div>
+                        `;
+                    });
+                    content += '</div>';
+                }
+                
+                showModal('Thumbnail Suggestions', content);
+                showStatus('Thumbnail suggestions ready!', 'success');
+            } catch (error) {
+                console.error('Thumbnail suggestions error:', error);
+                showStatus(`Error: ${error.message}`, 'danger');
+            }
+        }
+
+        // Content Moderation
+        async function moderateContent(mediaId, fileName) {
+            try {
+                showStatus(`Checking content safety for: ${fileName}...`, 'info');
+                
+                const response = await fetch(`/content_moderation/${mediaId}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                const statusClass = data.is_safe ? 'success' : 'danger';
+                const statusIcon = data.is_safe ? 'check-circle' : 'exclamation-triangle';
+                
+                let content = `
+                    <h5>Content Moderation: ${fileName}</h5>
+                    <div class="alert alert-${statusClass}">
+                        <i class="bi bi-${statusIcon}"></i> 
+                        ${data.message} (${Math.round(data.confidence * 100)}% confidence)
+                    </div>
+                `;
+                
+                if (data.categories) {
+                    content += '<p><strong>Category Scores:</strong></p><ul>';
+                    for (const [cat, score] of Object.entries(data.categories)) {
+                        content += `<li>${cat}: ${Math.round(score * 100)}%</li>`;
+                    }
+                    content += '</ul>';
+                }
+                
+                showModal('Content Moderation', content);
+                showStatus('Moderation check complete!', 'success');
+            } catch (error) {
+                console.error('Moderation error:', error);
+                showStatus(`Error: ${error.message}`, 'danger');
+            }
+        }
+
+        // Generic Modal Display
+        function showModal(title, content) {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">${title}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            ${content}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        }
+
+        // ========== CREATIVE TOOLS ==========
+
+        // Show Montage Creator Modal
+        function showMontageCreator() {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title"><i class="bi bi-film me-2"></i>Create Video Montage</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Select videos to combine into a montage with transitions
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Video Selection</strong></label>
+                                <div id="montageVideoList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="text-center text-muted py-4">
+                                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                                        <p class="mt-2">Loading videos...</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Transition Effect</label>
+                                    <select id="montageTransition" class="form-select">
+                                        <option value="fade">Fade (Smooth)</option>
+                                        <option value="dissolve">Dissolve</option>
+                                        <option value="wipe">Wipe</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Duration per Clip (seconds)</label>
+                                    <input type="number" id="montageDuration" class="form-control" value="5" min="1" max="30" step="0.5">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Output Filename</label>
+                                    <input type="text" id="montageOutputName" class="form-control" value="my_montage.mp4" placeholder="montage.mp4">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="createMontage()">
+                                <i class="bi bi-film me-2"></i>Create Montage
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+            
+            // Load available videos
+            loadVideosForMontage();
+        }
+
+        // Load Videos for Montage
+        async function loadVideosForMontage() {
+            try {
+                const response = await fetch('/albums');
+                const data = await response.json();
+                
+                const container = document.getElementById('montageVideoList');
+                let html = '';
+                
+                if (data.albums && data.albums.length > 0) {
+                    for (const album of data.albums) {
+                        const albumResponse = await fetch(`/album/${encodeURIComponent(album)}`);
+                        const albumData = await albumResponse.json();
+                        
+                        const videos = (albumData.media || []).filter(m => m.file_type === 'video');
+                        
+                        if (videos.length > 0) {
+                            html += `<div class="mb-3"><strong>${album}</strong></div>`;
+                            videos.forEach(video => {
+                                html += `
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input montage-video-check" type="checkbox" 
+                                               value="${video.id}" id="montage-video-${video.id}">
+                                        <label class="form-check-label" for="montage-video-${video.id}">
+                                            ${video.file_name}
+                                        </label>
+                                    </div>
+                                `;
+                            });
+                        }
+                    }
+                }
+                
+                if (!html) {
+                    html = '<p class="text-muted text-center py-4">No videos available</p>';
+                }
+                
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading videos:', error);
+                document.getElementById('montageVideoList').innerHTML = 
+                    '<p class="text-danger text-center py-4">Error loading videos</p>';
+            }
+        }
+
+        // Create Montage
+        async function createMontage() {
+            try {
+                const selectedVideos = Array.from(document.querySelectorAll('.montage-video-check:checked'))
+                    .map(cb => parseInt(cb.value));
+                
+                if (selectedVideos.length < 2) {
+                    showStatus('Please select at least 2 videos for montage', 'warning');
+                    return;
+                }
+                
+                const transition = document.getElementById('montageTransition').value;
+                const duration = parseFloat(document.getElementById('montageDuration').value);
+                const outputName = document.getElementById('montageOutputName').value || 'montage.mp4';
+                
+                showStatus(`Creating montage with ${selectedVideos.length} videos...`, 'info');
+                
+                const response = await fetch('/create_montage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        video_ids: selectedVideos,
+                        transition: transition,
+                        duration_per_clip: duration,
+                        output_name: outputName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                showStatus(`✅ ${data.message}! Estimated duration: ${Math.round(data.estimated_duration)}s`, 'success');
+                bootstrap.Modal.getInstance(document.querySelector('.modal.show')).hide();
+            } catch (error) {
+                console.error('Montage creation error:', error);
+                showStatus(`Error creating montage: ${error.message}`, 'danger');
+            }
+        }
+
+        // Show Slideshow Creator Modal
+        function showSlideshowCreator() {
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title"><i class="bi bi-images me-2"></i>Create Photo Slideshow</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Select photos to create an animated slideshow video
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Photo Selection</strong></label>
+                                <div id="slideshowPhotoList" class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="text-center text-muted py-4">
+                                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                                        <p class="mt-2">Loading photos...</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Transition Effect</label>
+                                    <select id="slideshowTransition" class="form-select">
+                                        <option value="fade">Fade</option>
+                                        <option value="dissolve">Dissolve</option>
+                                        <option value="slide">Slide</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Duration per Photo (seconds)</label>
+                                    <input type="number" id="slideshowDuration" class="form-control" value="3" min="1" max="10" step="0.5">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Resolution</label>
+                                    <select id="slideshowResolution" class="form-select">
+                                        <option value="1920x1080">1920x1080 (Full HD)</option>
+                                        <option value="1280x720">1280x720 (HD)</option>
+                                        <option value="3840x2160">3840x2160 (4K)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Output Filename</label>
+                                    <input type="text" id="slideshowOutputName" class="form-control" value="my_slideshow.mp4" placeholder="slideshow.mp4">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-success" onclick="createSlideshow()">
+                                <i class="bi bi-images me-2"></i>Create Slideshow
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+            
+            // Load available photos
+            loadPhotosForSlideshow();
+        }
+
+        // Load Photos for Slideshow
+        async function loadPhotosForSlideshow() {
+            try {
+                const response = await fetch('/albums');
+                const data = await response.json();
+                
+                const container = document.getElementById('slideshowPhotoList');
+                let html = '';
+                
+                if (data.albums && data.albums.length > 0) {
+                    for (const album of data.albums) {
+                        const albumResponse = await fetch(`/album/${encodeURIComponent(album)}`);
+                        const albumData = await albumResponse.json();
+                        
+                        const photos = (albumData.media || []).filter(m => m.file_type === 'photo');
+                        
+                        if (photos.length > 0) {
+                            html += `<div class="mb-3"><strong>${album}</strong></div>`;
+                            photos.forEach(photo => {
+                                html += `
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input slideshow-photo-check" type="checkbox" 
+                                               value="${photo.id}" id="slideshow-photo-${photo.id}">
+                                        <label class="form-check-label" for="slideshow-photo-${photo.id}">
+                                            ${photo.file_name}
+                                        </label>
+                                    </div>
+                                `;
+                            });
+                        }
+                    }
+                }
+                
+                if (!html) {
+                    html = '<p class="text-muted text-center py-4">No photos available</p>';
+                }
+                
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading photos:', error);
+                document.getElementById('slideshowPhotoList').innerHTML = 
+                    '<p class="text-danger text-center py-4">Error loading photos</p>';
+            }
+        }
+
+        // Create Slideshow
+        async function createSlideshow() {
+            try {
+                const selectedPhotos = Array.from(document.querySelectorAll('.slideshow-photo-check:checked'))
+                    .map(cb => parseInt(cb.value));
+                
+                if (selectedPhotos.length < 2) {
+                    showStatus('Please select at least 2 photos for slideshow', 'warning');
+                    return;
+                }
+                
+                const transition = document.getElementById('slideshowTransition').value;
+                const duration = parseFloat(document.getElementById('slideshowDuration').value);
+                const resolution = document.getElementById('slideshowResolution').value;
+                const outputName = document.getElementById('slideshowOutputName').value || 'slideshow.mp4';
+                
+                showStatus(`Creating slideshow with ${selectedPhotos.length} photos...`, 'info');
+                
+                const response = await fetch('/create_slideshow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        photo_ids: selectedPhotos,
+                        duration_per_photo: duration,
+                        transition: transition,
+                        resolution: resolution,
+                        output_name: outputName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                showStatus(`✅ ${data.message}! Estimated duration: ${Math.round(data.estimated_duration)}s`, 'success');
+                bootstrap.Modal.getInstance(document.querySelector('.modal.show')).hide();
+            } catch (error) {
+                console.error('Slideshow creation error:', error);
+                showStatus(`Error creating slideshow: ${error.message}`, 'danger');
+            }
+        }
+
+        // Show Bulk Clip Extractor (placeholder for future enhancement)
+        function showBulkClipExtractor() {
+            showStatus('Batch Clip Extraction feature coming soon! Use the "Clip" button on individual videos for now.', 'info');
+        }
     </script>
 </body>
 </html>
