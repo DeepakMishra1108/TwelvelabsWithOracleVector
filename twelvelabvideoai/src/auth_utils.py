@@ -148,7 +148,7 @@ def authenticate_user(username: str, password: str, ip_address: str = None) -> O
         
         # Get user with password hash
         cursor.execute("""
-            SELECT id, username, email, role, is_active, password_hash
+            SELECT id, username, email, role, is_active, password_hash, created_at, last_login
             FROM users
             WHERE username = :username
         """, {"username": username})
@@ -162,7 +162,7 @@ def authenticate_user(username: str, password: str, ip_address: str = None) -> O
             connection.close()
             return None
         
-        user_id, username, email, role, is_active, password_hash = row
+        user_id, username, email, role, is_active, password_hash, created_at, last_login = row
         
         # Verify password
         if not verify_password(password, password_hash):
@@ -202,7 +202,10 @@ def authenticate_user(username: str, password: str, ip_address: str = None) -> O
             username=username,
             email=email,
             role=role,
-            is_active=bool(is_active)
+            is_active=bool(is_active),
+            password_hash=password_hash,
+            created_at=created_at,
+            last_login=last_login
         )
         
     except Exception as e:
