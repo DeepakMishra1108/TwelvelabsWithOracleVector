@@ -2167,8 +2167,6 @@ async def extract_clip():
 
 @app.route('/create_montage', methods=['POST'])
 def create_montage():
-@app.route('/create_montage', methods=['POST'])
-def create_montage():
     """Create a video montage from multiple video clips with FFmpeg"""
     import subprocess
     import tempfile
