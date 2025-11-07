@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # Import authentication utilities
 try:
-    from auth_utils import User, authenticate_user, get_user_by_id, verify_password, update_user_password
+    from auth_utils import User, authenticate_user, get_user_by_id, verify_password, update_user_password, create_user
     AUTH_AVAILABLE = True
     logger.info("✅ Authentication utilities imported successfully")
 except Exception as e:
@@ -121,6 +121,16 @@ if UNIFIED_ALBUM_AVAILABLE and flask_safe_album_manager:
     logger.info("✅ Flask-safe album manager ready")
 else:
     logger.warning("⚠️ No album manager available")
+
+# Import Flask-safe DB connection
+try:
+    from utils.db_utils_flask_safe import get_flask_safe_connection
+    DB_UTILS_AVAILABLE = True
+    logger.info("✅ Flask-safe DB utilities imported successfully")
+except Exception as e:
+    logger.warning(f"⚠️ Flask-safe DB utilities not available: {e}")
+    get_flask_safe_connection = None
+    DB_UTILS_AVAILABLE = False
 
 # Flask-safe embedding functions - DO NOT use signal-based timeouts
 def create_unified_embedding_flask_safe(file_path, file_type, album_name, media_id=None, **kwargs):
@@ -588,6 +598,216 @@ def change_password():
         flash('An error occurred while updating password', 'error')
     
     return redirect(url_for('user_profile'))
+
+
+# ========== ADMIN USER MANAGEMENT ROUTES ==========
+
+def admin_required(f):
+    """Decorator to require admin role"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for('login'))
+        if current_user.role != 'admin':
+            flash('Access denied. Admin privileges required.', 'error')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin/users')
+@login_required
+@admin_required
+def admin_users():
+    """Admin page to manage users"""
+    try:
+        # Get all users
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, username, email, role, is_active, created_at, last_login
+                FROM users
+                ORDER BY created_at DESC
+            """)
+            users = []
+            for row in cursor.fetchall():
+                users.append({
+                    'id': row[0],
+                    'username': row[1],
+                    'email': row[2],
+                    'role': row[3],
+                    'is_active': bool(row[4]),
+                    'created_at': row[5],
+                    'last_login': row[6]
+                })
+        
+        return render_template('admin_users.html', users=users, current_user=current_user)
+    except Exception as e:
+        logger.error(f"Error loading users: {e}")
+        flash('Error loading users', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/admin/users/add', methods=['POST'])
+@login_required
+@admin_required
+def admin_add_user():
+    """Add a new user"""
+    try:
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '').strip()
+        role = request.form.get('role', 'viewer')
+        
+        # Validation
+        if not username or not password:
+            flash('Username and password are required', 'error')
+            return redirect(url_for('admin_users'))
+        
+        if len(username) < 3:
+            flash('Username must be at least 3 characters', 'error')
+            return redirect(url_for('admin_users'))
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters', 'error')
+            return redirect(url_for('admin_users'))
+        
+        if role not in ['admin', 'editor', 'viewer']:
+            flash('Invalid role', 'error')
+            return redirect(url_for('admin_users'))
+        
+        # Create user using auth_utils
+        if AUTH_AVAILABLE and create_user:
+            success = create_user(username, password, email, role)
+            if success:
+                logger.info(f"✅ Admin {current_user.username} created user: {username} (role: {role})")
+                flash(f'User {username} created successfully', 'success')
+            else:
+                flash('Failed to create user. Username may already exist.', 'error')
+        else:
+            flash('User creation not available', 'error')
+        
+        return redirect(url_for('admin_users'))
+        
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        flash('Error creating user', 'error')
+        return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/toggle', methods=['POST'])
+@login_required
+@admin_required
+def admin_toggle_user(user_id):
+    """Toggle user active status"""
+    try:
+        # Prevent disabling yourself
+        if user_id == current_user.id:
+            flash('Cannot disable your own account', 'error')
+            return redirect(url_for('admin_users'))
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            # Toggle is_active
+            cursor.execute("""
+                UPDATE users 
+                SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END
+                WHERE id = :user_id
+            """, {"user_id": user_id})
+            conn.commit()
+            
+            # Get updated status
+            cursor.execute("SELECT username, is_active FROM users WHERE id = :user_id", {"user_id": user_id})
+            row = cursor.fetchone()
+            if row:
+                username, is_active = row
+                status = 'enabled' if is_active else 'disabled'
+                logger.info(f"✅ Admin {current_user.username} {status} user: {username}")
+                flash(f'User {username} {status}', 'success')
+        
+        return redirect(url_for('admin_users'))
+        
+    except Exception as e:
+        logger.error(f"Error toggling user: {e}")
+        flash('Error updating user status', 'error')
+        return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/reset-password', methods=['POST'])
+@login_required
+@admin_required
+def admin_reset_password(user_id):
+    """Reset user password"""
+    try:
+        new_password = request.form.get('new_password', '').strip()
+        
+        if not new_password:
+            flash('Password is required', 'error')
+            return redirect(url_for('admin_users'))
+        
+        if len(new_password) < 6:
+            flash('Password must be at least 6 characters', 'error')
+            return redirect(url_for('admin_users'))
+        
+        # Get username first
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT username FROM users WHERE id = :user_id", {"user_id": user_id})
+            row = cursor.fetchone()
+            if not row:
+                flash('User not found', 'error')
+                return redirect(url_for('admin_users'))
+            username = row[0]
+        
+        # Update password
+        if AUTH_AVAILABLE and update_user_password:
+            success = update_user_password(user_id, new_password)
+            if success:
+                logger.info(f"✅ Admin {current_user.username} reset password for user: {username}")
+                flash(f'Password reset for user {username}', 'success')
+            else:
+                flash('Failed to reset password', 'error')
+        else:
+            flash('Password reset not available', 'error')
+        
+        return redirect(url_for('admin_users'))
+        
+    except Exception as e:
+        logger.error(f"Error resetting password: {e}")
+        flash('Error resetting password', 'error')
+        return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    """Delete a user"""
+    try:
+        # Prevent deleting yourself
+        if user_id == current_user.id:
+            flash('Cannot delete your own account', 'error')
+            return redirect(url_for('admin_users'))
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            # Get username first
+            cursor.execute("SELECT username FROM users WHERE id = :user_id", {"user_id": user_id})
+            row = cursor.fetchone()
+            if not row:
+                flash('User not found', 'error')
+                return redirect(url_for('admin_users'))
+            username = row[0]
+            
+            # Delete user
+            cursor.execute("DELETE FROM users WHERE id = :user_id", {"user_id": user_id})
+            conn.commit()
+            
+            logger.info(f"✅ Admin {current_user.username} deleted user: {username}")
+            flash(f'User {username} deleted', 'success')
+        
+        return redirect(url_for('admin_users'))
+        
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        flash('Error deleting user', 'error')
+        return redirect(url_for('admin_users'))
 
 
 # ========== MAIN APPLICATION ROUTES ==========
