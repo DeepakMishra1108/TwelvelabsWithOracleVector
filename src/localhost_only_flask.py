@@ -45,6 +45,34 @@ except Exception as e:
     logger.error(f"❌ Could not import auth utilities: {e}")
     AUTH_AVAILABLE = False
 
+# Import authorization and RBAC
+try:
+    from auth_rbac import (
+        viewer_required, editor_required, admin_required, permission_required,
+        has_permission, can_upload, can_edit, can_delete, can_create_album,
+        get_user_storage_path, get_user_album_path, get_user_video_path,
+        can_access_resource, ROLE_PERMISSIONS
+    )
+    RBAC_AVAILABLE = True
+    logger.info("✅ RBAC authorization imported successfully")
+except Exception as e:
+    logger.error(f"❌ Could not import RBAC: {e}")
+    RBAC_AVAILABLE = False
+    # Fallback to simple decorator
+    def viewer_required(f):
+        return login_required(f)
+    def editor_required(f):
+        return login_required(f)
+    def admin_required(f):
+        from functools import wraps
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated or current_user.role != 'admin':
+                flash('Admin privileges required', 'error')
+                return redirect(url_for('index'))
+            return f(*args, **kwargs)
+        return decorated_function
+
 # Import OCI
 try:
     import oci
@@ -602,19 +630,6 @@ def change_password():
 
 # ========== ADMIN USER MANAGEMENT ROUTES ==========
 
-def admin_required(f):
-    """Decorator to require admin role"""
-    from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            return redirect(url_for('login'))
-        if current_user.role != 'admin':
-            flash('Access denied. Admin privileges required.', 'error')
-            return redirect(url_for('index'))
-        return f(*args, **kwargs)
-    return decorated_function
-
 @app.route('/admin/users')
 @login_required
 @admin_required
@@ -962,8 +977,12 @@ def get_album_contents(album_name):
         return jsonify({'error': str(e), 'results': [], 'count': 0})
 
 @app.route('/upload_unified', methods=['POST'])
+@editor_required
 def upload_unified():
     """Upload media (photo or video) to OCI and create TwelveLabs Marengo embeddings
+    
+    Requires editor role or higher.
+    Automatically assigns user_id to uploaded content for multi-tenant isolation.
     
     Accepts multipart/form-data with:
     - 'mediaFile': photo or video file(s) - supports multiple files
@@ -981,7 +1000,7 @@ def upload_unified():
     task_id = str(uuid.uuid4())
     
     try:
-        logger.info(f"📤 Upload request received [task_id={task_id}]")
+        logger.info(f"📤 Upload request received [task_id={task_id}, user={current_user.username}]")
         logger.info(f"Files: {list(request.files.keys())}")
         logger.info(f"Form: {dict(request.form)}")
         
@@ -1810,11 +1829,13 @@ def media_thumbnail(media_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/search_unified', methods=['POST'])
+@viewer_required
 def search_unified():
     """Unified search across photos and videos using TwelveLabs Marengo embeddings
     
     Searches both photo and video content using natural language queries.
     Uses Oracle Vector DB for similarity search.
+    Automatically filters results by current user (unless admin viewing all)
     
     JSON body: { 
         "query": "search text", 
@@ -1834,7 +1855,10 @@ def search_unified():
         if not query:
             return jsonify({'error': 'Query is required'}), 400
         
-        logger.info(f"🔍 Unified search request: '{query}' (limit: {limit}, threshold: {min_similarity*100:.0f}%)")
+        # Get user_id for filtering (None for admin to see all content)
+        user_id = current_user.id if current_user.role != 'admin' else None
+        
+        logger.info(f"🔍 Unified search request: '{query}' (user: {current_user.username}, limit: {limit}, threshold: {min_similarity*100:.0f}%)")
         
         if not UNIFIED_ALBUM_AVAILABLE:
             return jsonify({'error': 'Unified album system not available'}), 500
@@ -1851,6 +1875,7 @@ def search_unified():
                 # search_unified_flask_safe returns list of results directly
                 results = search_unified_flask_safe(
                     query_text=query,
+                    user_id=user_id,  # Pass user_id for filtering
                     album_name=album_filter,
                     top_k=limit,
                     min_similarity=min_similarity

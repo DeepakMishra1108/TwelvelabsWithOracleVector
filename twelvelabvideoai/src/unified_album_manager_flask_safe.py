@@ -45,7 +45,7 @@ class FlaskSafeUnifiedAlbumManager:
             return 'unknown', mime_type
     
     def store_media_metadata(self, album_name, file_name, file_path, file_type, 
-                           mime_type=None, file_size=None, oci_namespace=None, 
+                           user_id=None, mime_type=None, file_size=None, oci_namespace=None, 
                            oci_bucket=None, oci_object_path=None, 
                            latitude=None, longitude=None, gps_altitude=None,
                            city=None, state=None, country=None, country_code=None,
@@ -59,6 +59,7 @@ class FlaskSafeUnifiedAlbumManager:
             file_name: Name of the media file
             file_path: Full path to the file
             file_type: Type of media ('photo' or 'video')
+            user_id: User ID for multi-tenant isolation (required)
             mime_type: MIME type of the file
             file_size: Size of the file in bytes
             oci_namespace: OCI namespace
@@ -99,6 +100,7 @@ class FlaskSafeUnifiedAlbumManager:
                 'file_name': file_name,
                 'file_path': file_path,
                 'file_type': file_type,
+                'user_id': user_id,  # Multi-tenant isolation
                 'mime_type': mime_type or 'application/octet-stream',
                 'file_size': file_size or 0,
                 'oci_namespace': oci_namespace,

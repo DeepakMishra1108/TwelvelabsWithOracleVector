@@ -18,29 +18,57 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def get_cached_embedding(query_text: str) -> Optional[str]:
-    """Get cached embedding for query if it exists"""
+def get_cached_embedding(query_text: str, user_id: int = None) -> Optional[str]:
+    """Get cached embedding for query if it exists
+    
+    Args:
+        query_text: The search query
+        user_id: Optional user ID for user-specific cache lookup
+    """
     try:
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT embedding_vector 
-                FROM query_embedding_cache 
-                WHERE query_text = :query
-            """, {"query": query_text})
+            
+            # Check user-specific cache first, then fall back to global cache
+            if user_id:
+                cursor.execute("""
+                    SELECT embedding_vector 
+                    FROM query_embedding_cache 
+                    WHERE query_text = :query
+                    AND (user_id = :user_id OR user_id IS NULL)
+                    ORDER BY user_id DESC NULLS LAST
+                    FETCH FIRST 1 ROW ONLY
+                """, {"query": query_text, "user_id": user_id})
+            else:
+                cursor.execute("""
+                    SELECT embedding_vector 
+                    FROM query_embedding_cache 
+                    WHERE query_text = :query
+                    AND user_id IS NULL
+                """, {"query": query_text})
             
             result = cursor.fetchone()
             if result and result[0]:
                 # Update usage stats
-                cursor.execute("""
-                    UPDATE query_embedding_cache 
-                    SET last_used_at = CURRENT_TIMESTAMP, 
-                        usage_count = usage_count + 1
-                    WHERE query_text = :query
-                """, {"query": query_text})
+                if user_id:
+                    cursor.execute("""
+                        UPDATE query_embedding_cache 
+                        SET last_used_at = CURRENT_TIMESTAMP, 
+                            usage_count = usage_count + 1
+                        WHERE query_text = :query
+                        AND (user_id = :user_id OR user_id IS NULL)
+                    """, {"query": query_text, "user_id": user_id})
+                else:
+                    cursor.execute("""
+                        UPDATE query_embedding_cache 
+                        SET last_used_at = CURRENT_TIMESTAMP, 
+                            usage_count = usage_count + 1
+                        WHERE query_text = :query
+                        AND user_id IS NULL
+                    """, {"query": query_text})
                 conn.commit()
                 
-                logger.info(f"💾 Using cached embedding for query: '{query_text}'")
+                logger.info(f"💾 Using cached embedding for query: '{query_text}'" + (f" (user {user_id})" if user_id else ""))
                 # Convert VECTOR to JSON
                 return json.dumps(list(result[0]))
             return None
@@ -48,26 +76,48 @@ def get_cached_embedding(query_text: str) -> Optional[str]:
         logger.warning(f"Failed to get cached embedding: {e}")
         return None
 
-def save_embedding_to_cache(query_text: str, embedding_list: List[float]):
-    """Save query embedding to cache"""
+def save_embedding_to_cache(query_text: str, embedding_list: List[float], user_id: int = None):
+    """Save query embedding to cache
+    
+    Args:
+        query_text: The search query
+        embedding_list: The embedding vector
+        user_id: Optional user ID for user-specific caching
+    """
+def save_embedding_to_cache(query_text: str, embedding_list: List[float], user_id: int = None):
+    """Save query embedding to cache
+    
+    Args:
+        query_text: The search query
+        embedding_list: The embedding vector
+        user_id: Optional user ID for user-specific caching
+    """
     try:
         vector_json = json.dumps(embedding_list)
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO query_embedding_cache (query_text, embedding_vector)
-                VALUES (:query, TO_VECTOR(:vector))
-            """, {"query": query_text, "vector": vector_json})
+            if user_id:
+                cursor.execute("""
+                    INSERT INTO query_embedding_cache (query_text, embedding_vector, user_id)
+                    VALUES (:query, TO_VECTOR(:vector), :user_id)
+                """, {"query": query_text, "vector": vector_json, "user_id": user_id})
+                logger.info(f"💾 Saved embedding to cache for: '{query_text}' (user {user_id})")
+            else:
+                cursor.execute("""
+                    INSERT INTO query_embedding_cache (query_text, embedding_vector)
+                    VALUES (:query, TO_VECTOR(:vector))
+                """, {"query": query_text, "vector": vector_json})
+                logger.info(f"💾 Saved embedding to cache for: '{query_text}' (global)")
             conn.commit()
-            logger.info(f"💾 Saved embedding to cache for: '{query_text}'")
     except Exception as e:
         logger.warning(f"Failed to save to cache (may already exist): {e}")
 
-def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: int = 20, min_similarity: float = 0.30) -> List[Dict]:
+def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: str = None, top_k: int = 20, min_similarity: float = 0.30) -> List[Dict]:
     """Search both photos and video segments using TwelveLabs embedding and Oracle VECTOR similarity
     
     Args:
         query_text: Natural language search query
+        user_id: User ID to filter results (None for admin to see all)
         album_name: Optional album filter
         top_k: Number of results to return (split between photos and videos)
         min_similarity: Minimum similarity threshold (0.0-1.0). Default 0.30 (30%)
@@ -76,8 +126,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
         Combined list of photo and video segment results with similarity scores above threshold
     """
     try:
-        # Check cache first
-        vector_json = get_cached_embedding(query_text)
+        # Check cache first (with user_id for isolation)
+        vector_json = get_cached_embedding(query_text, user_id) if user_id else get_cached_embedding(query_text)
         
         if not vector_json:
             # Cache miss - get embedding from TwelveLabs API
@@ -129,8 +179,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
             vector_json = json.dumps(query_vector_list)
             logger.info(f"✅ Query vector has {len(query_vector_list)} dimensions")
             
-            # Save to cache for future use
-            save_embedding_to_cache(query_text, query_vector_list)
+            # Save to cache for future use (with user_id for isolation)
+            save_embedding_to_cache(query_text, query_vector_list, user_id)
         else:
             logger.info(f"✅ Using cached query vector")
         
@@ -156,6 +206,10 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
         AND embedding_vector IS NOT NULL
         """
         
+        # Add user_id filter if provided
+        if user_id:
+            photo_sql += " AND user_id = :user_id"
+        
         if album_name:
             photo_sql += " AND album_name = :album_name"
         
@@ -165,6 +219,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
         """
         
         photo_params = {'query_vector': vector_json, 'top_k': top_k}
+        if user_id:
+            photo_params['user_id'] = user_id
         if album_name:
             photo_params['album_name'] = album_name
         
@@ -216,6 +272,10 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
         WHERE ve.embedding_vector IS NOT NULL
         """
         
+        # Add user_id filter if provided
+        if user_id:
+            video_sql += " AND am.user_id = :user_id"
+        
         if album_name:
             video_sql += " AND am.album_name = :album_name"
         
@@ -225,6 +285,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
         """
         
         video_params = {'query_vector': vector_json, 'top_k': top_k}
+        if user_id:
+            video_params['user_id'] = user_id
         if album_name:
             video_params['album_name'] = album_name
         
