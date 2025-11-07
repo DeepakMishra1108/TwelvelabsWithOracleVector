@@ -1001,6 +1001,15 @@
                                             ${isVideo ? (hasSegment ? 'Video Segment' : 'Video') : 'Photo'}
                                         </div>
                                     </div>
+                                    ${result.ai_tags ? `
+                                    <div class="mt-2">
+                                        <span class="badge bg-info text-truncate d-inline-block" 
+                                              style="max-width: 100%;" 
+                                              title="${result.ai_tags.replace(/"/g, '&quot;')}">
+                                            <i class="bi bi-tags-fill me-1"></i>${result.ai_tags.length > 100 ? result.ai_tags.substring(0, 100) + '...' : result.ai_tags}
+                                        </span>
+                                    </div>
+                                    ` : ''}
                                     <div class="mt-2 d-flex gap-1 flex-wrap">
                                         <button class="btn btn-sm btn-outline-primary" 
                                                 onclick="findSimilar(${mediaId}, '${result.file_name}')"

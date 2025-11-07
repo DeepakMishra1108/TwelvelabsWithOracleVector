@@ -95,7 +95,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
             created_at,
             VECTOR_DISTANCE(embedding_vector, TO_VECTOR(:query_vector), COSINE) as distance,
             NULL as segment_start,
-            NULL as segment_end
+            NULL as segment_end,
+            AI_TAGS
         FROM album_media
         WHERE file_type = 'photo'
         AND embedding_vector IS NOT NULL
@@ -130,7 +131,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
                     'similarity': similarity,
                     'score': similarity,
                     'segment_start': None,
-                    'segment_end': None
+                    'segment_end': None,
+                    'ai_tags': row[9] if len(row) > 9 and row[9] else None
                 })
         
         logger.info(f"✅ Found {len([r for r in all_results if r['file_type']=='photo'])} photos")
@@ -150,7 +152,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
             VECTOR_DISTANCE(ve.embedding_vector, TO_VECTOR(:query_vector), COSINE) as distance,
             ve.start_time,
             ve.end_time,
-            am.id as media_id
+            am.id as media_id,
+            am.AI_TAGS
         FROM video_embeddings ve
         JOIN album_media am ON ve.video_file = am.file_name
         WHERE ve.embedding_vector IS NOT NULL
@@ -186,7 +189,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
                     'similarity': similarity,
                     'score': similarity,
                     'segment_start': float(row[7]) if row[7] else None,
-                    'segment_end': float(row[8]) if row[8] else None
+                    'segment_end': float(row[8]) if row[8] else None,
+                    'ai_tags': row[10] if len(row) > 10 and row[10] else None
                 })
         
         logger.info(f"✅ Found {len([r for r in all_results if r['file_type']=='video'])} video segments")

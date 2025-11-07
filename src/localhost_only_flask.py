@@ -2761,6 +2761,20 @@ def auto_tag_media(media_id):
             
             generated_text = result.data if hasattr(result, 'data') else str(result)
             
+            # Save tags to database
+            try:
+                with get_flask_safe_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE album_media 
+                        SET AI_TAGS = :tags 
+                        WHERE id = :id
+                    """, {"tags": generated_text, "id": media_id})
+                    conn.commit()
+                    logger.info(f"✅ Saved tags for media {media_id}")
+            except Exception as db_error:
+                logger.warning(f"Failed to save tags to database: {db_error}")
+            
             return jsonify({
                 "success": True,
                 "media_id": media_id,
@@ -2819,6 +2833,20 @@ def auto_tag_media(media_id):
                 )
                 
                 generated_text = response.choices[0].message.content
+                
+                # Save tags to database
+                try:
+                    with get_flask_safe_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE album_media 
+                            SET AI_TAGS = :tags 
+                            WHERE id = :id
+                        """, {"tags": generated_text, "id": media_id})
+                        conn.commit()
+                        logger.info(f"✅ Saved tags for media {media_id}")
+                except Exception as db_error:
+                    logger.warning(f"Failed to save tags to database: {db_error}")
                 
                 return jsonify({
                     "success": True,
