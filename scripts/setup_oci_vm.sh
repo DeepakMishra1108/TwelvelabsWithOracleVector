@@ -30,6 +30,59 @@ print_info() {
     echo -e "${YELLOW}➜ $1${NC}"
 }
 
+# Network connectivity check
+check_network() {
+    print_info "Verifying network connectivity..."
+    
+    # Critical services that must be reachable
+    SERVICES=(
+        "https://github.com|GitHub"
+        "https://pypi.org|PyPI"
+        "https://api.twelvelabs.io|TwelveLabs API"
+        "https://archive.ubuntu.com|Ubuntu Repos"
+    )
+    
+    local all_ok=true
+    
+    for service in "${SERVICES[@]}"; do
+        IFS='|' read -r url name <<< "$service"
+        printf "  Testing %-20s ... " "$name"
+        
+        if timeout 10 curl -s -o /dev/null -w "%{http_code}" "$url" | grep -q "^[23]"; then
+            print_success "OK"
+        else
+            print_error "FAILED"
+            all_ok=false
+        fi
+    done
+    
+    if [ "$all_ok" = false ]; then
+        echo ""
+        print_error "Network connectivity check failed!"
+        echo ""
+        echo "This VM cannot reach required internet services."
+        echo "Common causes:"
+        echo "  1. Security List missing egress rules"
+        echo "     → Add rule: Destination 0.0.0.0/0, Protocol: All"
+        echo "  2. Route Table not configured"
+        echo "     → Verify route: 0.0.0.0/0 → Internet Gateway"
+        echo "  3. Internet Gateway not attached to VCN"
+        echo "     → Check VCN → Internet Gateways"
+        echo "  4. VM in private subnet without NAT Gateway"
+        echo "     → Use public subnet or add NAT Gateway"
+        echo ""
+        echo "See OCI_NETWORK_SETUP.md for detailed troubleshooting."
+        echo ""
+        read -p "Continue anyway? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    else
+        print_success "Network connectivity verified ✓"
+    fi
+}
+
 # Check if running as root
 if [[ $EUID -eq 0 ]]; then
    print_error "This script should not be run as root. Run as ubuntu/opc user."
@@ -37,6 +90,9 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 print_info "Starting system setup..."
+
+# Run network check before any network-dependent operations
+check_network
 
 # Step 1: Update system
 print_info "Updating system packages..."

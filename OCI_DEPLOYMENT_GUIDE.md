@@ -12,7 +12,7 @@ Complete guide to deploy Data Guardian Flask application on Oracle Cloud Infrast
 - ✅ **OCI Object Storage Bucket** (already configured)
 - ⬜ **OCI Compute VM** (to be created)
 - ⬜ **Public IP Address**
-- ⬜ **VCN with Internet Gateway**
+- ⬜ **VCN with Internet Gateway** (see [Network Setup Guide](OCI_NETWORK_SETUP.md))
 
 ### Local Requirements
 
@@ -78,23 +78,27 @@ Complete guide to deploy Data Guardian Flask application on Oracle Cloud Infrast
 
 3. Click **Create**
 
-### 1.2 Configure Security Lists
+### 1.2 Configure Network Access
 
-Add ingress rules to your subnet's security list:
+**IMPORTANT**: Your VM needs bidirectional internet access:
+- **Inbound**: Public access to HTTP/HTTPS (ports 80/443)
+- **Outbound**: VM access to TwelveLabs API, GitHub, PyPI, Oracle services
 
-```
-Source CIDR: 0.0.0.0/0
-Destination Port: 22 (SSH)
-Protocol: TCP
+For detailed network configuration including:
+- Security List ingress/egress rules
+- Internet Gateway setup
+- Route table verification
+- Connectivity testing
+- Troubleshooting
 
-Source CIDR: 0.0.0.0/0
-Destination Port: 80 (HTTP)
-Protocol: TCP
+**See: [OCI_NETWORK_SETUP.md](OCI_NETWORK_SETUP.md)** ← Complete network configuration guide
 
-Source CIDR: 0.0.0.0/0
-Destination Port: 443 (HTTPS)
-Protocol: TCP
-```
+**Quick checklist:**
+- [ ] Security List has ingress rules (0.0.0.0/0 → ports 22, 80, 443)
+- [ ] Security List has egress rules (0.0.0.0/0 → all protocols)
+- [ ] Route table has route: 0.0.0.0/0 → Internet Gateway
+- [ ] Internet Gateway is attached and enabled
+- [ ] VM is in public subnet with public IP assigned
 
 ### 1.3 Connect to VM
 

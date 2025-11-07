@@ -435,7 +435,9 @@ Internet → Nginx (SSL) → Gunicorn → Flask App → Oracle DB + Object Stora
 - Image: Ubuntu 22.04 LTS
 - Shape: VM.Standard.E4.Flex (2 OCPUs, 16GB RAM)
 - Public IP: Assigned
+- Network: Public subnet with Internet Gateway
 - Ports: 22, 80, 443 open
+- **Important**: Verify network setup allows bidirectional traffic ([Network Setup Guide](./OCI_NETWORK_SETUP.md))
 
 **2. System Setup**
 ```bash
@@ -457,7 +459,9 @@ cd /home/dataguardian/TwelvelabsWithOracleVector
 # Access: http://YOUR_VM_IP
 ```
 
-**📖 Full Documentation**: [OCI_DEPLOYMENT_GUIDE.md](./OCI_DEPLOYMENT_GUIDE.md)
+**📖 Full Documentation**: 
+- [OCI_DEPLOYMENT_GUIDE.md](./OCI_DEPLOYMENT_GUIDE.md) - Complete deployment guide
+- [OCI_NETWORK_SETUP.md](./OCI_NETWORK_SETUP.md) - Network configuration & troubleshooting
 
 ### Management Commands
 
