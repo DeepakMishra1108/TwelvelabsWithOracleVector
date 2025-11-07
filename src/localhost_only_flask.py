@@ -1682,7 +1682,8 @@ def search_unified():
                     'created_at': result.get('created_at'),
                     'segment_start': result.get('segment_start'),  # For videos
                     'segment_end': result.get('segment_end'),      # For videos
-                    'description': result.get('description', result.get('summary'))
+                    'description': result.get('description', result.get('summary')),
+                    'ai_tags': result.get('ai_tags')  # Include AI tags
                 }
                 normalized_results.append(normalized_result)
         
