@@ -4,19 +4,64 @@ import os
 import sys
 import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from twelvelabs import TwelveLabs
 
 # Add path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'twelvelabvideoai', 'src'))
 
-from utils.db_utils_flask_safe import flask_safe_execute_query
+from utils.db_utils_flask_safe import flask_safe_execute_query, get_flask_safe_connection
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def get_cached_embedding(query_text: str) -> Optional[str]:
+    """Get cached embedding for query if it exists"""
+    try:
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT embedding_vector 
+                FROM query_embedding_cache 
+                WHERE query_text = :query
+            """, {"query": query_text})
+            
+            result = cursor.fetchone()
+            if result and result[0]:
+                # Update usage stats
+                cursor.execute("""
+                    UPDATE query_embedding_cache 
+                    SET last_used_at = CURRENT_TIMESTAMP, 
+                        usage_count = usage_count + 1
+                    WHERE query_text = :query
+                """, {"query": query_text})
+                conn.commit()
+                
+                logger.info(f"💾 Using cached embedding for query: '{query_text}'")
+                # Convert VECTOR to JSON
+                return json.dumps(list(result[0]))
+            return None
+    except Exception as e:
+        logger.warning(f"Failed to get cached embedding: {e}")
+        return None
+
+def save_embedding_to_cache(query_text: str, embedding_list: List[float]):
+    """Save query embedding to cache"""
+    try:
+        vector_json = json.dumps(embedding_list)
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO query_embedding_cache (query_text, embedding_vector)
+                VALUES (:query, TO_VECTOR(:vector))
+            """, {"query": query_text, "vector": vector_json})
+            conn.commit()
+            logger.info(f"💾 Saved embedding to cache for: '{query_text}'")
+    except Exception as e:
+        logger.warning(f"Failed to save to cache (may already exist): {e}")
 
 def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: int = 20, min_similarity: float = 0.30) -> List[Dict]:
     """Search both photos and video segments using TwelveLabs embedding and Oracle VECTOR similarity
@@ -31,54 +76,63 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
         Combined list of photo and video segment results with similarity scores above threshold
     """
     try:
-        # Get TwelveLabs embedding for the query
-        client = TwelveLabs(api_key=os.getenv("TWELVE_LABS_API_KEY"))
+        # Check cache first
+        vector_json = get_cached_embedding(query_text)
         
-        logger.info(f"🔍 Creating embedding for query: '{query_text}'")
-        task = client.embed.create(
-            model_name="Marengo-retrieval-2.7",
-            text=query_text
-        )
-        
-        # Wait for embedding
-        task_id = getattr(task, 'id', None) or getattr(task, 'task_id', None)
-        if hasattr(client.embed, 'tasks') and hasattr(client.embed.tasks, 'wait_for_done') and task_id:
-            client.embed.tasks.wait_for_done(sleep_interval=2, task_id=task_id)
-            final = client.embed.tasks.retrieve(task_id=task_id)
-        elif hasattr(task, 'wait_for_done'):
-            task.wait_for_done(sleep_interval=2)
-            final = task
-        else:
-            final = task
-        
-        # Extract embedding
-        query_embedding = None
-        
-        if hasattr(final, 'text_embedding'):
-            text_emb = final.text_embedding
+        if not vector_json:
+            # Cache miss - get embedding from TwelveLabs API
+            client = TwelveLabs(api_key=os.getenv("TWELVE_LABS_API_KEY"))
             
-            if hasattr(text_emb, 'segments') and text_emb.segments:
-                first_segment = text_emb.segments[0]
+            logger.info(f"🔍 Creating embedding for query: '{query_text}'")
+            task = client.embed.create(
+                model_name="Marengo-retrieval-2.7",
+                text=query_text
+            )
+            
+            # Wait for embedding
+            task_id = getattr(task, 'id', None) or getattr(task, 'task_id', None)
+            if hasattr(client.embed, 'tasks') and hasattr(client.embed.tasks, 'wait_for_done') and task_id:
+                client.embed.tasks.wait_for_done(sleep_interval=2, task_id=task_id)
+                final = client.embed.tasks.retrieve(task_id=task_id)
+            elif hasattr(task, 'wait_for_done'):
+                task.wait_for_done(sleep_interval=2)
+                final = task
+            else:
+                final = task
+            
+            # Extract embedding
+            query_embedding = None
+            
+            if hasattr(final, 'text_embedding'):
+                text_emb = final.text_embedding
                 
-                if hasattr(first_segment, 'embeddings_float'):
-                    query_embedding = first_segment.embeddings_float
-                elif hasattr(first_segment, 'embedding'):
-                    query_embedding = first_segment.embedding
-                elif hasattr(first_segment, 'float_'):
-                    query_embedding = first_segment.float_
-            elif hasattr(text_emb, 'float_'):
-                query_embedding = text_emb.float_
-            elif hasattr(text_emb, 'float'):
-                query_embedding = text_emb.float
-        
-        if not query_embedding:
-            logger.error("❌ Failed to extract embedding from query")
-            return []
-        
-        # Convert to Oracle VECTOR format
-        query_vector_list = list(query_embedding)
-        vector_json = json.dumps(query_vector_list)
-        logger.info(f"✅ Query vector has {len(query_vector_list)} dimensions")
+                if hasattr(text_emb, 'segments') and text_emb.segments:
+                    first_segment = text_emb.segments[0]
+                    
+                    if hasattr(first_segment, 'embeddings_float'):
+                        query_embedding = first_segment.embeddings_float
+                    elif hasattr(first_segment, 'embedding'):
+                        query_embedding = first_segment.embedding
+                    elif hasattr(first_segment, 'float_'):
+                        query_embedding = first_segment.float_
+                elif hasattr(text_emb, 'float_'):
+                    query_embedding = text_emb.float_
+                elif hasattr(text_emb, 'float'):
+                    query_embedding = text_emb.float
+            
+            if not query_embedding:
+                logger.error("❌ Failed to extract embedding from query")
+                return []
+            
+            # Convert to Oracle VECTOR format
+            query_vector_list = list(query_embedding)
+            vector_json = json.dumps(query_vector_list)
+            logger.info(f"✅ Query vector has {len(query_vector_list)} dimensions")
+            
+            # Save to cache for future use
+            save_embedding_to_cache(query_text, query_vector_list)
+        else:
+            logger.info(f"✅ Using cached query vector")
         
         # Search photos and videos separately, then combine
         all_results = []
