@@ -35,6 +35,7 @@ def create_query_cache_table():
             
             # Create table with in-memory optimization
             # Note: Only one INMEMORY clause allowed - combining all settings
+            # UNIQUE constraint on query_text auto-creates an index, so we don't create a separate one
             cursor.execute("""
                 CREATE TABLE query_embedding_cache (
                     id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -48,12 +49,7 @@ def create_query_cache_table():
                 INMEMORY PRIORITY HIGH MEMCOMPRESS FOR QUERY LOW
             """)
             
-            # Create index on query_text for fast lookups
-            cursor.execute("""
-                CREATE INDEX idx_qcache_text ON query_embedding_cache(query_text)
-            """)
-            
-            # Create index on last_used_at for cache cleanup
+            # Create index on last_used_at for cache cleanup queries
             cursor.execute("""
                 CREATE INDEX idx_qcache_last_used ON query_embedding_cache(last_used_at)
             """)
@@ -62,8 +58,8 @@ def create_query_cache_table():
             logger.info("✅ QUERY_EMBEDDING_CACHE table created successfully!")
             logger.info("   - Oracle 23ai In-Memory enabled with HIGH priority")
             logger.info("   - Memory compression: QUERY LOW (optimized for fast queries)")
-            logger.info("   - Columns: query_text, embedding_vector, model_name, usage_count")
-            logger.info("   - Indexes: query_text, last_used_at")
+            logger.info("   - Columns: query_text (UNIQUE), embedding_vector, model_name, usage_count")
+            logger.info("   - Indexes: auto-created on query_text (from UNIQUE), idx_qcache_last_used")
             logger.info("   📊 In-Memory features will provide sub-millisecond cache lookups!")
             
     except Exception as e:
@@ -85,7 +81,6 @@ def create_query_cache_table():
                         usage_count NUMBER DEFAULT 1
                     )
                 """)
-                cursor.execute("CREATE INDEX idx_qcache_text ON query_embedding_cache(query_text)")
                 cursor.execute("CREATE INDEX idx_qcache_last_used ON query_embedding_cache(last_used_at)")
                 conn.commit()
                 logger.info("✅ Table created successfully (without in-memory features)")
