@@ -551,12 +551,12 @@
 
         <!-- Creative Tools Section -->
         <div class="mb-4">
-            <div class="d-flex gap-2 flex-wrap">
+            <div class="d-flex gap-2 flex-wrap align-items-center">
                 <button class="btn btn-outline-primary" onclick="showMontageCreator()">
                     <i class="bi bi-film me-2"></i>Create Video Montage
                 </button>
-                <button class="btn btn-outline-success" onclick="showSlideshowCreator()">
-                    <i class="bi bi-images me-2"></i>Create Photo Slideshow
+                <button class="btn btn-outline-success" id="createSlideshowFromSelected" onclick="createSlideshowFromSelected()" style="display:none;">
+                    <i class="bi bi-images me-2"></i>Create Slideshow from Selected (<span id="selectedPhotoCount">0</span>)
                 </button>
                 <button class="btn btn-outline-info" onclick="showBulkClipExtractor()">
                     <i class="bi bi-scissors me-2"></i>Batch Clip Extraction
@@ -735,6 +735,7 @@
         let map = null;
         let markerClusterGroup = null;
         let albums = [];
+        let selectedPhotos = new Set(); // Track selected photo media IDs
 
         // Initialize on load
         document.addEventListener('DOMContentLoaded', function() {
@@ -935,8 +936,16 @@
                         const segmentInfo = hasSegment ? formatTimestamp(result.segment_start, result.segment_end) : '';
                         
                         return `
-                            <div class="result-card" data-media-id="${mediaId}" data-segment-start="${result.segment_start || ''}" data-segment-end="${result.segment_end || ''}">
+                            <div class="result-card" data-media-id="${mediaId}" data-file-type="${result.file_type}" data-segment-start="${result.segment_start || ''}" data-segment-end="${result.segment_end || ''}">
                                 <div class="position-relative">
+                                    ${!isVideo ? `
+                                        <div class="position-absolute top-0 start-0 m-2" style="z-index: 10;">
+                                            <input class="form-check-input photo-select-checkbox" type="checkbox" 
+                                                   data-media-id="${mediaId}" 
+                                                   onchange="updatePhotoSelection()"
+                                                   style="width: 20px; height: 20px; cursor: pointer;">
+                                        </div>
+                                    ` : ''}
                                     <div class="result-thumbnail d-flex align-items-center justify-content-center" id="thumb-${mediaId}-${result.segment_start || 0}">
                                         <div class="spinner-border spinner-border-sm text-primary" role="status">
                                             <span class="visually-hidden">Loading...</span>
@@ -2017,6 +2026,134 @@
             } catch (error) {
                 console.error('Montage creation error:', error);
                 showStatus(`Error creating montage: ${error.message}`, 'danger');
+            }
+        }
+
+        // Update photo selection tracking
+        function updatePhotoSelection() {
+            selectedPhotos.clear();
+            document.querySelectorAll('.photo-select-checkbox:checked').forEach(checkbox => {
+                selectedPhotos.add(parseInt(checkbox.dataset.mediaId));
+            });
+            
+            const count = selectedPhotos.size;
+            const button = document.getElementById('createSlideshowFromSelected');
+            const countSpan = document.getElementById('selectedPhotoCount');
+            
+            if (count > 0) {
+                button.style.display = 'inline-block';
+                countSpan.textContent = count;
+            } else {
+                button.style.display = 'none';
+            }
+        }
+
+        // Create slideshow from selected photos
+        async function createSlideshowFromSelected() {
+            if (selectedPhotos.size === 0) {
+                showStatus('Please select at least one photo', 'warning');
+                return;
+            }
+
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title"><i class="bi bi-images me-2"></i>Create Slideshow</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Creating slideshow from ${selectedPhotos.size} selected photo${selectedPhotos.size > 1 ? 's' : ''}
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Transition Effect</label>
+                                    <select id="slideshowTransition" class="form-select">
+                                        <option value="fade">Fade</option>
+                                        <option value="dissolve">Dissolve</option>
+                                        <option value="slide">Slide</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Duration per Photo (seconds)</label>
+                                    <input type="number" id="slideshowDuration" class="form-control" value="3" min="1" max="10" step="0.5">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Resolution</label>
+                                    <select id="slideshowResolution" class="form-select">
+                                        <option value="1920x1080">1920x1080 (Full HD)</option>
+                                        <option value="1280x720">1280x720 (HD)</option>
+                                        <option value="3840x2160">3840x2160 (4K)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Output Filename</label>
+                                    <input type="text" id="slideshowFilename" class="form-control" placeholder="slideshow.mp4">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-success" onclick="submitSlideshowCreation()">
+                                <i class="bi bi-play-circle me-2"></i>Create Slideshow
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        }
+
+        // Submit slideshow creation
+        async function submitSlideshowCreation() {
+            const transition = document.getElementById('slideshowTransition').value;
+            const duration = parseFloat(document.getElementById('slideshowDuration').value);
+            const resolution = document.getElementById('slideshowResolution').value;
+            const filename = document.getElementById('slideshowFilename').value || 'slideshow.mp4';
+
+            try {
+                showStatus('Creating slideshow...', 'info');
+                
+                const response = await fetch('/create_slideshow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        photo_ids: Array.from(selectedPhotos),
+                        duration_per_photo: duration,
+                        transition: transition,
+                        resolution: resolution,
+                        output_filename: filename
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                showStatus(`✅ ${data.message}! Estimated duration: ${Math.round(data.estimated_duration)}s`, 'success');
+                bootstrap.Modal.getInstance(document.querySelector('.modal.show')).hide();
+                
+                // Clear selections
+                document.querySelectorAll('.photo-select-checkbox:checked').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                updatePhotoSelection();
+                
+            } catch (error) {
+                console.error('Slideshow creation error:', error);
+                showStatus(`Error creating slideshow: ${error.message}`, 'danger');
             }
         }
 
