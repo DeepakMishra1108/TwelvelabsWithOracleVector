@@ -22,6 +22,12 @@ twelvelabvideoai/lib64
 .env
 *.env
 
+# SSL/TLS Certificates (NEVER commit private keys!)
+ssl/private.key
+ssl/*.key
+*.key
+!scripts/*.key  # Allow scripts with .key in filename
+
 # OCI config and credentials
 .oci/
 twelvelabvideoai/.oci/

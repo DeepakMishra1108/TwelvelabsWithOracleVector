@@ -3727,16 +3727,61 @@ def config_debug():
     })
 
 if __name__ == '__main__':
+    # Get SSL configuration from environment
+    ssl_enabled = os.environ.get('SSL_ENABLED', 'false').lower() == 'true'
+    ssl_cert_path = os.environ.get('SSL_CERT_PATH', 'ssl/certificate.crt')
+    ssl_key_path = os.environ.get('SSL_KEY_PATH', 'ssl/private.key')
+    flask_host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    flask_port = int(os.environ.get('FLASK_PORT', '8443' if ssl_enabled else '8080'))
+    
+    # Resolve SSL paths relative to project root
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ssl_cert_full_path = os.path.join(project_root, ssl_cert_path)
+    ssl_key_full_path = os.path.join(project_root, ssl_key_path)
+    
     logger.info("🌐 Starting LOCALHOST-ONLY Flask application")
     logger.info("🚫 NO domain configuration - mishras.online settings DISABLED")
-    logger.info("💻 Access at: http://localhost:8080")
-    logger.info("💊 Health: http://localhost:8080/health")
-    logger.info("🔧 Config: http://localhost:8080/config_debug")
+    
+    if ssl_enabled:
+        # Check if SSL certificate files exist
+        if os.path.exists(ssl_cert_full_path) and os.path.exists(ssl_key_full_path):
+            protocol = "https"
+            ssl_context = (ssl_cert_full_path, ssl_key_full_path)
+            logger.info("🔐 SSL/TLS ENABLED")
+            logger.info(f"   Certificate: {ssl_cert_path}")
+            logger.info(f"   Private Key: {ssl_key_path}")
+            logger.info(f"💻 Access at: {protocol}://{flask_host}:{flask_port}")
+            logger.info(f"💊 Health: {protocol}://{flask_host}:{flask_port}/health")
+            logger.info(f"🔧 Config: {protocol}://{flask_host}:{flask_port}/config_debug")
+            logger.info("")
+            logger.info("⚠️  BROWSER WARNING:")
+            logger.info("   Your browser will show a security warning for self-signed certificate.")
+            logger.info("   Click 'Advanced' → 'Proceed to localhost' to continue.")
+        else:
+            logger.error("❌ SSL enabled but certificate files not found!")
+            logger.error(f"   Expected: {ssl_cert_full_path}")
+            logger.error(f"   Expected: {ssl_key_full_path}")
+            logger.error("   Run: ./scripts/generate_ssl_certificate.sh")
+            logger.error("   Falling back to HTTP mode...")
+            ssl_enabled = False
+            ssl_context = None
+            protocol = "http"
+            flask_port = 8080
+    else:
+        ssl_context = None
+        protocol = "http"
+        logger.info("🔓 SSL/TLS DISABLED - Running in HTTP mode")
+        logger.info(f"💻 Access at: {protocol}://{flask_host}:{flask_port}")
+        logger.info(f"💊 Health: {protocol}://{flask_host}:{flask_port}/health")
+        logger.info(f"🔧 Config: {protocol}://{flask_host}:{flask_port}/config_debug")
+    
+    logger.info("")
     
     # Force localhost-only - no 0.0.0.0 binding
     app.run(
-        host='127.0.0.1',  # Localhost only
-        port=8080,
+        host=flask_host,  # Localhost only
+        port=flask_port,
         debug=False,
-        threaded=True
+        threaded=True,
+        ssl_context=ssl_context if ssl_enabled else None
     )
