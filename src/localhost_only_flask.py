@@ -2706,13 +2706,16 @@ def auto_tag_media(media_id):
         import oci
         import os
         
-        logger.info(f"🏷️ Auto-tagging media {media_id}")
+        # Check if user wants to force overwrite
+        force_overwrite = request.json.get('force_overwrite', False) if request.is_json else False
+        
+        logger.info(f"🏷️ Auto-tagging media {media_id} (force={force_overwrite})")
         
         # Get media info from database
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT file_name, file_type, file_path, oci_object_path 
+                SELECT file_name, file_type, file_path, oci_object_path, AI_TAGS 
                 FROM album_media 
                 WHERE id = :id
             """, {"id": media_id})
@@ -2725,6 +2728,15 @@ def auto_tag_media(media_id):
             file_type = row[1]
             file_path = row[2]
             oci_object_path = row[3] if len(row) > 3 else None
+            existing_tags = row[4] if len(row) > 4 and row[4] else None
+        
+        # If tags exist and user hasn't confirmed overwrite, ask for confirmation
+        if existing_tags and not force_overwrite:
+            return jsonify({
+                "confirm_required": True,
+                "existing_tags": existing_tags,
+                "message": "Tags already exist for this media. Do you want to overwrite them?"
+            })
         
         # Handle video auto-tagging with TwelveLabs
         if file_type == 'video':
@@ -2781,7 +2793,8 @@ def auto_tag_media(media_id):
                 "file_name": file_name,
                 "file_type": "video",
                 "video_id": video_id,
-                "generated_tags": generated_text
+                "generated_tags": generated_text,
+                "existing_tags": existing_tags
             })
         
         # Handle photo auto-tagging with OpenAI Vision
@@ -2853,7 +2866,8 @@ def auto_tag_media(media_id):
                     "media_id": media_id,
                     "file_name": file_name,
                     "file_type": "photo",
-                    "generated_tags": generated_text
+                    "generated_tags": generated_text,
+                    "existing_tags": existing_tags
                 })
                 
             except Exception as e:

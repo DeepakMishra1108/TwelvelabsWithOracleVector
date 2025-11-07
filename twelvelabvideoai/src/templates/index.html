@@ -1699,17 +1699,60 @@
         }
 
         // Auto-tag Media
-        async function autoTag(mediaId, fileName) {
+        async function autoTag(mediaId, fileName, forceOverwrite = false) {
             try {
                 showStatus(`Generating AI tags for ${fileName}...`, 'info');
                 
                 const response = await fetch(`/auto_tag/${mediaId}`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        force_overwrite: forceOverwrite
+                    })
                 });
                 const data = await response.json();
                 
                 if (data.error) {
                     showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                // If confirmation is required (tags already exist)
+                if (data.confirm_required) {
+                    const confirmModal = document.createElement('div');
+                    confirmModal.className = 'modal fade';
+                    confirmModal.innerHTML = `
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-warning text-dark">
+                                    <h5 class="modal-title">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Tags Already Exist
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p><strong>${data.message}</strong></p>
+                                    <div class="alert alert-info">
+                                        <strong>Existing tags:</strong>
+                                        <div class="mt-2" style="white-space: pre-wrap; font-size: 0.9em;">${data.existing_tags}</div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="button" class="btn btn-warning" onclick="confirmOverwriteTags(${mediaId}, '${fileName}')">
+                                        <i class="bi bi-arrow-repeat me-1"></i>Overwrite Tags
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(confirmModal);
+                    const bsConfirmModal = new bootstrap.Modal(confirmModal);
+                    bsConfirmModal.show();
+                    confirmModal.addEventListener('hidden.bs.modal', () => confirmModal.remove());
                     return;
                 }
                 
@@ -1777,6 +1820,19 @@
                 console.error('Auto-tag error:', error);
                 showStatus(`Error generating tags: ${error.message}`, 'danger');
             }
+        }
+
+        // Helper function to confirm tag overwrite
+        function confirmOverwriteTags(mediaId, fileName) {
+            // Close the confirmation modal
+            const modals = document.querySelectorAll('.modal.show');
+            modals.forEach(m => {
+                const bsModal = bootstrap.Modal.getInstance(m);
+                if (bsModal) bsModal.hide();
+            });
+            
+            // Call autoTag with force overwrite
+            setTimeout(() => autoTag(mediaId, fileName, true), 300);
         }
 
         // Show Clip Extractor Modal
