@@ -1454,19 +1454,22 @@
                                 <div class="card">
                                     <div class="card-body">
                                         <h5 class="card-title">
-                                            <i class="bi bi-file-play me-2"></i>${slideshow.filename}
+                                            <i class="bi bi-${slideshow.type === 'montage' ? 'film' : 'images'} me-2"></i>${slideshow.filename}
                                         </h5>
                                         <p class="card-text">
                                             <small class="text-muted">
+                                                <i class="bi bi-folder me-1"></i>${slideshow.album_name}<br>
                                                 <i class="bi bi-calendar me-1"></i>${slideshow.created}<br>
                                                 <i class="bi bi-file-earmark me-1"></i>${slideshow.size_mb} MB
+                                                ${slideshow.duration ? ` • ${Math.round(slideshow.duration)}s` : ''}
+                                                ${slideshow.searchable ? '<br><span class="badge bg-success">Searchable</span>' : '<br><span class="badge bg-warning">Indexing...</span>'}
                                             </small>
                                         </p>
                                         <div class="d-flex gap-2">
                                             <a href="${slideshow.download_url}" class="btn btn-success btn-sm flex-grow-1" download>
                                                 <i class="bi bi-download me-1"></i>Download
                                             </a>
-                                            <button class="btn btn-danger btn-sm" onclick="deleteSlideshow('${slideshow.filename}')" title="Delete">
+                                            <button class="btn btn-danger btn-sm" onclick="deleteSlideshow(${slideshow.media_id})" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -1488,21 +1491,23 @@
         }
 
         // Delete slideshow
-        async function deleteSlideshow(filename) {
-            if (!confirm(`Delete slideshow "${filename}"?\n\nThis cannot be undone.`)) {
+        async function deleteSlideshow(mediaId) {
+            if (!confirm(`Delete this generated media?\n\nThis will remove it from cloud storage and database.\nThis action cannot be undone.`)) {
                 return;
             }
             
             try {
-                const response = await fetch(`/download_slideshow/${filename}`, {
+                const response = await fetch(`/delete_generated_media/${mediaId}`, {
                     method: 'DELETE'
                 });
                 
+                const data = await response.json();
+                
                 if (response.ok) {
-                    showStatus('Slideshow deleted successfully', 'success');
+                    showStatus(data.message || 'Media deleted successfully', 'success');
                     loadCreatedSlideshows();
                 } else {
-                    showStatus('Failed to delete slideshow', 'danger');
+                    showStatus(data.error || 'Failed to delete media', 'danger');
                 }
             } catch (error) {
                 console.error('Delete slideshow error:', error);
@@ -2248,11 +2253,14 @@
                     return;
                 }
                 
-                // Show success with download link
+                // Show success with download link and searchability info
                 const downloadLink = data.download_url ? 
-                    `<br><a href="${data.download_url}" class="btn btn-success btn-sm mt-2" download><i class="bi bi-download me-2"></i>Download Slideshow (${data.file_size_mb} MB)</a>` : '';
+                    `<br><a href="${data.download_url}" class="btn btn-success btn-sm mt-2" download><i class="bi bi-download me-2"></i>Download (${data.file_size_mb} MB)</a>` : '';
                 
-                showStatus(`✅ ${data.message}! Duration: ${Math.round(data.estimated_duration)}s${downloadLink}`, 'success', 10000);
+                const searchInfo = data.searchable ? 
+                    '<br><small class="text-success"><i class="bi bi-check-circle me-1"></i>Uploaded to cloud storage & AI indexing started - will be searchable soon!</small>' : '';
+                
+                showStatus(`✅ ${data.message}! Duration: ${Math.round(data.estimated_duration)}s${downloadLink}${searchInfo}`, 'success', 12000);
                 bootstrap.Modal.getInstance(document.querySelector('.modal.show')).hide();
                 
                 // Refresh slideshow list if on that tab

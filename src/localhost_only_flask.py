@@ -2167,15 +2167,23 @@ async def extract_clip():
 
 @app.route('/create_montage', methods=['POST'])
 def create_montage():
-    """Create a video montage from multiple video clips"""
+@app.route('/create_montage', methods=['POST'])
+def create_montage():
+    """Create a video montage from multiple video clips with FFmpeg"""
+    import subprocess
+    import tempfile
+    import shutil
+    from datetime import datetime
+    
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
+        from utils.oci_config import get_presigned_url, upload_to_oci
         
         data = request.json
         video_ids = data.get('video_ids', [])
         transition = data.get('transition', 'fade')
         duration_per_clip = float(data.get('duration_per_clip', 5.0))
-        output_name = data.get('output_name', 'montage.mp4')
+        output_filename = data.get('output_filename', f'montage_{datetime.now().strftime("%Y%m%d_%H%M%S")}.mp4')
         
         logger.info(f"🎬 Creating montage with {len(video_ids)} videos")
         
@@ -2186,7 +2194,7 @@ def create_montage():
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             
-            video_clips = []
+            video_urls = []
             for video_id in video_ids:
                 cursor.execute("""
                     SELECT file_path, file_name
@@ -2196,27 +2204,177 @@ def create_montage():
                 row = cursor.fetchone()
                 
                 if row:
-                    video_clips.append({
-                        "file_path": row[0],
-                        "file_name": row[1],
-                        "start_time": 0,
-                        "end_time": duration_per_clip
+                    presigned_url = get_presigned_url(row[0])
+                    video_urls.append({
+                        "url": presigned_url,
+                        "filename": row[1]
                     })
         
-        if not video_clips:
+        if not video_urls:
             return jsonify({"error": "No valid videos found"}), 404
         
-        return jsonify({
-            "success": True,
-            "message": f"Montage creation initiated with {len(video_clips)} clips",
-            "num_clips": len(video_clips),
-            "transition": transition,
-            "output_name": output_name,
-            "estimated_duration": len(video_clips) * duration_per_clip
-        })
+        # Create temporary directory for downloads and processing
+        temp_dir = tempfile.mkdtemp()
+        output_path = os.path.join(temp_dir, output_filename)
         
+        try:
+            # Download video clips to temp directory
+            video_files = []
+            for i, video_info in enumerate(video_urls):
+                temp_video = os.path.join(temp_dir, f'clip_{i:04d}.mp4')
+                
+                # Download video
+                import urllib.request
+                urllib.request.urlretrieve(video_info['url'], temp_video)
+                video_files.append(temp_video)
+            
+            # Create FFmpeg input file list
+            input_list_path = os.path.join(temp_dir, 'input.txt')
+            with open(input_list_path, 'w') as f:
+                for video_file in video_files:
+                    # Trim each clip to duration_per_clip
+                    f.write(f"file '{video_file}'\n")
+                    f.write(f"inpoint 0\n")
+                    f.write(f"outpoint {duration_per_clip}\n")
+            
+            # Build FFmpeg command for montage
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', input_list_path,
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '23',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-y',
+                output_path
+            ]
+            
+            # Execute FFmpeg
+            logger.info(f"🎬 Running FFmpeg to create montage...")
+            result = subprocess.run(
+                ffmpeg_cmd,
+                capture_output=True,
+                timeout=600  # 10 minute timeout
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"❌ FFmpeg error: {result.stderr.decode()}")
+                return jsonify({"error": "Failed to create montage video"}), 500
+            
+            # Get file size
+            file_size = os.path.getsize(output_path)
+            
+            logger.info(f"✅ Montage created: {output_filename} ({file_size / 1024 / 1024:.2f} MB)")
+            
+            # Upload to OCI Object Storage
+            logger.info(f"📤 Uploading montage to OCI Object Storage...")
+            album_name = "Generated-Montages"
+            oci_file_path = f"{album_name}/{output_filename}"
+            
+            oci_url = upload_to_oci(output_path, oci_file_path)
+            logger.info(f"✅ Uploaded to OCI: {oci_file_path}")
+            
+            # Store in database
+            with get_flask_safe_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO album_media (
+                        file_name, file_path, file_type, album_name,
+                        file_size, duration, created_at
+                    ) VALUES (
+                        :file_name, :file_path, :file_type, :album_name,
+                        :file_size, :duration, SYSTIMESTAMP
+                    ) RETURNING id INTO :media_id
+                """, {
+                    "file_name": output_filename,
+                    "file_path": oci_file_path,
+                    "file_type": "video",
+                    "album_name": album_name,
+                    "file_size": file_size,
+                    "duration": len(video_files) * duration_per_clip,
+                    "media_id": cursor.var(int)
+                })
+                
+                media_id = cursor.var(int).getvalue()[0]
+                conn.commit()
+                logger.info(f"✅ Stored in database with media_id: {media_id}")
+            
+            # Generate TwelveLabs embeddings
+            logger.info(f"🧠 Generating TwelveLabs embeddings for montage...")
+            try:
+                from twelvelabs import TwelveLabs
+                client = TwelveLabs(api_key=TWELVE_LABS_API_KEY)
+                
+                task = client.task.create(
+                    index_id=TWELVE_LABS_INDEX_ID,
+                    url=oci_url,
+                    metadata={
+                        "filename": output_filename,
+                        "album": album_name,
+                        "type": "montage",
+                        "num_clips": len(video_files),
+                        "media_id": media_id
+                    }
+                )
+                
+                video_id = task.video_id
+                
+                with get_flask_safe_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE album_media 
+                        SET video_id = :video_id, indexing_status = 'pending'
+                        WHERE id = :media_id
+                    """, {"video_id": video_id, "media_id": media_id})
+                    conn.commit()
+                
+                logger.info(f"✅ TwelveLabs indexing started with video_id: {video_id}")
+                
+            except Exception as embed_error:
+                logger.warning(f"⚠️ Could not generate embeddings: {embed_error}")
+            
+            # Delete local file
+            try:
+                os.remove(output_path)
+            except:
+                pass
+            
+            # Get presigned URL
+            presigned_url = get_presigned_url(oci_file_path)
+            
+            return jsonify({
+                "success": True,
+                "message": f"Montage created and uploaded to cloud storage with {len(video_files)} clips",
+                "filename": output_filename,
+                "download_url": presigned_url,
+                "media_id": media_id,
+                "album_name": album_name,
+                "oci_path": oci_file_path,
+                "num_clips": len(video_files),
+                "estimated_duration": len(video_files) * duration_per_clip,
+                "file_size_mb": round(file_size / 1024 / 1024, 2),
+                "searchable": True,
+                "embedding_status": "indexing"
+            })
+            
+        finally:
+            # Cleanup temp directory
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass
+        
+    except subprocess.TimeoutExpired:
+        logger.error("❌ Montage creation timeout")
+        return jsonify({"error": "Montage creation timed out"}), 500
     except Exception as e:
         logger.error(f"❌ Montage creation error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
@@ -2326,15 +2484,106 @@ def create_slideshow():
             
             logger.info(f"✅ Slideshow created: {output_filename} ({file_size / 1024 / 1024:.2f} MB)")
             
+            # Upload to OCI Object Storage
+            logger.info(f"📤 Uploading slideshow to OCI Object Storage...")
+            from utils.oci_config import upload_to_oci
+            
+            # Create album name for generated slideshows
+            album_name = "Generated-Slideshows"
+            oci_file_path = f"{album_name}/{output_filename}"
+            
+            # Upload to OCI
+            oci_url = upload_to_oci(output_path, oci_file_path)
+            logger.info(f"✅ Uploaded to OCI: {oci_file_path}")
+            
+            # Store in database with metadata
+            with get_flask_safe_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Insert into ALBUM_MEDIA table
+                cursor.execute("""
+                    INSERT INTO album_media (
+                        file_name, file_path, file_type, album_name,
+                        file_size, duration, created_at
+                    ) VALUES (
+                        :file_name, :file_path, :file_type, :album_name,
+                        :file_size, :duration, SYSTIMESTAMP
+                    ) RETURNING id INTO :media_id
+                """, {
+                    "file_name": output_filename,
+                    "file_path": oci_file_path,
+                    "file_type": "video",
+                    "album_name": album_name,
+                    "file_size": file_size,
+                    "duration": len(photo_files) * duration_per_photo,
+                    "media_id": cursor.var(int)
+                })
+                
+                media_id = cursor.var(int).getvalue()[0]
+                conn.commit()
+                logger.info(f"✅ Stored in database with media_id: {media_id}")
+            
+            # Generate TwelveLabs embeddings for the slideshow
+            logger.info(f"🧠 Generating TwelveLabs embeddings for slideshow...")
+            try:
+                from twelvelabs import TwelveLabs
+                client = TwelveLabs(api_key=TWELVE_LABS_API_KEY)
+                
+                # Create a task to index the slideshow video
+                task = client.task.create(
+                    index_id=TWELVE_LABS_INDEX_ID,
+                    url=oci_url,
+                    metadata={
+                        "filename": output_filename,
+                        "album": album_name,
+                        "type": "slideshow",
+                        "num_photos": len(photo_files),
+                        "media_id": media_id
+                    }
+                )
+                
+                video_id = task.video_id
+                
+                # Update database with video_id
+                with get_flask_safe_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE album_media 
+                        SET video_id = :video_id, indexing_status = 'pending'
+                        WHERE id = :media_id
+                    """, {"video_id": video_id, "media_id": media_id})
+                    conn.commit()
+                
+                logger.info(f"✅ TwelveLabs indexing started with video_id: {video_id}")
+                
+            except Exception as embed_error:
+                logger.warning(f"⚠️ Could not generate embeddings: {embed_error}")
+                # Continue anyway - slideshow is still created
+            
+            # Delete local file after successful upload
+            try:
+                os.remove(output_path)
+                logger.info(f"🗑️ Deleted local file: {output_path}")
+            except Exception as del_error:
+                logger.warning(f"⚠️ Could not delete local file: {del_error}")
+            
+            # Get presigned URL for immediate download
+            presigned_url = get_presigned_url(oci_file_path)
+            
             return jsonify({
                 "success": True,
-                "message": f"Slideshow created successfully with {len(photo_files)} photos",
+                "message": f"Slideshow created and uploaded to cloud storage with {len(photo_files)} photos",
                 "filename": output_filename,
-                "download_url": f"/download_slideshow/{output_filename}",
+                "download_url": presigned_url,
+                "media_id": media_id,
+                "album_name": album_name,
+                "oci_path": oci_file_path,
                 "num_photos": len(photo_files),
                 "duration_per_photo": duration_per_photo,
                 "estimated_duration": len(photo_files) * duration_per_photo,
-                "file_size_mb": round(file_size / 1024 / 1024, 2)
+                "file_size_mb": round(file_size / 1024 / 1024, 2),
+                "searchable": True,
+                "embedding_status": "indexing"
             })
             
         finally:
@@ -2354,50 +2603,90 @@ def create_slideshow():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/download_slideshow/<filename>', methods=['GET', 'DELETE'])
-def download_slideshow(filename):
-    """Download or delete a created slideshow"""
+@app.route('/delete_generated_media/<int:media_id>', methods=['DELETE'])
+def delete_generated_media(media_id):
+    """Delete a generated slideshow or montage from OCI and database"""
     try:
-        slideshow_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'slideshows')
-        filepath = os.path.join(slideshow_dir, filename)
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        from utils.oci_config import delete_from_oci
         
-        if request.method == 'DELETE':
-            # Delete the slideshow file
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                logger.info(f"🗑️ Deleted slideshow: {filename}")
-                return jsonify({"success": True, "message": "Slideshow deleted"})
-            else:
-                return jsonify({"error": "Slideshow not found"}), 404
-        else:
-            # Download the slideshow
-            return send_from_directory(slideshow_dir, filename, as_attachment=True)
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get media info
+            cursor.execute("""
+                SELECT file_name, file_path, album_name
+                FROM album_media
+                WHERE id = :id AND album_name IN ('Generated-Slideshows', 'Generated-Montages')
+            """, {"id": media_id})
+            
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"error": "Generated media not found"}), 404
+            
+            filename, file_path, album_name = row
+            
+            # Delete from OCI Object Storage
+            try:
+                delete_from_oci(file_path)
+                logger.info(f"🗑️ Deleted from OCI: {file_path}")
+            except Exception as oci_error:
+                logger.warning(f"⚠️ Could not delete from OCI: {oci_error}")
+            
+            # Delete from database
+            cursor.execute("DELETE FROM album_media WHERE id = :id", {"id": media_id})
+            conn.commit()
+            
+            logger.info(f"✅ Deleted generated media: {filename}")
+            
+        return jsonify({
+            "success": True,
+            "message": f"Successfully deleted {filename}"
+        })
+        
     except Exception as e:
-        logger.error(f"❌ Slideshow operation error: {e}")
+        logger.error(f"❌ Delete generated media error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/list_slideshows')
 def list_slideshows():
-    """List all created slideshows"""
+    """List all created slideshows and montages from database"""
     try:
-        slideshow_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'slideshows')
-        os.makedirs(slideshow_dir, exist_ok=True)
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        from utils.oci_config import get_presigned_url
         
-        slideshows = []
-        for filename in os.listdir(slideshow_dir):
-            if filename.endswith('.mp4'):
-                filepath = os.path.join(slideshow_dir, filename)
-                file_stat = os.stat(filepath)
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Query generated media from database
+            cursor.execute("""
+                SELECT id, file_name, file_path, album_name, file_size, 
+                       duration, created_at, indexing_status
+                FROM album_media
+                WHERE album_name IN ('Generated-Slideshows', 'Generated-Montages')
+                ORDER BY created_at DESC
+            """)
+            
+            slideshows = []
+            for row in cursor:
+                media_id, filename, file_path, album_name, file_size, duration, created_at, status = row
+                
+                # Get presigned URL for download
+                download_url = get_presigned_url(file_path)
+                
                 slideshows.append({
+                    "media_id": media_id,
                     "filename": filename,
-                    "size_mb": round(file_stat.st_size / 1024 / 1024, 2),
-                    "created": datetime.fromtimestamp(file_stat.st_ctime).strftime("%Y-%m-%d %H:%M:%S"),
-                    "download_url": f"/download_slideshow/{filename}"
+                    "album_name": album_name,
+                    "type": "slideshow" if "Slideshow" in album_name else "montage",
+                    "size_mb": round(file_size / 1024 / 1024, 2) if file_size else 0,
+                    "duration": duration,
+                    "created": created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else "Unknown",
+                    "download_url": download_url,
+                    "indexing_status": status or "completed",
+                    "searchable": status in ['completed', 'ready', None]
                 })
-        
-        # Sort by creation time, newest first
-        slideshows.sort(key=lambda x: x['created'], reverse=True)
         
         return jsonify({
             "slideshows": slideshows,
@@ -2406,6 +2695,8 @@ def list_slideshows():
         
     except Exception as e:
         logger.error(f"❌ List slideshows error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
