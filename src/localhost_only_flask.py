@@ -73,6 +73,27 @@ except Exception as e:
             return f(*args, **kwargs)
         return decorated_function
 
+# Import rate limiting
+try:
+    from rate_limiter import (
+        rate_limit_api, rate_limit_search, rate_limit_upload,
+        check_video_processing_quota, consume_video_processing_quota,
+        check_storage_quota, update_storage_usage,
+        get_user_quota_summary
+    )
+    RATE_LIMITING_AVAILABLE = True
+    logger.info("✅ Rate limiting imported successfully")
+except Exception as e:
+    logger.error(f"❌ Could not import rate limiting: {e}")
+    RATE_LIMITING_AVAILABLE = False
+    # Fallback no-op decorators
+    def rate_limit_api(f):
+        return f
+    def rate_limit_search(f):
+        return f
+    def rate_limit_upload(f):
+        return f
+
 # Import OCI
 try:
     import oci
@@ -630,6 +651,30 @@ def change_password():
     return redirect(url_for('user_profile'))
 
 
+@app.route('/user/quotas')
+@login_required
+def user_quotas():
+    """View current user's rate limits and usage"""
+    try:
+        if RATE_LIMITING_AVAILABLE:
+            quotas = get_user_quota_summary(current_user.id)
+            return jsonify({
+                'success': True,
+                'user_id': current_user.id,
+                'username': current_user.username,
+                'role': current_user.role,
+                'quotas': quotas
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Rate limiting not available'
+            }), 503
+    except Exception as e:
+        logger.error(f"❌ Error getting user quotas: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ========== ADMIN USER MANAGEMENT ROUTES ==========
 
 @app.route('/admin/users')
@@ -996,12 +1041,15 @@ def get_album_contents(album_name):
         return jsonify({'error': str(e), 'results': [], 'count': 0})
 
 @app.route('/upload_unified', methods=['POST'])
+@login_required
 @editor_required
+@rate_limit_upload
 def upload_unified():
     """Upload media (photo or video) to OCI and create TwelveLabs Marengo embeddings
     
     Requires editor role or higher.
     Automatically assigns user_id to uploaded content for multi-tenant isolation.
+    Rate limited to prevent abuse (uploads per day quota).
     
     Accepts multipart/form-data with:
     - 'mediaFile': photo or video file(s) - supports multiple files
@@ -1850,9 +1898,14 @@ def media_thumbnail(media_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/search_unified', methods=['POST'])
+@login_required
 @viewer_required
+@rate_limit_search
 def search_unified():
     """Unified search across photos and videos using TwelveLabs Marengo embeddings
+    
+    Rate limited to prevent abuse (searches per hour quota).
+    Results are filtered by user_id for multi-tenant isolation.
     
     Searches both photo and video content using natural language queries.
     Uses Oracle Vector DB for similarity search.
@@ -2340,8 +2393,13 @@ def find_similar_media(media_id):
 
 
 @app.route('/advanced_search', methods=['POST'])
+@login_required
+@viewer_required
+@rate_limit_search
 def advanced_search():
-    """Advanced search with AND/OR operators and filters"""
+    """Advanced search with AND/OR operators and filters
+    
+    Rate limited to prevent abuse (searches per hour quota)."""
     try:
         data = request.json
         query = data.get('query', '')
@@ -2377,8 +2435,13 @@ def advanced_search():
 
 
 @app.route('/temporal_search', methods=['POST'])
+@login_required
+@viewer_required
+@rate_limit_search
 def temporal_search():
-    """Search media by date range"""
+    """Search media by date range
+    
+    Rate limited to prevent abuse (searches per hour quota)."""
     try:
         from datetime import datetime
         from advanced_search import TemporalSearch
@@ -2455,8 +2518,14 @@ async def extract_clip():
 
 
 @app.route('/create_montage', methods=['POST'])
+@login_required
+@editor_required
+@rate_limit_upload
 def create_montage():
-    """Create a video montage from multiple video clips with FFmpeg"""
+    """Create a video montage from multiple video clips with FFmpeg
+    
+    Rate limited and requires editor role.
+    Video processing quota is checked before creating montage."""
     import subprocess
     import tempfile
     import shutil
@@ -2666,8 +2735,14 @@ def create_montage():
 
 
 @app.route('/create_slideshow', methods=['POST'])
+@login_required
+@editor_required
+@rate_limit_upload
 def create_slideshow():
-    """Create a photo slideshow video with FFmpeg"""
+    """Create a photo slideshow video with FFmpeg
+    
+    Rate limited and requires editor role.
+    Video processing quota is checked before creating slideshow."""
     import subprocess
     import tempfile
     import shutil
