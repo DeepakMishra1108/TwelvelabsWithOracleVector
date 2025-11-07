@@ -327,10 +327,206 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
         logger.info(f"   📸 Photos: {len([r for r in all_results if r['file_type']=='photo'])}")
         logger.info(f"   🎬 Videos: {len([r for r in all_results if r['file_type']=='video'])}")
         
+        # If no results from vector search, try metadata fallback
+        if len(all_results) == 0:
+            logger.info("⚠️  No vector search results, trying metadata-based search...")
+            all_results = search_by_metadata(query_text, user_id, album_name, top_k)
+            if len(all_results) > 0:
+                logger.info(f"✅ Metadata fallback found {len(all_results)} results")
+        
         return all_results
         
     except Exception as e:
         logger.exception(f"❌ Unified search failed: {e}")
+        # Try metadata fallback on error
+        logger.info("⚠️  Vector search error, trying metadata-based search...")
+        try:
+            fallback_results = search_by_metadata(query_text, user_id, album_name, top_k)
+            if len(fallback_results) > 0:
+                logger.info(f"✅ Metadata fallback found {len(fallback_results)} results")
+                return fallback_results
+        except Exception as fallback_error:
+            logger.error(f"❌ Metadata fallback also failed: {fallback_error}")
+        
+        return []
+
+
+def search_by_metadata(query_text: str, user_id: int = None, album_name: str = None, top_k: int = 50) -> List[Dict[str, Any]]:
+    """Fallback search using metadata (filename, AI tags, titles, descriptions)
+    
+    Args:
+        query_text: Search query text
+        user_id: User ID to filter results
+        album_name: Optional album filter
+        top_k: Number of results to return
+        
+    Returns:
+        List of results matching metadata search
+    """
+    try:
+        logger.info(f"🔍 Metadata-based search for: '{query_text}'")
+        
+        # Split query into keywords for better matching
+        keywords = query_text.lower().split()
+        
+        all_results = []
+        
+        # Search photos by filename and AI tags
+        photo_sql = """
+        SELECT 
+            id,
+            album_name,
+            file_name,
+            file_path,
+            'photo' as file_type,
+            created_at,
+            AI_TAGS
+        FROM album_media
+        WHERE file_type = 'photo'
+        AND (
+            LOWER(file_name) LIKE :keyword
+            OR LOWER(AI_TAGS) LIKE :keyword
+        )
+        """
+        
+        if user_id:
+            photo_sql += " AND user_id = :user_id"
+        if album_name:
+            photo_sql += " AND album_name = :album_name"
+        
+        photo_sql += " FETCH FIRST :top_k ROWS ONLY"
+        
+        # Build OR conditions for multiple keywords
+        keyword_pattern = f"%{query_text.lower()}%"
+        
+        photo_params = {'keyword': keyword_pattern, 'top_k': top_k}
+        if user_id:
+            photo_params['user_id'] = user_id
+        if album_name:
+            photo_params['album_name'] = album_name
+        
+        photo_results = flask_safe_execute_query(photo_sql, photo_params)
+        
+        for row in photo_results:
+            ai_tags = row[6] if len(row) > 6 else None
+            
+            # Calculate simple relevance score based on keyword matches
+            file_name_lower = row[2].lower() if row[2] else ""
+            tags_lower = (ai_tags or "").lower()
+            
+            score = 0.0
+            for keyword in keywords:
+                if keyword in file_name_lower:
+                    score += 0.5
+                if keyword in tags_lower:
+                    score += 0.3
+            
+            # Normalize score to 0-1 range
+            score = min(score, 1.0)
+            
+            all_results.append({
+                'media_id': row[0],
+                'album_name': row[1],
+                'file_name': row[2],
+                'file_path': row[3],
+                'file_type': 'photo',
+                'created_at': row[5],
+                'similarity': score,
+                'score': score,
+                'segment_start': None,
+                'segment_end': None,
+                'ai_tags': ai_tags,
+                'match_type': 'metadata'
+            })
+        
+        logger.info(f"   📸 Found {len(all_results)} photos via metadata")
+        
+        # Search videos by filename, AI tags, and video title
+        video_sql = """
+        SELECT DISTINCT
+            am.id,
+            am.album_name,
+            am.file_name,
+            am.file_path,
+            'video' as file_type,
+            am.created_at,
+            am.AI_TAGS,
+            ve.video_title
+        FROM album_media am
+        LEFT JOIN video_embeddings ve ON am.file_name = ve.video_file
+        WHERE am.file_type = 'video'
+        AND (
+            LOWER(am.file_name) LIKE :keyword
+            OR LOWER(am.AI_TAGS) LIKE :keyword
+            OR LOWER(ve.video_title) LIKE :keyword
+        )
+        """
+        
+        if user_id:
+            video_sql += " AND am.user_id = :user_id"
+        if album_name:
+            video_sql += " AND am.album_name = :album_name"
+        
+        video_sql += " FETCH FIRST :top_k ROWS ONLY"
+        
+        video_params = {'keyword': keyword_pattern, 'top_k': top_k}
+        if user_id:
+            video_params['user_id'] = user_id
+        if album_name:
+            video_params['album_name'] = album_name
+        
+        video_results = flask_safe_execute_query(video_sql, video_params)
+        
+        for row in video_results:
+            ai_tags = row[6] if len(row) > 6 else None
+            video_title = row[7] if len(row) > 7 else None
+            
+            # Calculate relevance score
+            file_name_lower = row[2].lower() if row[2] else ""
+            tags_lower = (ai_tags or "").lower()
+            title_lower = (video_title or "").lower()
+            
+            score = 0.0
+            for keyword in keywords:
+                if keyword in file_name_lower:
+                    score += 0.4
+                if keyword in title_lower:
+                    score += 0.4
+                if keyword in tags_lower:
+                    score += 0.2
+            
+            score = min(score, 1.0)
+            
+            all_results.append({
+                'media_id': row[0],
+                'album_name': row[1],
+                'file_name': row[2],
+                'file_path': row[3],
+                'file_type': 'video',
+                'created_at': row[5],
+                'similarity': score,
+                'score': score,
+                'segment_start': None,
+                'segment_end': None,
+                'ai_tags': ai_tags,
+                'video_title': video_title,
+                'match_type': 'metadata'
+            })
+        
+        logger.info(f"   🎬 Found {len([r for r in all_results if r['file_type']=='video'])} videos via metadata")
+        
+        # Sort by relevance score
+        all_results.sort(key=lambda x: x['score'], reverse=True)
+        
+        # Limit to top_k
+        all_results = all_results[:top_k]
+        
+        logger.info(f"✅ Metadata search returned {len(all_results)} results")
+        
+        return all_results
+        
+    except Exception as e:
+        logger.exception(f"❌ Metadata search failed: {e}")
         return []
 
 

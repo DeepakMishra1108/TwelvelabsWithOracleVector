@@ -2181,6 +2181,7 @@ def search_unified():
         limit = data.get('limit', 20)
         album_filter = data.get('album_filter')
         min_similarity = data.get('min_similarity', 0.30)  # Default 30% threshold
+        search_mode = data.get('search_mode', 'vector')  # 'vector', 'metadata', or 'auto'
         
         if not query:
             return jsonify({'error': 'Query is required'}), 400
@@ -2188,7 +2189,7 @@ def search_unified():
         # Get user_id for filtering (None for admin to see all content)
         user_id = current_user.id if current_user.role != 'admin' else None
         
-        logger.info(f"🔍 Unified search request: '{query}' (user: {current_user.username}, limit: {limit}, threshold: {min_similarity*100:.0f}%)")
+        logger.info(f"🔍 Unified search request: '{query}' (user: {current_user.username}, limit: {limit}, threshold: {min_similarity*100:.0f}%, mode: {search_mode})")
         
         if not UNIFIED_ALBUM_AVAILABLE:
             return jsonify({'error': 'Unified album system not available'}), 500
@@ -2197,12 +2198,31 @@ def search_unified():
         results = []
         search_method = "unknown"
         
-        if FLASK_SAFE_SEARCH_AVAILABLE and search_unified_flask_safe:
+        # If metadata-only mode requested, skip vector search
+        if search_mode == 'metadata':
+            logger.info("📝 Using metadata-only search (explicit mode)")
+            search_method = "metadata_only"
+            
+            try:
+                from search_unified_flask_safe import search_by_metadata
+                results = search_by_metadata(
+                    query_text=query,
+                    user_id=user_id,
+                    album_name=album_filter,
+                    top_k=limit
+                )
+                logger.info(f"✅ Metadata search found {len(results)} results")
+            except Exception as e:
+                logger.error(f"Metadata search failed: {e}", exc_info=True)
+                results = []
+        
+        elif FLASK_SAFE_SEARCH_AVAILABLE and search_unified_flask_safe:
             logger.info("🧠 Using Flask-safe Unified Vector DB search (photos + videos)")
             search_method = "vector_unified_flask_safe"
             
             try:
                 # search_unified_flask_safe returns list of results directly
+                # It now has built-in metadata fallback
                 results = search_unified_flask_safe(
                     query_text=query,
                     user_id=user_id,  # Pass user_id for filtering
