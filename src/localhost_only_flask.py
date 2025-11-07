@@ -2793,10 +2793,10 @@ def auto_tag_media(media_id):
                 base64_image = base64.b64encode(image_data).decode('utf-8')
                 
                 # Use OpenAI Vision API
-                import openai
-                openai.api_key = os.getenv('OPENAI_API_KEY')
+                from openai import OpenAI
+                openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
                 
-                response = openai.chat.completions.create(
+                response = openai_client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
                         {
