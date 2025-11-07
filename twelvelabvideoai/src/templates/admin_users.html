@@ -275,14 +275,29 @@
                         <div class="mb-3">
                             <label for="role" class="form-label">Role *</label>
                             <select class="form-select" id="role" name="role" required>
-                                <option value="viewer">Viewer (Read-only)</option>
-                                <option value="editor">Editor (Can modify)</option>
-                                <option value="admin">Admin (Full access)</option>
+                                <option value="viewer">Viewer (Read-Only)</option>
+                                <option value="editor" selected>Editor (Content Creator)</option>
+                                <option value="admin">Admin (Full Access)</option>
                             </select>
                             <div class="form-text">
-                                <strong>Viewer:</strong> Can only view content<br>
-                                <strong>Editor:</strong> Can upload and edit content<br>
-                                <strong>Admin:</strong> Full system access including user management
+                                <strong>Viewer (Read-Only):</strong><br>
+                                • View own albums and media only<br>
+                                • Search within own content<br>
+                                • Generate AI tags<br>
+                                • Cannot upload or create albums<br>
+                                <br>
+                                <strong>Editor (Content Creator):</strong><br>
+                                • All Viewer permissions<br>
+                                • Upload photos and videos<br>
+                                • Create and manage own albums<br>
+                                • Edit and delete own content<br>
+                                • Create video montages<br>
+                                <br>
+                                <strong>Admin (System Administrator):</strong><br>
+                                • All Editor permissions<br>
+                                • Manage users (create, edit, delete)<br>
+                                • View all content for moderation<br>
+                                • Access system settings and audit logs
                             </div>
                         </div>
                     </div>
