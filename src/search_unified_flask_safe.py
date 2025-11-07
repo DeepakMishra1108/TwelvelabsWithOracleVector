@@ -121,6 +121,15 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
             similarity = 1.0 - distance
             
             if similarity >= min_similarity:
+                # Read CLOB column if present
+                ai_tags = None
+                if len(row) > 9 and row[9]:
+                    try:
+                        # Oracle CLOB needs to be read
+                        ai_tags = row[9].read() if hasattr(row[9], 'read') else str(row[9])
+                    except:
+                        ai_tags = None
+                
                 all_results.append({
                     'media_id': row[0],
                     'album_name': row[1],
@@ -132,7 +141,7 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
                     'score': similarity,
                     'segment_start': None,
                     'segment_end': None,
-                    'ai_tags': row[9] if len(row) > 9 and row[9] else None
+                    'ai_tags': ai_tags
                 })
         
         logger.info(f"✅ Found {len([r for r in all_results if r['file_type']=='photo'])} photos")
@@ -178,6 +187,15 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
             similarity = 1.0 - distance
             
             if similarity >= min_similarity:
+                # Read CLOB column if present
+                ai_tags = None
+                if len(row) > 10 and row[10]:
+                    try:
+                        # Oracle CLOB needs to be read
+                        ai_tags = row[10].read() if hasattr(row[10], 'read') else str(row[10])
+                    except:
+                        ai_tags = None
+                
                 all_results.append({
                     'media_id': row[9],  # album_media.id
                     'embedding_id': row[0],  # video_embeddings.id
@@ -190,7 +208,7 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
                     'score': similarity,
                     'segment_start': float(row[7]) if row[7] else None,
                     'segment_end': float(row[8]) if row[8] else None,
-                    'ai_tags': row[10] if len(row) > 10 and row[10] else None
+                    'ai_tags': ai_tags
                 })
         
         logger.info(f"✅ Found {len([r for r in all_results if r['file_type']=='video'])} video segments")
