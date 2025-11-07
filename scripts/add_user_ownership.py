@@ -75,53 +75,63 @@ def add_user_ownership():
                     else:
                         raise
             
-            # 2. Add USER_ID to VIDEO_SEGMENTS table
+            # 2. Add USER_ID to VIDEO_SEGMENTS table (if exists)
             logger.info("🔧 Adding USER_ID column to VIDEO_SEGMENTS table...")
             
+            # Check if table exists first
             cursor.execute("""
                 SELECT COUNT(*) 
-                FROM user_tab_cols 
-                WHERE table_name = 'VIDEO_SEGMENTS' 
-                AND column_name = 'USER_ID'
+                FROM user_tables 
+                WHERE table_name = 'VIDEO_SEGMENTS'
             """)
             
-            if cursor.fetchone()[0] > 0:
-                logger.info("✅ USER_ID column already exists in VIDEO_SEGMENTS")
+            if cursor.fetchone()[0] == 0:
+                logger.info("ℹ️  VIDEO_SEGMENTS table doesn't exist yet - skipping")
             else:
-                # Add USER_ID column
                 cursor.execute("""
-                    ALTER TABLE video_segments 
-                    ADD (user_id NUMBER)
+                    SELECT COUNT(*) 
+                    FROM user_tab_cols 
+                    WHERE table_name = 'VIDEO_SEGMENTS' 
+                    AND column_name = 'USER_ID'
                 """)
-                logger.info("✅ Added USER_ID column to VIDEO_SEGMENTS")
                 
-                # Add foreign key constraint
-                try:
+                if cursor.fetchone()[0] > 0:
+                    logger.info("✅ USER_ID column already exists in VIDEO_SEGMENTS")
+                else:
+                    # Add USER_ID column
                     cursor.execute("""
                         ALTER TABLE video_segments 
-                        ADD CONSTRAINT fk_video_segments_user 
-                        FOREIGN KEY (user_id) REFERENCES users(id)
-                        ON DELETE CASCADE
+                        ADD (user_id NUMBER)
                     """)
-                    logger.info("✅ Added foreign key constraint to VIDEO_SEGMENTS")
-                except Exception as e:
-                    if "ORA-02275" in str(e) or "already exists" in str(e):
-                        logger.info("✅ Foreign key constraint already exists")
-                    else:
-                        raise
-                
-                # Create index
-                try:
-                    cursor.execute("""
-                        CREATE INDEX idx_video_segments_user_id 
-                        ON video_segments (user_id)
-                    """)
-                    logger.info("✅ Created index on VIDEO_SEGMENTS.USER_ID")
-                except Exception as e:
-                    if "ORA-01408" in str(e) or "ORA-00955" in str(e):
-                        logger.info("✅ Index already exists")
-                    else:
-                        raise
+                    logger.info("✅ Added USER_ID column to VIDEO_SEGMENTS")
+                    
+                    # Add foreign key constraint
+                    try:
+                        cursor.execute("""
+                            ALTER TABLE video_segments 
+                            ADD CONSTRAINT fk_video_segments_user 
+                            FOREIGN KEY (user_id) REFERENCES users(id)
+                            ON DELETE CASCADE
+                        """)
+                        logger.info("✅ Added foreign key constraint to VIDEO_SEGMENTS")
+                    except Exception as e:
+                        if "ORA-02275" in str(e) or "already exists" in str(e):
+                            logger.info("✅ Foreign key constraint already exists")
+                        else:
+                            raise
+                    
+                    # Create index
+                    try:
+                        cursor.execute("""
+                            CREATE INDEX idx_video_segments_user_id 
+                            ON video_segments (user_id)
+                        """)
+                        logger.info("✅ Created index on VIDEO_SEGMENTS.USER_ID")
+                    except Exception as e:
+                        if "ORA-01408" in str(e) or "ORA-00955" in str(e):
+                            logger.info("✅ Index already exists")
+                        else:
+                            raise
             
             # 3. Add USER_ID to QUERY_EMBEDDING_CACHE table for per-user caching
             logger.info("🔧 Adding USER_ID column to QUERY_EMBEDDING_CACHE table...")
@@ -163,7 +173,18 @@ def add_user_ownership():
             logger.info("="*70)
             logger.info("\n📋 Summary:")
             logger.info("   ✓ ALBUM_MEDIA.USER_ID column added")
-            logger.info("   ✓ VIDEO_SEGMENTS.USER_ID column added")
+            
+            # Check if VIDEO_SEGMENTS was processed
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM user_tables 
+                WHERE table_name = 'VIDEO_SEGMENTS'
+            """)
+            if cursor.fetchone()[0] > 0:
+                logger.info("   ✓ VIDEO_SEGMENTS.USER_ID column added")
+            else:
+                logger.info("   ⊘ VIDEO_SEGMENTS table not found (will be added when table is created)")
+            
             logger.info("   ✓ QUERY_EMBEDDING_CACHE.USER_ID column added")
             logger.info("   ✓ Foreign key constraints added")
             logger.info("   ✓ Indexes created for performance")
