@@ -360,11 +360,24 @@ app.config['PREFERRED_URL_SCHEME'] = 'http'  # Local HTTP only
 app.config['APPLICATION_ROOT'] = '/'
 
 # Security configuration
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24).hex())
+# IMPORTANT: SECRET_KEY must be consistent across all workers for session management
+secret_key = os.getenv('FLASK_SECRET_KEY')
+if not secret_key:
+    logger.warning("⚠️  FLASK_SECRET_KEY not set in environment! Using random key (sessions will not persist)")
+    secret_key = os.urandom(24).hex()
+else:
+    logger.info("✅ Using FLASK_SECRET_KEY from environment")
+
+app.config['SECRET_KEY'] = secret_key
 app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_NAME'] = 'dataguardian_session'
+app.config['SESSION_REFRESH_EACH_REQUEST'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 2592000  # 30 days if "remember me"
+app.config['REMEMBER_COOKIE_DURATION'] = 2592000  # 30 days
+app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+app.config['REMEMBER_COOKIE_SECURE'] = False  # Set to True with HTTPS
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -463,12 +476,15 @@ def login():
     """User login"""
     # If already logged in, redirect to main page
     if current_user.is_authenticated:
+        logger.info(f"User {current_user.username} already authenticated, redirecting to index")
         return redirect(url_for('index'))
     
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         remember = request.form.get('remember') == 'on'
+        
+        logger.info(f"Login attempt for user: {username}, remember: {remember}")
         
         if not username or not password:
             return render_template('login.html', error='Please enter both username and password')
@@ -480,13 +496,19 @@ def login():
         user = authenticate_user(username, password, ip_address)
         
         if user:
+            # Login user with proper session configuration
             login_user(user, remember=remember)
-            logger.info(f"✅ User logged in: {username} (IP: {ip_address})")
+            session.permanent = remember  # Make session permanent if remember me is checked
+            
+            logger.info(f"✅ User logged in: {username} (IP: {ip_address}, remember: {remember})")
             
             # Redirect to next page or index
             next_page = request.args.get('next')
             if next_page and next_page.startswith('/'):
+                logger.info(f"Redirecting to next page: {next_page}")
                 return redirect(next_page)
+            
+            logger.info(f"Redirecting to index")
             return redirect(url_for('index'))
         else:
             logger.warning(f"❌ Failed login attempt: {username} (IP: {ip_address})")
@@ -518,39 +540,51 @@ def user_profile():
 def change_password():
     """Change user password"""
     try:
+        logger.info(f"Password change request from user: {current_user.username}")
+        
         current_password = request.form.get('current_password')
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
         
         # Validate input
         if not all([current_password, new_password, confirm_password]):
+            logger.warning(f"Password change failed - missing fields for user: {current_user.username}")
             flash('All password fields are required', 'error')
             return redirect(url_for('user_profile'))
         
         # Check if new passwords match
         if new_password != confirm_password:
+            logger.warning(f"Password change failed - passwords don't match for user: {current_user.username}")
             flash('New passwords do not match', 'error')
             return redirect(url_for('user_profile'))
         
         # Validate password length
         if len(new_password) < 8:
+            logger.warning(f"Password change failed - too short for user: {current_user.username}")
             flash('Password must be at least 8 characters long', 'error')
             return redirect(url_for('user_profile'))
         
         # Verify current password
+        logger.info(f"Verifying current password for user: {current_user.username}")
         if not verify_password(current_password, current_user.password_hash):
+            logger.warning(f"Password change failed - incorrect current password for user: {current_user.username}")
             flash('Current password is incorrect', 'error')
             return redirect(url_for('user_profile'))
         
         # Update password
+        logger.info(f"Updating password for user ID: {current_user.id}")
         if update_user_password(current_user.id, new_password):
-            flash('Password updated successfully!', 'success')
-            logger.info(f"Password changed for user: {current_user.username}")
+            flash('Password updated successfully! Please login again with your new password.', 'success')
+            logger.info(f"✅ Password changed successfully for user: {current_user.username}")
+            # Logout user so they login again with new password
+            logout_user()
+            return redirect(url_for('login'))
         else:
+            logger.error(f"Password update failed in database for user: {current_user.username}")
             flash('Failed to update password. Please try again.', 'error')
             
     except Exception as e:
-        logger.error(f"Error changing password: {e}")
+        logger.error(f"Error changing password for user {current_user.username}: {e}")
         flash('An error occurred while updating password', 'error')
     
     return redirect(url_for('user_profile'))
