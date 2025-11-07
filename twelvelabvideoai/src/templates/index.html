@@ -558,6 +558,9 @@
                 <button class="btn btn-outline-success" id="createSlideshowFromSelected" onclick="createSlideshowFromSelected()" style="display:none;">
                     <i class="bi bi-images me-2"></i>Create Slideshow from Selected (<span id="selectedPhotoCount">0</span>)
                 </button>
+                <button class="btn btn-outline-danger" id="createMontageFromSelected" onclick="createMontageFromSelected()" style="display:none;">
+                    <i class="bi bi-film me-2"></i>Create Montage from Selected (<span id="selectedVideoCount">0</span>)
+                </button>
                 <button class="btn btn-outline-info" onclick="showBulkClipExtractor()">
                     <i class="bi bi-scissors me-2"></i>Batch Clip Extraction
                 </button>
@@ -758,6 +761,7 @@
         let markerClusterGroup = null;
         let albums = [];
         let selectedPhotos = new Set(); // Track selected photo media IDs
+        let selectedVideos = new Set(); // Track selected video media IDs
 
         // Initialize on load
         document.addEventListener('DOMContentLoaded', function() {
@@ -960,14 +964,13 @@
                         return `
                             <div class="result-card" data-media-id="${mediaId}" data-file-type="${result.file_type}" data-segment-start="${result.segment_start || ''}" data-segment-end="${result.segment_end || ''}">
                                 <div class="position-relative">
-                                    ${!isVideo ? `
-                                        <div class="position-absolute top-0 start-0 m-2" style="z-index: 10;">
-                                            <input class="form-check-input photo-select-checkbox" type="checkbox" 
-                                                   data-media-id="${mediaId}" 
-                                                   onchange="updatePhotoSelection()"
-                                                   style="width: 20px; height: 20px; cursor: pointer;">
-                                        </div>
-                                    ` : ''}
+                                    <div class="position-absolute top-0 start-0 m-2" style="z-index: 10;">
+                                        <input class="form-check-input ${isVideo ? 'video-select-checkbox' : 'photo-select-checkbox'}" 
+                                               type="checkbox" 
+                                               data-media-id="${mediaId}" 
+                                               onchange="${isVideo ? 'updateVideoSelection()' : 'updatePhotoSelection()'}"
+                                               style="width: 20px; height: 20px; cursor: pointer;">
+                                    </div>
                                     <div class="result-thumbnail d-flex align-items-center justify-content-center" id="thumb-${mediaId}-${result.segment_start || 0}">
                                         <div class="spinner-border spinner-border-sm text-primary" role="status">
                                             <span class="visually-hidden">Loading...</span>
@@ -2159,6 +2162,25 @@
             }
         }
 
+        // Update video selection tracking
+        function updateVideoSelection() {
+            selectedVideos.clear();
+            document.querySelectorAll('.video-select-checkbox:checked').forEach(checkbox => {
+                selectedVideos.add(parseInt(checkbox.dataset.mediaId));
+            });
+            
+            const count = selectedVideos.size;
+            const button = document.getElementById('createMontageFromSelected');
+            const countSpan = document.getElementById('selectedVideoCount');
+            
+            if (count > 0) {
+                button.style.display = 'inline-block';
+                countSpan.textContent = count;
+            } else {
+                button.style.display = 'none';
+            }
+        }
+
         // Create slideshow from selected photos
         async function createSlideshowFromSelected() {
             if (selectedPhotos.size === 0) {
@@ -2275,6 +2297,116 @@
             } catch (error) {
                 console.error('Slideshow creation error:', error);
                 showStatus(`Error creating slideshow: ${error.message}`, 'danger');
+            }
+        }
+
+        // Create montage from selected videos
+        async function createMontageFromSelected() {
+            if (selectedVideos.size === 0) {
+                showStatus('Please select at least one video', 'warning');
+                return;
+            }
+
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title"><i class="bi bi-film me-2"></i>Create Video Montage</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Creating montage from ${selectedVideos.size} selected video${selectedVideos.size > 1 ? 's' : ''}
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Transition Effect</label>
+                                    <select id="montageTransition" class="form-select">
+                                        <option value="fade">Fade</option>
+                                        <option value="dissolve">Dissolve</option>
+                                        <option value="wipeleft">Wipe Left</option>
+                                        <option value="wiperight">Wipe Right</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Duration per Clip (seconds)</label>
+                                    <input type="number" id="montageDuration" class="form-control" value="5" min="1" max="30" step="0.5">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Output Filename</label>
+                                    <input type="text" id="montageFilename" class="form-control" placeholder="montage.mp4">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-danger" onclick="submitMontageCreation()">
+                                <i class="bi bi-play-circle me-2"></i>Create Montage
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        }
+
+        // Submit montage creation
+        async function submitMontageCreation() {
+            const transition = document.getElementById('montageTransition').value;
+            const duration = parseFloat(document.getElementById('montageDuration').value);
+            const filename = document.getElementById('montageFilename').value || 'montage.mp4';
+
+            try {
+                showStatus('Creating video montage...', 'info');
+                
+                const response = await fetch('/create_montage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        video_ids: Array.from(selectedVideos),
+                        duration_per_clip: duration,
+                        transition: transition,
+                        output_filename: filename
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                // Show success with download link and searchability info
+                const downloadLink = data.download_url ? 
+                    `<br><a href="${data.download_url}" class="btn btn-danger btn-sm mt-2" download><i class="bi bi-download me-2"></i>Download (${data.file_size_mb} MB)</a>` : '';
+                
+                const searchInfo = data.searchable ? 
+                    '<br><small class="text-success"><i class="bi bi-check-circle me-1"></i>Uploaded to cloud storage & AI indexing started - will be searchable soon!</small>' : '';
+                
+                showStatus(`✅ ${data.message}! Duration: ${Math.round(data.estimated_duration)}s${downloadLink}${searchInfo}`, 'success', 12000);
+                bootstrap.Modal.getInstance(document.querySelector('.modal.show')).hide();
+                
+                // Refresh slideshow list (which also shows montages)
+                loadCreatedSlideshows();
+                
+                // Clear selections
+                document.querySelectorAll('.video-select-checkbox:checked').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                updateVideoSelection();
+                
+            } catch (error) {
+                console.error('Montage creation error:', error);
+                showStatus(`Error creating montage: ${error.message}`, 'danger');
             }
         }
 
