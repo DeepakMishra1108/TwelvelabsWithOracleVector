@@ -257,6 +257,7 @@ def create_photo_embedding_flask_safe(file_path, album_name, media_id=None, **kw
                     file_name=Path(file_path).name,
                     file_path=file_path,
                     file_type='photo',
+                    user_id=current_user.id,
                     **kwargs
                 )
                 
@@ -329,6 +330,7 @@ def create_video_embedding_flask_safe(file_path, album_name, **kwargs):
                             file_name=f"{Path(file_path).stem}_seg_{segment.start_time}_{segment.end_time}.mp4",
                             file_path=file_path,
                             file_type='video',
+                            user_id=current_user.id,
                             start_time=segment.start_time,
                             end_time=segment.end_time,
                             duration=segment.end_time - segment.start_time,
@@ -903,8 +905,9 @@ def progress_stream(task_id):
 
 @app.route('/list_unified_albums')
 @login_required
+@viewer_required
 def list_unified_albums():
-    """List all albums"""
+    """List all albums (filtered by user unless admin)"""
     try:
         logger.info("📋 Album listing request received")
         
@@ -912,8 +915,11 @@ def list_unified_albums():
             logger.error("❌ Album manager not available")
             return jsonify({'error': 'Album manager not available', 'albums': [], 'count': 0})
         
-        logger.info("🔍 Fetching albums...")
-        albums = flask_safe_album_manager.list_albums()
+        # Admin sees all albums, regular users see only their own
+        user_id = current_user.id if current_user.role != 'admin' else None
+        logger.info(f"🔍 Fetching albums for user_id={user_id} (admin={current_user.role == 'admin'})")
+        
+        albums = flask_safe_album_manager.list_albums(user_id=user_id)
         
         # Convert to proper format
         album_list = []
@@ -937,8 +943,10 @@ def list_unified_albums():
         return jsonify({'error': str(e), 'albums': [], 'count': 0})
 
 @app.route('/album_contents/<album_name>')
+@login_required
+@viewer_required
 def get_album_contents(album_name):
-    """Get contents of a specific album"""
+    """Get contents of a specific album (filtered by user unless admin)"""
     try:
         logger.info(f"📂 Getting contents for album: {album_name}")
         
@@ -946,8 +954,11 @@ def get_album_contents(album_name):
             logger.error("❌ Album manager not available")
             return jsonify({'error': 'Album manager not available', 'results': [], 'count': 0})
         
+        # Admin sees all content, regular users see only their own
+        user_id = current_user.id if current_user.role != 'admin' else None
+        
         # Get album contents
-        contents = flask_safe_album_manager.get_album_contents(album_name)
+        contents = flask_safe_album_manager.get_album_contents(album_name, user_id=user_id)
         
         # Format results
         results = []
@@ -1241,6 +1252,7 @@ def upload_unified():
                                 file_name=chunk_filename,
                                 file_path=chunk_oci_path,
                                 file_type=file_type,
+                                user_id=current_user.id,
                                 oci_namespace=namespace,
                                 oci_bucket=bucket,
                                 oci_object_path=chunk_object_name,
@@ -1549,6 +1561,7 @@ def upload_unified():
                         'file_name': file.filename,
                         'file_path': oci_path,
                         'file_type': file_type,
+                        'user_id': current_user.id,
                         'mime_type': mime_type,
                         'file_size': file_size,
                         'oci_namespace': namespace,
@@ -2127,6 +2140,8 @@ def video_thumbnail(media_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/delete_media/<int:media_id>', methods=['DELETE'])
+@login_required
+@editor_required
 def delete_media(media_id):
     """Delete a single media item (image or video) from database and OCI"""
     try:
@@ -2138,7 +2153,7 @@ def delete_media(media_id):
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                """SELECT file_path, file_name, file_type, album_name 
+                """SELECT file_path, file_name, file_type, album_name, user_id 
                    FROM album_media WHERE id = :id""",
                 {'id': media_id}
             )
@@ -2147,7 +2162,12 @@ def delete_media(media_id):
             if not result:
                 return jsonify({'error': 'Media not found'}), 404
             
-            file_path, file_name, file_type, album_name = result
+            file_path, file_name, file_type, album_name, owner_user_id = result
+            
+            # Validate ownership (admin can delete anything)
+            if not can_access_resource(current_user, owner_user_id):
+                logger.warning(f"🚫 User {current_user.id} attempted to delete media {media_id} owned by user {owner_user_id}")
+                return jsonify({'error': 'Permission denied: You can only delete your own content'}), 403
             
             # Delete from OCI if path exists
             if file_path and file_path.startswith('oci://'):
@@ -2185,6 +2205,8 @@ def delete_media(media_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/delete_album/<album_name>', methods=['DELETE'])
+@login_required
+@editor_required
 def delete_album(album_name):
     """Delete an entire album and all its media from database and OCI"""
     try:
@@ -2197,7 +2219,7 @@ def delete_album(album_name):
             
             # Get all media in album
             cursor.execute(
-                """SELECT id, file_path, file_name, file_type 
+                """SELECT id, file_path, file_name, file_type, user_id 
                    FROM album_media WHERE album_name = :album_name""",
                 {'album_name': album_name}
             )
@@ -2205,6 +2227,13 @@ def delete_album(album_name):
             
             if not media_items:
                 return jsonify({'error': 'Album not found or empty'}), 404
+            
+            # Check ownership of all media (admin can delete anything)
+            if current_user.role != 'admin':
+                for media_id, _, _, _, owner_user_id in media_items:
+                    if not can_access_resource(current_user, owner_user_id):
+                        logger.warning(f"🚫 User {current_user.id} attempted to delete album '{album_name}' containing media owned by user {owner_user_id}")
+                        return jsonify({'error': 'Permission denied: Album contains content you do not own'}), 403
             
             deleted_count = 0
             oci_errors = []
@@ -2854,6 +2883,8 @@ def create_slideshow():
 
 
 @app.route('/delete_generated_media/<int:media_id>', methods=['DELETE'])
+@login_required
+@editor_required
 def delete_generated_media(media_id):
     """Delete a generated slideshow or montage from OCI and database"""
     try:
@@ -2863,9 +2894,9 @@ def delete_generated_media(media_id):
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             
-            # Get media info
+            # Get media info including owner
             cursor.execute("""
-                SELECT file_name, file_path, album_name
+                SELECT file_name, file_path, album_name, user_id
                 FROM album_media
                 WHERE id = :id AND album_name IN ('Generated-Slideshows', 'Generated-Montages')
             """, {"id": media_id})
@@ -2874,7 +2905,12 @@ def delete_generated_media(media_id):
             if not row:
                 return jsonify({"error": "Generated media not found"}), 404
             
-            filename, file_path, album_name = row
+            filename, file_path, album_name, owner_user_id = row
+            
+            # Validate ownership (admin can delete anything)
+            if not can_access_resource(current_user, owner_user_id):
+                logger.warning(f"🚫 User {current_user.id} attempted to delete generated media {media_id} owned by user {owner_user_id}")
+                return jsonify({'error': 'Permission denied: You can only delete your own content'}), 403
             
             # Delete from OCI Object Storage
             try:

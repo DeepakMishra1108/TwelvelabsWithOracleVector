@@ -154,10 +154,14 @@ class FlaskSafeUnifiedAlbumManager:
             logger.error(f"❌ Error storing media metadata: {e}")
             raise
     
-    def list_albums(self):
-        """List all albums using Flask-safe connection"""
+    def list_albums(self, user_id=None):
+        """List all albums using Flask-safe connection
+        
+        Args:
+            user_id: Filter albums by user (None for all albums, typically admin)
+        """
         try:
-            logger.info("📋 Listing albums...")
+            logger.info(f"📋 Listing albums for user_id={user_id}...")
             
             query = """
             SELECT album_name, 
@@ -166,11 +170,20 @@ class FlaskSafeUnifiedAlbumManager:
                    SUM(CASE WHEN file_type = 'video' THEN 1 ELSE 0 END) as video_count,
                    MIN(created_at) as created_at
             FROM album_media 
+            """
+            
+            # Add user filter if provided
+            params = {}
+            if user_id is not None:
+                query += " WHERE user_id = :user_id"
+                params['user_id'] = user_id
+            
+            query += """
             GROUP BY album_name 
             ORDER BY created_at DESC
             """
             
-            results = flask_safe_execute_query(query)
+            results = flask_safe_execute_query(query, params)
             
             albums = []
             for row in results:
@@ -192,17 +205,30 @@ class FlaskSafeUnifiedAlbumManager:
             logger.error(f"❌ Error listing albums: {e}")
             return []
     
-    def get_album_contents(self, album_name):
-        """Get contents of a specific album"""
+    def get_album_contents(self, album_name, user_id=None):
+        """Get contents of a specific album
+        
+        Args:
+            album_name: Name of the album
+            user_id: Filter by user (None for all content, typically admin)
+        """
         try:
             query = """
             SELECT id, file_name, file_type, mime_type, file_size, created_at, file_path
             FROM album_media 
             WHERE album_name = :album_name
-            ORDER BY created_at DESC
             """
             
-            results = flask_safe_execute_query(query, {'album_name': album_name})
+            params = {'album_name': album_name}
+            
+            # Add user filter if provided
+            if user_id is not None:
+                query += " AND user_id = :user_id"
+                params['user_id'] = user_id
+            
+            query += " ORDER BY created_at DESC"
+            
+            results = flask_safe_execute_query(query, params)
             
             contents = []
             for row in results:
