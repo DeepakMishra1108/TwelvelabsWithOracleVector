@@ -958,6 +958,11 @@
                         const score = Math.round((result.score || 0) * 100);
                         const mediaId = result.media_id;
                         
+                        // Debug: Check if ai_tags exists
+                        if (result.ai_tags) {
+                            console.log('Result has ai_tags:', result.ai_tags);
+                        }
+                        
                         // Format timestamp for videos
                         const hasSegment = isVideo && result.segment_start !== null && result.segment_start !== undefined;
                         const segmentInfo = hasSegment ? formatTimestamp(result.segment_start, result.segment_end) : '';
@@ -1001,11 +1006,11 @@
                                             ${isVideo ? (hasSegment ? 'Video Segment' : 'Video') : 'Photo'}
                                         </div>
                                     </div>
-                                    ${result.ai_tags ? `
+                                    ${result.ai_tags && result.ai_tags.trim() !== '' ? `
                                     <div class="mt-2">
                                         <span class="badge bg-info text-truncate d-inline-block" 
                                               style="max-width: 100%;" 
-                                              title="${result.ai_tags.replace(/"/g, '&quot;')}">
+                                              title="${String(result.ai_tags).replace(/"/g, '&quot;').replace(/'/g, '&#39;')}">
                                             <i class="bi bi-tags-fill me-1"></i>${result.ai_tags.length > 100 ? result.ai_tags.substring(0, 100) + '...' : result.ai_tags}
                                         </span>
                                     </div>
