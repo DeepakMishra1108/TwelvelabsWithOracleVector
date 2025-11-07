@@ -1119,12 +1119,8 @@ def index():
     try:
         return render_template(
             'index.html', 
-            user=current_user,
-            can_upload=can_upload(current_user),
-            can_edit=can_edit(current_user),
-            can_delete=can_delete(current_user),
-            can_create_album=can_create_album(current_user),
-            can_admin=can_admin(current_user)
+            user=current_user
+            # Note: can_upload, can_edit, can_admin are injected by context_processor
         )
     except Exception as e:
         logger.error(f"Template error: {e}")
