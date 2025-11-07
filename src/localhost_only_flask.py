@@ -94,6 +94,25 @@ except Exception as e:
     def rate_limit_upload(f):
         return f
 
+# Import OCI storage helpers
+try:
+    from oci_storage import (
+        get_user_upload_path, get_user_generated_path, get_user_thumbnail_path,
+        get_user_embedding_path, get_user_temp_path
+    )
+    OCI_STORAGE_HELPERS_AVAILABLE = True
+    logger.info("✅ OCI storage helpers imported successfully")
+except Exception as e:
+    logger.error(f"❌ Could not import OCI storage helpers: {e}")
+    OCI_STORAGE_HELPERS_AVAILABLE = False
+    # Fallback to old-style paths
+    def get_user_upload_path(user_id, content_type, filename):
+        return f"albums/{content_type}s/{filename}"
+    def get_user_generated_path(user_id, content_type, filename):
+        return f"generated/{content_type}s/{filename}"
+    def get_user_thumbnail_path(user_id, content_type, filename):
+        return f"thumbnails/{content_type}s/{filename}"
+
 # Import OCI
 try:
     import oci
@@ -1256,10 +1275,17 @@ def upload_unified():
                     
                     for chunk_idx, chunk_path in enumerate(video_chunks, 1):
                         try:
-                            # Create chunk-specific object name
+                            # Create chunk-specific object name with user-specific path
                             from pathlib import Path
                             chunk_filename = Path(chunk_path).name
-                            chunk_object_name = f"albums/{album_name}/{file_type}s/chunks/{chunk_filename}"
+                            
+                            # Use user-specific path for chunks
+                            if OCI_STORAGE_HELPERS_AVAILABLE:
+                                chunk_object_name = get_user_upload_path(current_user.id, 'chunk', chunk_filename)
+                                logger.info(f"🔐 Using user-specific chunk path: {chunk_object_name}")
+                            else:
+                                chunk_object_name = f"albums/{album_name}/{file_type}s/chunks/{chunk_filename}"
+                                logger.warning(f"⚠️ Using legacy chunk path: {chunk_object_name}")
                             
                             chunk_progress_start = 10 + ((chunk_idx - 1) / len(video_chunks)) * 30
                             chunk_progress_range = 30 / len(video_chunks)
@@ -1355,7 +1381,15 @@ def upload_unified():
                                 # Get chunk info from metadata
                                 from pathlib import Path
                                 chunk_filename = Path(chunk_path_orig).name
-                                chunk_object_name = f"albums/{album_name}/{file_type}s/chunks/{chunk_filename}"
+                                
+                                # Use user-specific path for chunk embeddings
+                                if OCI_STORAGE_HELPERS_AVAILABLE:
+                                    chunk_object_name = get_user_upload_path(current_user.id, 'chunk', chunk_filename)
+                                    logger.info(f"🔐 Using user-specific chunk embedding path: {chunk_object_name}")
+                                else:
+                                    chunk_object_name = f"albums/{album_name}/{file_type}s/chunks/{chunk_filename}"
+                                    logger.warning(f"⚠️ Using legacy chunk embedding path: {chunk_object_name}")
+                                
                                 chunk_oci_path = f'oci://{namespace}/{bucket}/{chunk_object_name}'
                                 chunk_par_url = _get_par_url_for_oci(chunk_oci_path)
                                 
@@ -1439,8 +1473,15 @@ def upload_unified():
                 # Standard upload (non-chunked or non-video)
                 send_file_progress('upload', 10, f'Uploading {file.filename} to OCI...')
                 
-                # Create album-specific object path
-                object_name = f"albums/{album_name}/{file_type}s/{file.filename}"
+                # Create user-specific object path for multi-tenant isolation
+                if OCI_STORAGE_HELPERS_AVAILABLE:
+                    object_name = get_user_upload_path(current_user.id, file_type, file.filename)
+                    logger.info(f"🔐 Using user-specific path: {object_name}")
+                else:
+                    # Fallback to old path structure
+                    object_name = f"albums/{album_name}/{file_type}s/{file.filename}"
+                    logger.warning(f"⚠️ Using legacy path structure: {object_name}")
+                
                 logger.info(f"🚀 Uploading {file.filename} to OCI: {namespace}/{bucket}/{object_name}")
                 
                 # Handle large files with multipart upload if needed
@@ -2628,7 +2669,14 @@ def create_montage():
             # Upload to OCI Object Storage
             logger.info(f"📤 Uploading montage to OCI Object Storage...")
             album_name = "Generated-Montages"
-            oci_file_path = f"{album_name}/{output_filename}"
+            
+            # Use user-specific path for multi-tenant isolation
+            if OCI_STORAGE_HELPERS_AVAILABLE:
+                oci_file_path = get_user_generated_path(current_user.id, 'montage', output_filename)
+                logger.info(f"🔐 Using user-specific montage path: {oci_file_path}")
+            else:
+                oci_file_path = f"{album_name}/{output_filename}"
+                logger.warning(f"⚠️ Using legacy montage path: {oci_file_path}")
             
             oci_url = upload_to_oci(output_path, oci_file_path)
             logger.info(f"✅ Uploaded to OCI: {oci_file_path}")
@@ -2852,7 +2900,14 @@ def create_slideshow():
             
             # Create album name for generated slideshows
             album_name = "Generated-Slideshows"
-            oci_file_path = f"{album_name}/{output_filename}"
+            
+            # Use user-specific path for multi-tenant isolation
+            if OCI_STORAGE_HELPERS_AVAILABLE:
+                oci_file_path = get_user_generated_path(current_user.id, 'slideshow', output_filename)
+                logger.info(f"🔐 Using user-specific slideshow path: {oci_file_path}")
+            else:
+                oci_file_path = f"{album_name}/{output_filename}"
+                logger.warning(f"⚠️ Using legacy slideshow path: {oci_file_path}")
             
             # Upload to OCI
             oci_url = upload_to_oci(output_path, oci_file_path)
