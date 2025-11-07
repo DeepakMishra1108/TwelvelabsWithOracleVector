@@ -133,7 +133,24 @@ def flask_safe_execute_query(query, params=None, timeout=30):
                     cursor.execute(query)
                 
                 if query.strip().upper().startswith('SELECT'):
-                    return cursor.fetchall()
+                    rows = cursor.fetchall()
+                    
+                    # Convert CLOBs to strings while connection is still open
+                    converted_rows = []
+                    for row in rows:
+                        converted_row = []
+                        for value in row:
+                            if value is not None and hasattr(value, 'read'):
+                                # This is a CLOB/BLOB - read it now
+                                try:
+                                    converted_row.append(value.read())
+                                except:
+                                    converted_row.append(None)
+                            else:
+                                converted_row.append(value)
+                        converted_rows.append(tuple(converted_row))
+                    
+                    return converted_rows
                 else:
                     conn.commit()
                     return cursor.rowcount

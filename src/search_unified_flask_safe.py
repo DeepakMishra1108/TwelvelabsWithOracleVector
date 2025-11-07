@@ -121,20 +121,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
             similarity = 1.0 - distance
             
             if similarity >= min_similarity:
-                # Read CLOB column if present
-                ai_tags = None
-                if len(row) > 9 and row[9]:
-                    try:
-                        # Oracle CLOB needs to be read
-                        raw_value = row[9]
-                        logger.info(f"🔍 AI_TAGS raw type: {type(raw_value)}, has read: {hasattr(raw_value, 'read')}")
-                        ai_tags = raw_value.read() if hasattr(raw_value, 'read') else str(raw_value)
-                        logger.info(f"✅ Read ai_tags: {ai_tags[:100] if ai_tags else 'None'}...")
-                    except Exception as e:
-                        logger.error(f"❌ Failed to read CLOB: {e}")
-                        ai_tags = None
-                else:
-                    logger.info(f"⚠️ No AI_TAGS: len(row)={len(row)}, row[9]={row[9] if len(row) > 9 else 'N/A'}")
+                # AI_TAGS is already converted from CLOB to string by flask_safe_execute_query
+                ai_tags = row[9] if len(row) > 9 else None
                 
                 all_results.append({
                     'media_id': row[0],
@@ -193,14 +181,8 @@ def search_unified_flask_safe(query_text: str, album_name: str = None, top_k: in
             similarity = 1.0 - distance
             
             if similarity >= min_similarity:
-                # Read CLOB column if present
-                ai_tags = None
-                if len(row) > 10 and row[10]:
-                    try:
-                        # Oracle CLOB needs to be read
-                        ai_tags = row[10].read() if hasattr(row[10], 'read') else str(row[10])
-                    except:
-                        ai_tags = None
+                # AI_TAGS is already converted from CLOB to string by flask_safe_execute_query
+                ai_tags = row[10] if len(row) > 10 else None
                 
                 all_results.append({
                     'media_id': row[9],  # album_media.id

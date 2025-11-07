@@ -2735,15 +2735,8 @@ def auto_tag_media(media_id):
             file_type = row[1]
             file_path = row[2]
             oci_object_path = row[3] if len(row) > 3 else None
-            # Read CLOB column properly
-            existing_tags_raw = row[4] if len(row) > 4 and row[4] else None
-            existing_tags = None
-            if existing_tags_raw:
-                try:
-                    # Oracle CLOB needs to be read
-                    existing_tags = existing_tags_raw.read() if hasattr(existing_tags_raw, 'read') else str(existing_tags_raw)
-                except:
-                    existing_tags = None
+            # AI_TAGS CLOB is already converted to string by flask_safe_execute_query
+            existing_tags = row[4] if len(row) > 4 else None
         
         # If tags exist and user hasn't confirmed overwrite, ask for confirmation
         if existing_tags and not force_overwrite:
