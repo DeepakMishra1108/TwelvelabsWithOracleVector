@@ -476,35 +476,22 @@ def load_user(user_id):
 # Make permission functions available in templates
 @app.context_processor
 def inject_permissions():
-    """Inject permission checking functions into all templates"""
-    def can_admin_check(user=None):
-        """Check if user has admin permissions"""
-        if not user:
-            user = current_user
-        if not hasattr(user, 'is_authenticated') or not user.is_authenticated:
-            return False
-        return user.role == 'admin'
+    """Inject permission checking values into all templates"""
+    # Compute permission values for current user
+    is_admin = False
+    is_editor = False
+    can_upload_perm = False
     
-    def can_edit_check(user=None):
-        """Check if user has edit permissions"""
-        if not user:
-            user = current_user
-        if not hasattr(user, 'is_authenticated') or not user.is_authenticated:
-            return False
-        return user.role in ['admin', 'editor']
-    
-    def can_upload_check(user=None):
-        """Check if user has upload permissions"""
-        if not user:
-            user = current_user
-        if not hasattr(user, 'is_authenticated') or not user.is_authenticated:
-            return False
-        return user.role in ['admin', 'editor']
+    if current_user.is_authenticated:
+        user_role = getattr(current_user, 'role', 'viewer')
+        is_admin = (user_role == 'admin')
+        is_editor = (user_role in ['admin', 'editor'])
+        can_upload_perm = (user_role in ['admin', 'editor'])
     
     return dict(
-        can_admin=can_admin_check,
-        can_edit=can_edit_check,
-        can_upload=can_upload_check
+        can_admin=is_admin,
+        can_edit=is_editor,
+        can_upload=can_upload_perm
     )
 
 # Task tracking for background embedding jobs
