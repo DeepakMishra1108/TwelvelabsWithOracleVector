@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import database utilities
 try:
-    from twelvelabvideoai.src.db_utils_flask_safe import get_flask_safe_connection
+    from twelvelabvideoai.src.utils.db_utils_flask_safe import get_flask_safe_connection
 except ImportError:
     print("❌ Error: Could not import database utilities")
     print("Make sure you're running from the project root directory")
