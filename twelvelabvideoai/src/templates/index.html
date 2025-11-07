@@ -1709,7 +1709,26 @@
                     return;
                 }
                 
-                // Display the generated tags in a modal with the image
+                // Get image URL for photos
+                let imageHtml = '';
+                if (data.file_type === 'photo') {
+                    try {
+                        const urlResponse = await fetch(`/get_media_url/${mediaId}`);
+                        const urlData = await urlResponse.json();
+                        imageHtml = `
+                            <div class="col-md-5 text-center mb-3">
+                                <img src="${urlData.par_url}" class="img-fluid rounded" alt="${fileName}" 
+                                     style="max-height: 300px; object-fit: contain;"
+                                     onerror="this.style.display='none';">
+                                <p class="text-muted mt-2 small">${fileName}</p>
+                            </div>
+                        `;
+                    } catch (e) {
+                        console.warn('Failed to load image:', e);
+                    }
+                }
+                
+                // Display the generated tags in a modal
                 const modal = document.createElement('div');
                 modal.className = 'modal fade';
                 modal.innerHTML = `
@@ -1723,17 +1742,12 @@
                             </div>
                             <div class="modal-body">
                                 <div class="row">
-                                    ${data.file_type === 'photo' ? `
-                                    <div class="col-md-5 text-center mb-3">
-                                        <img src="/media/${mediaId}" class="img-fluid rounded" alt="${fileName}" style="max-height: 300px;">
-                                        <p class="text-muted mt-2 small">${fileName}</p>
-                                    </div>
-                                    ` : ''}
-                                    <div class="col-md-${data.file_type === 'photo' ? '7' : '12'}">
+                                    ${imageHtml}
+                                    <div class="col-md-${imageHtml ? '7' : '12'}">
                                         <div class="alert alert-light">
-                                            <div style="white-space: pre-wrap; font-family: system-ui;">${data.generated_tags}</div>
+                                            <div style="white-space: pre-wrap; font-family: system-ui; line-height: 1.6;">${data.generated_tags}</div>
                                         </div>
-                                        ${data.video_id ? `<p class="text-muted small">Video ID: ${data.video_id}</p>` : ''}
+                                        ${data.video_id ? `<p class="text-muted small"><i class="bi bi-info-circle me-1"></i>Video ID: ${data.video_id}</p>` : ''}
                                     </div>
                                 </div>
                             </div>
