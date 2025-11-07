@@ -14,7 +14,7 @@ import datetime
 import queue
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-from flask import Flask, request, render_template, jsonify, Response, stream_with_context, redirect, url_for, session, flash
+from flask import Flask, request, render_template, jsonify, Response, stream_with_context, redirect, url_for, session, flash, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from dotenv import load_dotenv
 
@@ -2222,16 +2222,22 @@ def create_montage():
 
 @app.route('/create_slideshow', methods=['POST'])
 def create_slideshow():
-    """Create a photo slideshow video"""
+    """Create a photo slideshow video with FFmpeg"""
+    import subprocess
+    import tempfile
+    import shutil
+    from datetime import datetime
+    
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
+        from utils.oci_config import get_presigned_url
         
         data = request.json
         photo_ids = data.get('photo_ids', [])
         duration_per_photo = float(data.get('duration_per_photo', 3.0))
         transition = data.get('transition', 'fade')
         resolution = data.get('resolution', '1920x1080')
-        output_name = data.get('output_name', 'slideshow.mp4')
+        output_filename = data.get('output_filename', f'slideshow_{datetime.now().strftime("%Y%m%d_%H%M%S")}.mp4')
         
         logger.info(f"📸 Creating slideshow with {len(photo_ids)} photos")
         
@@ -2242,7 +2248,7 @@ def create_slideshow():
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             
-            photo_paths = []
+            photo_urls = []
             for photo_id in photo_ids:
                 cursor.execute("""
                     SELECT file_path, file_name
@@ -2252,27 +2258,154 @@ def create_slideshow():
                 row = cursor.fetchone()
                 
                 if row:
-                    photo_paths.append({
-                        "file_path": row[0],
-                        "file_name": row[1]
-                    })
+                    # Get presigned URL for photo
+                    presigned_url = get_presigned_url(row[0])
+                    photo_urls.append(presigned_url)
         
-        if not photo_paths:
+        if not photo_urls:
             return jsonify({"error": "No valid photos found"}), 404
         
+        # Create temporary directory for downloads and processing
+        temp_dir = tempfile.mkdtemp()
+        output_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'slideshows')
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, output_filename)
+        
+        try:
+            # Download photos to temp directory
+            photo_files = []
+            for i, url in enumerate(photo_urls):
+                temp_photo = os.path.join(temp_dir, f'photo_{i:04d}.jpg')
+                
+                # Download photo
+                import urllib.request
+                urllib.request.urlretrieve(url, temp_photo)
+                photo_files.append(temp_photo)
+            
+            # Create FFmpeg input file list
+            input_list_path = os.path.join(temp_dir, 'input.txt')
+            with open(input_list_path, 'w') as f:
+                for photo_file in photo_files:
+                    f.write(f"file '{photo_file}'\n")
+                    f.write(f"duration {duration_per_photo}\n")
+                # Repeat last photo to ensure correct duration
+                if photo_files:
+                    f.write(f"file '{photo_files[-1]}'\n")
+            
+            # Parse resolution
+            width, height = resolution.split('x')
+            
+            # Build FFmpeg command for slideshow with transitions
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', input_list_path,
+                '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p',
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '23',
+                '-y',  # Overwrite output file
+                output_path
+            ]
+            
+            # Execute FFmpeg
+            logger.info(f"🎬 Running FFmpeg to create slideshow...")
+            result = subprocess.run(
+                ffmpeg_cmd,
+                capture_output=True,
+                timeout=300  # 5 minute timeout
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"❌ FFmpeg error: {result.stderr.decode()}")
+                return jsonify({"error": "Failed to create slideshow video"}), 500
+            
+            # Get file size
+            file_size = os.path.getsize(output_path)
+            
+            logger.info(f"✅ Slideshow created: {output_filename} ({file_size / 1024 / 1024:.2f} MB)")
+            
+            return jsonify({
+                "success": True,
+                "message": f"Slideshow created successfully with {len(photo_files)} photos",
+                "filename": output_filename,
+                "download_url": f"/download_slideshow/{output_filename}",
+                "num_photos": len(photo_files),
+                "duration_per_photo": duration_per_photo,
+                "estimated_duration": len(photo_files) * duration_per_photo,
+                "file_size_mb": round(file_size / 1024 / 1024, 2)
+            })
+            
+        finally:
+            # Cleanup temp directory
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass
+        
+    except subprocess.TimeoutExpired:
+        logger.error("❌ Slideshow creation timeout")
+        return jsonify({"error": "Slideshow creation timed out"}), 500
+    except Exception as e:
+        logger.error(f"❌ Slideshow creation error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/download_slideshow/<filename>', methods=['GET', 'DELETE'])
+def download_slideshow(filename):
+    """Download or delete a created slideshow"""
+    try:
+        slideshow_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'slideshows')
+        filepath = os.path.join(slideshow_dir, filename)
+        
+        if request.method == 'DELETE':
+            # Delete the slideshow file
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                logger.info(f"🗑️ Deleted slideshow: {filename}")
+                return jsonify({"success": True, "message": "Slideshow deleted"})
+            else:
+                return jsonify({"error": "Slideshow not found"}), 404
+        else:
+            # Download the slideshow
+            return send_from_directory(slideshow_dir, filename, as_attachment=True)
+    except Exception as e:
+        logger.error(f"❌ Slideshow operation error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/list_slideshows')
+def list_slideshows():
+    """List all created slideshows"""
+    try:
+        slideshow_dir = os.path.join(os.path.dirname(__file__), '..', 'static', 'slideshows')
+        os.makedirs(slideshow_dir, exist_ok=True)
+        
+        slideshows = []
+        for filename in os.listdir(slideshow_dir):
+            if filename.endswith('.mp4'):
+                filepath = os.path.join(slideshow_dir, filename)
+                file_stat = os.stat(filepath)
+                slideshows.append({
+                    "filename": filename,
+                    "size_mb": round(file_stat.st_size / 1024 / 1024, 2),
+                    "created": datetime.fromtimestamp(file_stat.st_ctime).strftime("%Y-%m-%d %H:%M:%S"),
+                    "download_url": f"/download_slideshow/{filename}"
+                })
+        
+        # Sort by creation time, newest first
+        slideshows.sort(key=lambda x: x['created'], reverse=True)
+        
         return jsonify({
-            "success": True,
-            "message": f"Slideshow creation initiated with {len(photo_paths)} photos",
-            "num_photos": len(photo_paths),
-            "duration_per_photo": duration_per_photo,
-            "transition": transition,
-            "resolution": resolution,
-            "output_name": output_name,
-            "estimated_duration": len(photo_paths) * duration_per_photo
+            "slideshows": slideshows,
+            "count": len(slideshows)
         })
         
     except Exception as e:
-        logger.error(f"❌ Slideshow creation error: {e}")
+        logger.error(f"❌ List slideshows error: {e}")
         return jsonify({"error": str(e)}), 500
 
 

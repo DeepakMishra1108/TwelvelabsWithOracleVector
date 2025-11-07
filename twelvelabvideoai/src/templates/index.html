@@ -586,6 +586,11 @@
                     <i class="bi bi-geo-alt me-2"></i>Map View
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#slideshows-tab" role="tab" onclick="loadCreatedSlideshows()">
+                    <i class="bi bi-collection-play me-2"></i>Created Slideshows
+                </a>
+            </li>
         </ul>
 
         <!-- Tab Content -->
@@ -705,6 +710,23 @@
                         <i class="bi bi-info-circle me-1"></i>
                         Shows media items with GPS coordinates
                     </p>
+                </div>
+            </div>
+
+            <!-- Created Slideshows Tab -->
+            <div class="tab-pane fade" id="slideshows-tab" role="tabpanel">
+                <div class="content-card">
+                    <h3 class="card-title">
+                        <i class="bi bi-collection-play me-2"></i>Created Slideshows
+                        <span class="badge bg-success ms-2" id="slideshowCount">0</span>
+                    </h3>
+                    <div id="slideshowsContainer">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1401,6 +1423,90 @@
                 }
             } catch (error) {
                 console.error('Error loading map data:', error);
+            }
+        }
+
+        // Load created slideshows
+        async function loadCreatedSlideshows() {
+            try {
+                const response = await fetch('/list_slideshows');
+                const data = await response.json();
+                const slideshows = data.slideshows || [];
+                
+                const container = document.getElementById('slideshowsContainer');
+                document.getElementById('slideshowCount').textContent = slideshows.length;
+                
+                if (slideshows.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="bi bi-collection-play"></i>
+                            <h4>No Slideshows Yet</h4>
+                            <p class="text-muted">Create your first slideshow by searching for photos and selecting them</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = `
+                    <div class="row g-3">
+                        ${slideshows.map(slideshow => `
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">
+                                            <i class="bi bi-file-play me-2"></i>${slideshow.filename}
+                                        </h5>
+                                        <p class="card-text">
+                                            <small class="text-muted">
+                                                <i class="bi bi-calendar me-1"></i>${slideshow.created}<br>
+                                                <i class="bi bi-file-earmark me-1"></i>${slideshow.size_mb} MB
+                                            </small>
+                                        </p>
+                                        <div class="d-flex gap-2">
+                                            <a href="${slideshow.download_url}" class="btn btn-success btn-sm flex-grow-1" download>
+                                                <i class="bi bi-download me-1"></i>Download
+                                            </a>
+                                            <button class="btn btn-danger btn-sm" onclick="deleteSlideshow('${slideshow.filename}')" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading slideshows:', error);
+                document.getElementById('slideshowsContainer').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Failed to load slideshows: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Delete slideshow
+        async function deleteSlideshow(filename) {
+            if (!confirm(`Delete slideshow "${filename}"?\n\nThis cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/download_slideshow/${filename}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showStatus('Slideshow deleted successfully', 'success');
+                    loadCreatedSlideshows();
+                } else {
+                    showStatus('Failed to delete slideshow', 'danger');
+                }
+            } catch (error) {
+                console.error('Delete slideshow error:', error);
+                showStatus(`Error: ${error.message}`, 'danger');
             }
         }
 
@@ -2142,8 +2248,15 @@
                     return;
                 }
                 
-                showStatus(`✅ ${data.message}! Estimated duration: ${Math.round(data.estimated_duration)}s`, 'success');
+                // Show success with download link
+                const downloadLink = data.download_url ? 
+                    `<br><a href="${data.download_url}" class="btn btn-success btn-sm mt-2" download><i class="bi bi-download me-2"></i>Download Slideshow (${data.file_size_mb} MB)</a>` : '';
+                
+                showStatus(`✅ ${data.message}! Duration: ${Math.round(data.estimated_duration)}s${downloadLink}`, 'success', 10000);
                 bootstrap.Modal.getInstance(document.querySelector('.modal.show')).hide();
+                
+                // Refresh slideshow list if on that tab
+                loadCreatedSlideshows();
                 
                 // Clear selections
                 document.querySelectorAll('.photo-select-checkbox:checked').forEach(checkbox => {
