@@ -2711,7 +2711,7 @@ def auto_tag_media(media_id):
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT file_name, file_type, video_id 
+                SELECT file_name, file_type, file_path 
                 FROM album_media 
                 WHERE id = :id
             """, {"id": media_id})
@@ -2722,33 +2722,20 @@ def auto_tag_media(media_id):
             
             file_name = row[0]
             file_type = row[1]
-            video_id = row[2] if len(row) > 2 else None
+            file_path = row[2] if len(row) > 2 else None
         
-        # Check if it's a video with TwelveLabs video_id
-        if file_type != 'video' or not video_id:
+        # Check if it's a video
+        if file_type != 'video':
             return jsonify({
-                "error": "Auto-tagging is only available for indexed videos"
+                "error": "Auto-tagging is only available for videos"
             }), 400
         
-        # Use TwelveLabs generate API
-        client = TwelveLabs(api_key=TWELVE_LABS_API_KEY)
-        
-        # Generate title, topics, and hashtags
-        result = client.generate.text(
-            video_id=video_id,
-            prompt="Generate a title, main topics, and relevant hashtags for this video"
-        )
-        
-        # Parse the generated text
-        generated_text = result.data if hasattr(result, 'data') else str(result)
-        
+        # For now, return a placeholder since we need to track video_id separately
+        # TODO: Add video_id column to album_media table to track TwelveLabs video IDs
         return jsonify({
-            "success": True,
-            "media_id": media_id,
-            "file_name": file_name,
-            "video_id": video_id,
-            "generated_tags": generated_text
-        })
+            "success": False,
+            "error": "TwelveLabs integration not yet configured for this media. Please re-upload the video to enable AI tagging."
+        }), 400
         
     except Exception as e:
         logger.error(f"❌ Auto-tagging error: {e}")
