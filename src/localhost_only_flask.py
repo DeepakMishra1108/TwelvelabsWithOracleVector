@@ -891,6 +891,204 @@ def admin_delete_user(user_id):
         return redirect(url_for('admin_users'))
 
 
+@app.route('/admin/quotas')
+@login_required
+@admin_required
+def admin_quotas():
+    """Admin dashboard for rate limit and quota monitoring"""
+    try:
+        if not RATE_LIMITING_AVAILABLE:
+            flash('Rate limiting system not available', 'error')
+            return redirect(url_for('index'))
+        
+        # Get all users with their rate limits and current usage
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get user info with current usage
+            cursor.execute("""
+                SELECT 
+                    u.id, u.username, u.email, u.role, u.created_at,
+                    rl.daily_uploads, rl.daily_upload_count,
+                    rl.hourly_searches, rl.hourly_search_count,
+                    rl.monthly_storage_gb, rl.current_storage_gb,
+                    rl.last_upload_reset, rl.last_search_reset
+                FROM users u
+                LEFT JOIN user_rate_limits rl ON u.id = rl.user_id
+                ORDER BY u.created_at DESC
+            """)
+            
+            users_data = []
+            for row in cursor.fetchall():
+                user_data = {
+                    'id': row[0],
+                    'username': row[1],
+                    'email': row[2],
+                    'role': row[3],
+                    'created_at': row[4],
+                    'daily_uploads': row[5],
+                    'daily_upload_count': row[6] or 0,
+                    'hourly_searches': row[7],
+                    'hourly_search_count': row[8] or 0,
+                    'monthly_storage_gb': row[9],
+                    'current_storage_gb': float(row[10]) if row[10] else 0.0,
+                    'last_upload_reset': row[11],
+                    'last_search_reset': row[12],
+                    # Calculate percentages
+                    'upload_percent': (row[6] / row[5] * 100) if row[5] and row[6] else 0,
+                    'search_percent': (row[8] / row[7] * 100) if row[7] and row[8] else 0,
+                    'storage_percent': (float(row[10]) / row[9] * 100) if row[9] and row[10] else 0
+                }
+                users_data.append(user_data)
+            
+            # Get recent usage activity (last 24 hours)
+            cursor.execute("""
+                SELECT 
+                    u.username, 
+                    ul.action_type, 
+                    ul.action_timestamp,
+                    ul.resource_consumed,
+                    ul.details
+                FROM user_usage_log ul
+                JOIN users u ON ul.user_id = u.id
+                WHERE ul.action_timestamp >= SYSTIMESTAMP - INTERVAL '24' HOUR
+                ORDER BY ul.action_timestamp DESC
+                FETCH FIRST 50 ROWS ONLY
+            """)
+            
+            recent_activity = []
+            for row in cursor.fetchall():
+                activity = {
+                    'username': row[0],
+                    'action_type': row[1],
+                    'timestamp': row[2],
+                    'resource': row[3] or 0,
+                    'details': row[4]
+                }
+                recent_activity.append(activity)
+        
+        return render_template('admin_quotas.html',
+                             users=users_data,
+                             recent_activity=recent_activity,
+                             current_user=current_user)
+    except Exception as e:
+        logger.error(f"Error loading quotas dashboard: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        flash('Error loading quotas dashboard', 'error')
+        return redirect(url_for('index'))
+
+
+@app.route('/admin/quotas/<int:user_id>/update', methods=['POST'])
+@login_required
+@admin_required
+def admin_update_quota(user_id):
+    """Update user quotas"""
+    try:
+        if not RATE_LIMITING_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Rate limiting not available'}), 503
+        
+        daily_uploads = request.form.get('daily_uploads')
+        hourly_searches = request.form.get('hourly_searches')
+        monthly_storage_gb = request.form.get('monthly_storage_gb')
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Build update query
+            updates = []
+            params = {'user_id': user_id}
+            
+            if daily_uploads:
+                if daily_uploads == 'unlimited':
+                    updates.append("daily_uploads = NULL")
+                else:
+                    updates.append("daily_uploads = :daily_uploads")
+                    params['daily_uploads'] = int(daily_uploads)
+            
+            if hourly_searches:
+                if hourly_searches == 'unlimited':
+                    updates.append("hourly_searches = NULL")
+                else:
+                    updates.append("hourly_searches = :hourly_searches")
+                    params['hourly_searches'] = int(hourly_searches)
+            
+            if monthly_storage_gb:
+                if monthly_storage_gb == 'unlimited':
+                    updates.append("monthly_storage_gb = NULL")
+                else:
+                    updates.append("monthly_storage_gb = :monthly_storage_gb")
+                    params['monthly_storage_gb'] = float(monthly_storage_gb)
+            
+            if updates:
+                query = f"UPDATE user_rate_limits SET {', '.join(updates)} WHERE user_id = :user_id"
+                cursor.execute(query, params)
+                conn.commit()
+                
+                # Get username for logging
+                cursor.execute("SELECT username FROM users WHERE id = :user_id", {"user_id": user_id})
+                username = cursor.fetchone()[0]
+                
+                logger.info(f"✅ Admin {current_user.username} updated quotas for user: {username}")
+                flash(f'Quotas updated for {username}', 'success')
+            else:
+                flash('No quota changes specified', 'warning')
+        
+        return redirect(url_for('admin_quotas'))
+        
+    except Exception as e:
+        logger.error(f"Error updating quota: {e}")
+        flash('Error updating quota', 'error')
+        return redirect(url_for('admin_quotas'))
+
+
+@app.route('/admin/quotas/<int:user_id>/reset', methods=['POST'])
+@login_required
+@admin_required
+def admin_reset_counters(user_id):
+    """Reset user's rate limit counters"""
+    try:
+        if not RATE_LIMITING_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Rate limiting not available'}), 503
+        
+        counter_type = request.form.get('counter_type', 'all')
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            if counter_type == 'uploads' or counter_type == 'all':
+                cursor.execute("""
+                    UPDATE user_rate_limits 
+                    SET daily_upload_count = 0, 
+                        last_upload_reset = SYSTIMESTAMP
+                    WHERE user_id = :user_id
+                """, {"user_id": user_id})
+            
+            if counter_type == 'searches' or counter_type == 'all':
+                cursor.execute("""
+                    UPDATE user_rate_limits 
+                    SET hourly_search_count = 0,
+                        last_search_reset = SYSTIMESTAMP
+                    WHERE user_id = :user_id
+                """, {"user_id": user_id})
+            
+            conn.commit()
+            
+            # Get username for logging
+            cursor.execute("SELECT username FROM users WHERE id = :user_id", {"user_id": user_id})
+            username = cursor.fetchone()[0]
+            
+            logger.info(f"✅ Admin {current_user.username} reset {counter_type} counters for user: {username}")
+            flash(f'Counters reset for {username}', 'success')
+        
+        return redirect(url_for('admin_quotas'))
+        
+    except Exception as e:
+        logger.error(f"Error resetting counters: {e}")
+        flash('Error resetting counters', 'error')
+        return redirect(url_for('admin_quotas'))
+
+
 # ========== MAIN APPLICATION ROUTES ==========
 
 @app.route('/')
