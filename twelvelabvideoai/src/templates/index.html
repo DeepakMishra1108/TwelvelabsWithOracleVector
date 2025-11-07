@@ -1006,14 +1006,38 @@
                                             ${isVideo ? (hasSegment ? 'Video Segment' : 'Video') : 'Photo'}
                                         </div>
                                     </div>
-                                    ${result.ai_tags && result.ai_tags.trim() !== '' ? `
-                                    <div class="mt-2">
-                                        <span class="badge bg-info d-inline-block" 
-                                              style="max-width: 100%; white-space: normal; text-align: left;">
-                                            <i class="bi bi-tags-fill me-1"></i>${result.ai_tags}
-                                        </span>
-                                    </div>
-                                    ` : ''}
+                                    ${result.ai_tags && result.ai_tags.trim() !== '' ? (() => {
+                                        // Parse AI tags to separate title and hashtags
+                                        const tags = result.ai_tags;
+                                        const titleMatch = tags.match(/TITLE:\s*([^,\n]+)/i);
+                                        const hashtagMatch = tags.match(/HASHTAGS?:\s*([^\n]+)/i);
+                                        
+                                        const title = titleMatch ? titleMatch[1].trim() : null;
+                                        const hashtags = hashtagMatch ? hashtagMatch[1].trim() : null;
+                                        
+                                        return `
+                                        <div class="mt-2">
+                                            ${title ? `
+                                            <div class="mb-1">
+                                                <span class="badge bg-primary" style="font-size: 0.85em; font-weight: 500;">
+                                                    <i class="bi bi-quote me-1"></i>${title}
+                                                </span>
+                                            </div>
+                                            ` : ''}
+                                            ${hashtags ? `
+                                            <div style="font-size: 0.75em; color: #6c757d;">
+                                                <i class="bi bi-hash" style="font-size: 0.9em;"></i>${hashtags}
+                                            </div>
+                                            ` : ''}
+                                            ${!title && !hashtags ? `
+                                            <span class="badge bg-info d-inline-block" 
+                                                  style="max-width: 100%; white-space: normal; text-align: left; font-size: 0.85em;">
+                                                <i class="bi bi-tags-fill me-1"></i>${tags}
+                                            </span>
+                                            ` : ''}
+                                        </div>
+                                        `;
+                                    })() : ''}
                                     <div class="mt-2 d-flex gap-1 flex-wrap">
                                         <button class="btn btn-sm btn-outline-primary" 
                                                 onclick="findSimilar(${mediaId}, '${result.file_name}')"
