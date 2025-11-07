@@ -419,6 +419,93 @@ On first run, the application will automatically create required tables:
 
 ---
 
+## 🚀 Production Deployment on OCI VM
+
+Deploy Data Guardian to Oracle Cloud Infrastructure for production use.
+
+### Architecture
+
+```
+Internet → Nginx (SSL) → Gunicorn → Flask App → Oracle DB + Object Storage
+```
+
+### Quick Deploy (3 Steps)
+
+**1. Create OCI VM**
+- Image: Ubuntu 22.04 LTS
+- Shape: VM.Standard.E4.Flex (2 OCPUs, 16GB RAM)
+- Public IP: Assigned
+- Ports: 22, 80, 443 open
+
+**2. System Setup**
+```bash
+ssh ubuntu@YOUR_VM_IP
+git clone https://github.com/DeepakMishra1108/TwelvelabsWithOracleVector.git
+cd TwelvelabsWithOracleVector
+chmod +x scripts/*.sh
+./scripts/setup_oci_vm.sh
+```
+
+**3. Deploy Application**
+```bash
+sudo su - dataguardian
+cd /home/dataguardian/TwelvelabsWithOracleVector
+
+# Upload wallet and create .env (see deployment guide)
+./scripts/deploy_app.sh
+
+# Access: http://YOUR_VM_IP
+```
+
+**📖 Full Documentation**: [OCI_DEPLOYMENT_GUIDE.md](./OCI_DEPLOYMENT_GUIDE.md)
+
+### Management Commands
+
+```bash
+# Use management script for common operations
+./scripts/manage.sh start      # Start application
+./scripts/manage.sh stop       # Stop application
+./scripts/manage.sh restart    # Restart application
+./scripts/manage.sh status     # Show status
+./scripts/manage.sh logs       # View logs
+./scripts/manage.sh update     # Update and restart
+./scripts/manage.sh health     # Health check
+```
+
+### Features
+
+- ✅ **Systemd Service**: Auto-start on boot
+- ✅ **Gunicorn WSGI**: Production-grade server
+- ✅ **Nginx Reverse Proxy**: SSL termination, load balancing
+- ✅ **Log Rotation**: Automatic log management
+- ✅ **Zero-Downtime Updates**: Graceful restarts
+- ✅ **Health Checks**: Built-in monitoring endpoint
+
+---
+
+## 📡 API Reference
+./scripts/manage.sh backup     # Create backup
+```
+
+### Enable HTTPS (SSL)
+
+```bash
+# Install SSL certificate with Let's Encrypt
+sudo certbot --nginx -d your-domain.com
+
+# Auto-renewal is configured automatically
+```
+
+**Full Deployment Guide**: See [OCI_VM_DEPLOYMENT.md](./OCI_VM_DEPLOYMENT.md) for detailed instructions.
+
+---
+
+## 🧪 Local Development
+
+### 6. Initialize Database
+
+---
+
 ## 📡 API Reference
 
 ### Media Upload & Management
