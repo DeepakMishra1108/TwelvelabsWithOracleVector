@@ -2777,7 +2777,7 @@ def auto_tag_media(media_id):
                 # Initialize OCI client
                 config = oci.config.from_file()
                 object_storage = oci.object_storage.ObjectStorageClient(config)
-                namespace = os.getenv('OCI_NAMESPACE')
+                namespace = object_storage.get_namespace().data
                 bucket_name = os.getenv('OCI_BUCKET_NAME', 'Media')
                 
                 # Get object path
