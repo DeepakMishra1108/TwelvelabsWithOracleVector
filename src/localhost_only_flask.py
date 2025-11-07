@@ -2700,10 +2700,11 @@ def list_slideshows():
 
 @app.route('/auto_tag/<int:media_id>', methods=['POST'])
 def auto_tag_media(media_id):
-    """Generate automatic tags for media using TwelveLabs"""
+    """Generate automatic tags for media using AI (TwelveLabs for videos, OpenAI Vision for photos)"""
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
-        from twelvelabs import TwelveLabs
+        import oci
+        import os
         
         logger.info(f"🏷️ Auto-tagging media {media_id}")
         
@@ -2711,7 +2712,7 @@ def auto_tag_media(media_id):
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT file_name, file_type, file_path 
+                SELECT file_name, file_type, file_path, oci_object_path, video_id 
                 FROM album_media 
                 WHERE id = :id
             """, {"id": media_id})
@@ -2722,20 +2723,106 @@ def auto_tag_media(media_id):
             
             file_name = row[0]
             file_type = row[1]
-            file_path = row[2] if len(row) > 2 else None
+            file_path = row[2]
+            oci_object_path = row[3] if len(row) > 3 else None
+            video_id = row[4] if len(row) > 4 else None
         
-        # Check if it's a video
-        if file_type != 'video':
+        # Handle video auto-tagging with TwelveLabs
+        if file_type == 'video':
+            if not video_id:
+                return jsonify({
+                    "success": False,
+                    "error": "TwelveLabs integration not yet configured for this video. Please re-upload to enable AI tagging."
+                }), 400
+            
+            from twelvelabs import TwelveLabs
+            client = TwelveLabs(api_key=TWELVE_LABS_API_KEY)
+            
+            # Generate title, topics, and hashtags
+            result = client.generate.text(
+                video_id=video_id,
+                prompt="Generate a concise title, 3-5 main topics, and 5-8 relevant hashtags for this video"
+            )
+            
+            generated_text = result.data if hasattr(result, 'data') else str(result)
+            
             return jsonify({
-                "error": "Auto-tagging is only available for videos"
-            }), 400
+                "success": True,
+                "media_id": media_id,
+                "file_name": file_name,
+                "file_type": "video",
+                "video_id": video_id,
+                "generated_tags": generated_text
+            })
         
-        # For now, return a placeholder since we need to track video_id separately
-        # TODO: Add video_id column to album_media table to track TwelveLabs video IDs
-        return jsonify({
-            "success": False,
-            "error": "TwelveLabs integration not yet configured for this media. Please re-upload the video to enable AI tagging."
-        }), 400
+        # Handle photo auto-tagging with OpenAI Vision
+        elif file_type == 'photo':
+            # Download photo from OCI to analyze
+            try:
+                # Initialize OCI client
+                config = oci.config.from_file()
+                object_storage = oci.object_storage.ObjectStorageClient(config)
+                namespace = os.getenv('OCI_NAMESPACE')
+                bucket_name = os.getenv('OCI_BUCKET_NAME', 'Media')
+                
+                # Get object path
+                object_name = oci_object_path or file_path
+                
+                # Download image
+                logger.info(f"📥 Downloading photo from OCI: {object_name}")
+                get_obj = object_storage.get_object(namespace, bucket_name, object_name)
+                image_data = get_obj.data.content
+                
+                # Encode to base64 for OpenAI
+                import base64
+                base64_image = base64.b64encode(image_data).decode('utf-8')
+                
+                # Use OpenAI Vision API
+                import openai
+                openai.api_key = os.getenv('OPENAI_API_KEY')
+                
+                response = openai.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Analyze this image and provide: 1) A concise descriptive title, 2) 3-5 main subjects/objects, 3) 5-8 relevant hashtags. Format as: TITLE: ..., SUBJECTS: ..., HASHTAGS: ..."
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=300
+                )
+                
+                generated_text = response.choices[0].message.content
+                
+                return jsonify({
+                    "success": True,
+                    "media_id": media_id,
+                    "file_name": file_name,
+                    "file_type": "photo",
+                    "generated_tags": generated_text
+                })
+                
+            except Exception as e:
+                logger.error(f"❌ Photo analysis error: {e}")
+                return jsonify({
+                    "error": f"Failed to analyze photo: {str(e)}"
+                }), 500
+        
+        else:
+            return jsonify({
+                "error": "Unsupported file type"
+            }), 400
         
     except Exception as e:
         logger.error(f"❌ Auto-tagging error: {e}")
