@@ -2712,7 +2712,7 @@ def auto_tag_media(media_id):
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT file_name, file_type, file_path, oci_object_path, video_id 
+                SELECT file_name, file_type, file_path, oci_object_path 
                 FROM album_media 
                 WHERE id = :id
             """, {"id": media_id})
@@ -2725,10 +2725,25 @@ def auto_tag_media(media_id):
             file_type = row[1]
             file_path = row[2]
             oci_object_path = row[3] if len(row) > 3 else None
-            video_id = row[4] if len(row) > 4 else None
         
         # Handle video auto-tagging with TwelveLabs
         if file_type == 'video':
+            # Check if video has TwelveLabs video_id
+            with get_flask_safe_connection() as conn:
+                cursor = conn.cursor()
+                # Try to get VIDEO_ID column (may not exist on all installations)
+                try:
+                    cursor.execute("""
+                        SELECT VIDEO_ID 
+                        FROM album_media 
+                        WHERE id = :id
+                    """, {"id": media_id})
+                    result = cursor.fetchone()
+                    video_id = result[0] if result and result[0] else None
+                except Exception as e:
+                    logger.warning(f"VIDEO_ID column not found: {e}")
+                    video_id = None
+            
             if not video_id:
                 return jsonify({
                     "success": False,
