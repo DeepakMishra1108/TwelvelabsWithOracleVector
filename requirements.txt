@@ -9,3 +9,4 @@ Pillow
 geopy
 bcrypt
 email-validator
+openai
