@@ -127,12 +127,12 @@ def reset_counters_if_needed(user_id, limits, cursor, conn):
         for col_name, col_value in updates.items():
             if isinstance(col_value, datetime):
                 # For datetime/timestamp columns, use CURRENT_TIMESTAMP directly
-                sql = f"UPDATE user_rate_limits SET {col_name} = CURRENT_TIMESTAMP WHERE user_id = :uid"
-                cursor.execute(sql, uid=user_id)
+                sql = f"UPDATE user_rate_limits SET {col_name} = CURRENT_TIMESTAMP WHERE user_id = :u"
+                cursor.execute(sql, [user_id])
             else:
-                # For numeric values, use bind variable
-                sql = f"UPDATE user_rate_limits SET {col_name} = :val WHERE user_id = :uid"
-                cursor.execute(sql, val=col_value, uid=user_id)
+                # For numeric values, use bind variable with list-style parameters
+                sql = f"UPDATE user_rate_limits SET {col_name} = :v WHERE user_id = :u"
+                cursor.execute(sql, [col_value, user_id])
         
         conn.commit()
         
