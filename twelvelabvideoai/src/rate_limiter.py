@@ -123,9 +123,18 @@ def reset_counters_if_needed(user_id, limits, cursor, conn):
     
     # Apply updates if any
     if updates:
-        set_clause = ', '.join([f"{k} = :{k}" for k in updates.keys()])
-        sql = f"UPDATE user_rate_limits SET {set_clause} WHERE user_id = :user_id"
-        cursor.execute(sql, {**updates, 'user_id': user_id})
+        # Build SET clause manually to avoid bind variable name issues
+        set_parts = []
+        bind_values = {'uid': user_id}
+        
+        for i, (col_name, col_value) in enumerate(updates.items()):
+            param_name = f'v{i}'
+            set_parts.append(f"{col_name} = :{param_name}")
+            bind_values[param_name] = col_value
+        
+        set_clause = ', '.join(set_parts)
+        sql = f"UPDATE user_rate_limits SET {set_clause} WHERE user_id = :uid"
+        cursor.execute(sql, bind_values)
         conn.commit()
         
         # Update limits dict with new values
