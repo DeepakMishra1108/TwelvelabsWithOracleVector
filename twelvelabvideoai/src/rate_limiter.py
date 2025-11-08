@@ -134,17 +134,18 @@ def reset_counters_if_needed(user_id, limits, cursor, conn):
                 # For datetime/timestamp columns, use CURRENT_TIMESTAMP directly
                 update_parts.append(f"{col_name} = CURRENT_TIMESTAMP")
             else:
-                # For numeric values, use bind variables
-                param_name = f"p{param_counter}"
+                # For numeric values, use bind variables with longer names
+                param_name = f"param_{param_counter}"
                 update_parts.append(f"{col_name} = :{param_name}")
                 bind_params[param_name] = col_value
                 param_counter += 1
         
         set_clause = ', '.join(update_parts)
-        bind_params['uid'] = user_id
-        sql = f"UPDATE user_rate_limits SET {set_clause} WHERE user_id = :uid"
+        bind_params['user_id_val'] = user_id
+        sql = f"UPDATE user_rate_limits SET {set_clause} WHERE user_id = :user_id_val"
         
-        cursor.execute(sql, bind_params)
+        # Execute with keyword arguments instead of dictionary
+        cursor.execute(sql, **bind_params)
         conn.commit()
         
         # Update limits dict with new values (use current time for timestamps)
