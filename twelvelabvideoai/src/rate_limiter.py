@@ -134,14 +134,14 @@ def increment_counter(user_id, counter_name, increment_by=1, cursor=None, conn=N
             raise ValueError(f"Invalid counter name: {counter_name}")
         
         # Use string formatting for column name (safe since validated) 
-        # but bind variables for values
+        # Use positional parameters to avoid Oracle bind variable name issues
         sql = """
             UPDATE user_rate_limits 
-            SET {} = NVL({}, 0) + :incr_val
-            WHERE user_id = :uid
+            SET {} = NVL({}, 0) + :1
+            WHERE user_id = :2
         """.format(counter_name, counter_name)
         
-        cursor.execute(sql, incr_val=increment_by, uid=user_id)
+        cursor.execute(sql, [increment_by, user_id])
         
         conn.commit()
         logger.info(f"📊 Incremented {counter_name} for user {user_id} by {increment_by}")
