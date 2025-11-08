@@ -154,11 +154,13 @@ def increment_counter(user_id, counter_name, increment_by=1, cursor=None, conn=N
         cursor = conn.cursor()
     
     try:
-        cursor.execute(f"""
+        # Use parameterized column name with explicit casting to avoid bind variable issues
+        sql = f"""
             UPDATE user_rate_limits 
-            SET {counter_name} = NVL({counter_name}, 0) + :increment
-            WHERE user_id = :user_id
-        """, {'increment': increment_by, 'user_id': user_id})
+            SET {counter_name} = NVL({counter_name}, 0) + :incr_val
+            WHERE user_id = :uid
+        """
+        cursor.execute(sql, {'incr_val': increment_by, 'uid': user_id})
         
         conn.commit()
         logger.info(f"📊 Incremented {counter_name} for user {user_id} by {increment_by}")
