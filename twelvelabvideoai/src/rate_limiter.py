@@ -130,10 +130,20 @@ def reset_counters_if_needed(user_id, limits, cursor, conn):
         for i, (col_name, col_value) in enumerate(updates.items()):
             param_name = f'v{i}'
             set_parts.append(f"{col_name} = :{param_name}")
-            bind_values[param_name] = col_value
+            
+            # Convert datetime objects to timestamp for Oracle
+            if isinstance(col_value, datetime):
+                bind_values[param_name] = col_value
+            else:
+                bind_values[param_name] = col_value
         
         set_clause = ', '.join(set_parts)
         sql = f"UPDATE user_rate_limits SET {set_clause} WHERE user_id = :uid"
+        
+        # Log for debugging
+        logger.debug(f"Reset SQL: {sql}")
+        logger.debug(f"Bind values: {bind_values}")
+        
         cursor.execute(sql, bind_values)
         conn.commit()
         
