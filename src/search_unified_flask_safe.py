@@ -126,8 +126,20 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
         Combined list of photo and video segment results with similarity scores above threshold
     """
     try:
-        # Check cache first (with user_id for isolation)
-        vector_json = get_cached_embedding(query_text, user_id) if user_id else get_cached_embedding(query_text)
+        # For caching: if user_id is None (admin), we need the actual user_id from Flask context
+        # For filtering: None means show all results
+        cache_user_id = user_id
+        if cache_user_id is None:
+            # Try to get from Flask login context
+            try:
+                from flask_login import current_user
+                if current_user and current_user.is_authenticated:
+                    cache_user_id = current_user.id
+            except:
+                cache_user_id = 1  # Fallback to user 1 for global cache
+        
+        # Check cache first (with cache_user_id for isolation)
+        vector_json = get_cached_embedding(query_text, cache_user_id)
         
         if not vector_json:
             # Cache miss - get embedding from TwelveLabs API
@@ -179,8 +191,8 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
             vector_json = json.dumps(query_vector_list)
             logger.info(f"✅ Query vector has {len(query_vector_list)} dimensions")
             
-            # Save to cache for future use (with user_id for isolation)
-            save_embedding_to_cache(query_text, query_vector_list, user_id)
+            # Save to cache for future use (with cache_user_id for isolation)
+            save_embedding_to_cache(query_text, query_vector_list, cache_user_id)
         else:
             logger.info(f"✅ Using cached query vector")
         
