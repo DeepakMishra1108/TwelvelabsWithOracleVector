@@ -481,17 +481,23 @@ def inject_permissions():
     is_admin = False
     is_editor = False
     can_upload_perm = False
+    can_delete_perm = False
+    can_create_album_perm = False
     
     if current_user.is_authenticated:
         user_role = getattr(current_user, 'role', 'viewer')
         is_admin = (user_role == 'admin')
         is_editor = (user_role in ['admin', 'editor'])
         can_upload_perm = (user_role in ['admin', 'editor'])
+        can_delete_perm = (user_role in ['admin', 'editor'])
+        can_create_album_perm = (user_role in ['admin', 'editor'])
     
     return dict(
         can_admin=is_admin,
         can_edit=is_editor,
-        can_upload=can_upload_perm
+        can_upload=can_upload_perm,
+        can_delete=can_delete_perm,
+        can_create_album=can_create_album_perm
     )
 
 # Task tracking for background embedding jobs
