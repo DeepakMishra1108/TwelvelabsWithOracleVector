@@ -329,7 +329,8 @@ def rate_limit_upload(f):
             increment_counter(current_user.id, 'uploads_today', cursor=cursor, conn=conn)
             
             # Log usage
-            filename = request.files.get('file').filename if request and request.files else None
+            file_obj = request.files.get('file') if request and request.files else None
+            filename = file_obj.filename if file_obj else None
             log_usage(current_user.id, 'upload', action_details=filename)
         
         return f(*args, **kwargs)
