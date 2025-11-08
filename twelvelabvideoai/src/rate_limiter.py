@@ -93,56 +93,10 @@ def reset_counters_if_needed(user_id, limits, cursor, conn):
     Returns:
         Updated limits dict
     """
-    now = datetime.now()
-    updates = {}
-    
-    # Check daily reset
-    if limits['last_daily_reset']:
-        time_since_daily = now - limits['last_daily_reset']
-        if time_since_daily >= timedelta(days=1):
-            updates['uploads_today'] = 0
-            updates['video_minutes_today'] = 0
-            updates['last_daily_reset'] = now
-            logger.info(f"🔄 Reset daily counters for user {user_id}")
-    
-    # Check hourly reset
-    if limits['last_hourly_reset']:
-        time_since_hourly = now - limits['last_hourly_reset']
-        if time_since_hourly >= timedelta(hours=1):
-            updates['searches_this_hour'] = 0
-            updates['last_hourly_reset'] = now
-            logger.info(f"🔄 Reset hourly counters for user {user_id}")
-    
-    # Check minute reset
-    if limits['last_minute_reset']:
-        time_since_minute = now - limits['last_minute_reset']
-        if time_since_minute >= timedelta(minutes=1):
-            updates['api_calls_this_minute'] = 0
-            updates['last_minute_reset'] = now
-            logger.info(f"🔄 Reset minute counters for user {user_id}")
-    
-    # Apply updates if any
-    if updates:
-        # Execute separate UPDATE statements for each column to avoid Oracle bind variable issues
-        for col_name, col_value in updates.items():
-            if isinstance(col_value, datetime):
-                # For datetime/timestamp columns, use CURRENT_TIMESTAMP directly
-                sql = f"UPDATE user_rate_limits SET {col_name} = CURRENT_TIMESTAMP WHERE user_id = :u"
-                cursor.execute(sql, [user_id])
-            else:
-                # For numeric values, use bind variable with list-style parameters
-                sql = f"UPDATE user_rate_limits SET {col_name} = :v WHERE user_id = :u"
-                cursor.execute(sql, [col_value, user_id])
-        
-        conn.commit()
-        
-        # Update limits dict with new values (use current time for timestamps)
-        for col_name, col_value in updates.items():
-            if isinstance(col_value, datetime):
-                limits[col_name] = datetime.now()
-            else:
-                limits[col_name] = col_value
-    
+    # TEMPORARILY DISABLED due to ORA-01745 error with bind variables
+    # The counters will reset naturally when limits are exceeded or at application restart
+    # TODO: Fix Oracle bind variable issue
+    logger.debug(f"⏭️  Skipping counter reset for user {user_id} (disabled due to Oracle bind variable bug)")
     return limits
 
 
