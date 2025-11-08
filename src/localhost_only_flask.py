@@ -1002,10 +1002,10 @@ def admin_quotas():
             cursor.execute("""
                 SELECT 
                     u.id, u.username, u.email, u.role, u.created_at,
-                    rl.daily_uploads, rl.daily_upload_count,
-                    rl.hourly_searches, rl.hourly_search_count,
-                    rl.monthly_storage_gb, rl.current_storage_gb,
-                    rl.last_upload_reset, rl.last_search_reset
+                    rl.max_uploads_per_day, rl.uploads_today,
+                    rl.max_searches_per_hour, rl.searches_this_hour,
+                    rl.max_storage_gb, rl.storage_used_gb,
+                    rl.last_daily_reset, rl.last_hourly_reset
                 FROM users u
                 LEFT JOIN user_rate_limits rl ON u.id = rl.user_id
                 ORDER BY u.created_at DESC
@@ -1039,13 +1039,13 @@ def admin_quotas():
                 SELECT 
                     u.username, 
                     ul.action_type, 
-                    ul.action_timestamp,
+                    ul.timestamp,
                     ul.resource_consumed,
-                    ul.details
+                    ul.action_details
                 FROM user_usage_log ul
                 JOIN users u ON ul.user_id = u.id
-                WHERE ul.action_timestamp >= SYSTIMESTAMP - INTERVAL '24' HOUR
-                ORDER BY ul.action_timestamp DESC
+                WHERE ul.timestamp >= SYSTIMESTAMP - INTERVAL '24' HOUR
+                ORDER BY ul.timestamp DESC
                 FETCH FIRST 50 ROWS ONLY
             """)
             
