@@ -912,6 +912,72 @@ def admin_delete_user(user_id):
         return redirect(url_for('admin_users'))
 
 
+@app.route('/admin/users/<int:user_id>/edit', methods=['POST'])
+@login_required
+@admin_required
+def admin_edit_user(user_id):
+    """Edit user details (username, email, role)"""
+    try:
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        role = request.form.get('role', '').strip()
+        
+        # Validate inputs
+        if not username or len(username) < 3:
+            flash('Username must be at least 3 characters', 'error')
+            return redirect(url_for('admin_users'))
+        
+        if role not in ['viewer', 'editor', 'admin']:
+            flash('Invalid role specified', 'error')
+            return redirect(url_for('admin_users'))
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if user exists
+            cursor.execute("SELECT username FROM users WHERE id = :user_id", {"user_id": user_id})
+            row = cursor.fetchone()
+            if not row:
+                flash('User not found', 'error')
+                return redirect(url_for('admin_users'))
+            old_username = row[0]
+            
+            # Check if new username is already taken (by someone else)
+            cursor.execute(
+                "SELECT id FROM users WHERE username = :username AND id != :user_id",
+                {"username": username, "user_id": user_id}
+            )
+            if cursor.fetchone():
+                flash(f'Username "{username}" is already taken', 'error')
+                return redirect(url_for('admin_users'))
+            
+            # Update user
+            update_query = """
+                UPDATE users 
+                SET username = :username, 
+                    email = :email, 
+                    role = :role
+                WHERE id = :user_id
+            """
+            cursor.execute(update_query, {
+                "username": username,
+                "email": email if email else None,
+                "role": role,
+                "user_id": user_id
+            })
+            conn.commit()
+            
+            logger.info(f"✅ Admin {current_user.username} updated user {old_username} → {username} (role: {role})")
+            flash(f'User {username} updated successfully', 'success')
+        
+        return redirect(url_for('admin_users'))
+        
+    except Exception as e:
+        logger.error(f"Error editing user: {e}")
+        flash('Error updating user', 'error')
+        return redirect(url_for('admin_users'))
+
+
 @app.route('/admin/quotas')
 @login_required
 @admin_required
