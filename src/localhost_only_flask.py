@@ -2222,7 +2222,7 @@ def media_thumbnail(media_id):
 @app.route('/search_unified', methods=['POST'])
 @login_required
 @viewer_required
-# @rate_limit_search  # TEMPORARILY DISABLED - Fix ORA-01745 issue
+@rate_limit_search
 def search_unified():
     """Unified search across photos and videos using TwelveLabs Marengo embeddings
     

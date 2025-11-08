@@ -123,32 +123,36 @@ def reset_counters_if_needed(user_id, limits, cursor, conn):
     
     # Apply updates if any
     if updates:
-        # Build SET clause manually to avoid bind variable name issues
-        set_parts = []
-        bind_values = {'uid': user_id}
+        # Oracle doesn't like datetime objects in bind variables with certain column names
+        # Use CURRENT_TIMESTAMP for timestamp columns instead
+        update_parts = []
+        bind_params = {}
+        param_counter = 0
         
-        for i, (col_name, col_value) in enumerate(updates.items()):
-            param_name = f'v{i}'
-            set_parts.append(f"{col_name} = :{param_name}")
-            
-            # Convert datetime objects to timestamp for Oracle
+        for col_name, col_value in updates.items():
             if isinstance(col_value, datetime):
-                bind_values[param_name] = col_value
+                # For datetime/timestamp columns, use CURRENT_TIMESTAMP directly
+                update_parts.append(f"{col_name} = CURRENT_TIMESTAMP")
             else:
-                bind_values[param_name] = col_value
+                # For numeric values, use bind variables
+                param_name = f"p{param_counter}"
+                update_parts.append(f"{col_name} = :{param_name}")
+                bind_params[param_name] = col_value
+                param_counter += 1
         
-        set_clause = ', '.join(set_parts)
+        set_clause = ', '.join(update_parts)
+        bind_params['uid'] = user_id
         sql = f"UPDATE user_rate_limits SET {set_clause} WHERE user_id = :uid"
         
-        # Log for debugging
-        logger.debug(f"Reset SQL: {sql}")
-        logger.debug(f"Bind values: {bind_values}")
-        
-        cursor.execute(sql, bind_values)
+        cursor.execute(sql, bind_params)
         conn.commit()
         
-        # Update limits dict with new values
-        limits.update(updates)
+        # Update limits dict with new values (use current time for timestamps)
+        for col_name, col_value in updates.items():
+            if isinstance(col_value, datetime):
+                limits[col_name] = datetime.now()
+            else:
+                limits[col_name] = col_value
     
     return limits
 
