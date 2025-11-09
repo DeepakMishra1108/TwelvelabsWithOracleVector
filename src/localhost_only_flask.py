@@ -1209,6 +1209,38 @@ def health_check():
         'timestamp': int(time.time())
     })
 
+@app.route('/media/<int:media_id>/face-tags', methods=['POST'])
+@editor_required
+def add_face_tags(media_id):
+    """API endpoint to manually add face tags to a media item."""
+    if not request.is_json:
+        return jsonify({'error': 'Request must be JSON'}), 400
+    data = request.get_json()
+    tags = data.get('face_tags')
+    if not tags or not isinstance(tags, list):
+        return jsonify({'error': 'face_tags must be a non-empty list'}), 400
+    # Validate tags (simple: non-empty strings, max length 64)
+    valid_tags = [t.strip() for t in tags if isinstance(t, str) and 0 < len(t.strip()) <= 64]
+    if not valid_tags:
+        return jsonify({'error': 'No valid face tags provided'}), 400
+    # Store tags in FACE_TAGS column (CLOB)
+    try:
+        import cx_Oracle
+        # get_db_connection may be defined elsewhere; replace with actual DB connection logic
+        conn = cx_Oracle.connect(os.getenv('ORACLE_CONN_STRING'))
+        cursor = conn.cursor()
+        tags_json = json.dumps(valid_tags)
+        cursor.execute(
+            "UPDATE album_media SET FACE_TAGS = :tags WHERE id = :media_id",
+            tags=tags_json, media_id=media_id
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'success': True, 'face_tags': valid_tags}), 200
+    except Exception as e:
+        logger.error(f"Error updating FACE_TAGS: {e}")
+        return jsonify({'error': 'Database error'}), 500
 def send_progress(task_id, stage, percent, message):
     """Send progress update to client via SSE queue"""
     if task_id in _progress_queues:
@@ -3872,8 +3904,8 @@ if __name__ == '__main__':
     # Force localhost-only - no 0.0.0.0 binding
     app.run(
         host=flask_host,  # Localhost only
-        port=flask_port,
-        debug=False,
+        port=5000,
+        debug=True,
         threaded=True,
-        ssl_context=ssl_context if ssl_enabled else None
+        ssl_context=None
     )

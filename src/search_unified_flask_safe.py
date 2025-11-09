@@ -234,19 +234,35 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
         if user_id:
             photo_params['user_id'] = user_id
         if album_name:
-            photo_params['album_name'] = album_name
-        
-        photo_results = flask_safe_execute_query(photo_sql, photo_params)
-        
-        for row in photo_results:
-            distance = row[6]
-            similarity = 1.0 - distance
-            
-            if similarity >= min_similarity:
-                # AI_TAGS is already converted from CLOB to string by flask_safe_execute_query
-                ai_tags = row[9] if len(row) > 9 else None
-                
-                all_results.append({
+                    # Fetch face tags and embeddings
+                    try:
+                        with get_flask_safe_connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT FACE_TAGS, FACE_TAG_EMBEDDINGS FROM album_media WHERE id = :id", {'id': row[0]})
+                            face_row = cursor.fetchone()
+                            face_tags = json.loads(face_row[0]) if face_row and face_row[0] else []
+                            face_embeddings = json.loads(face_row[1]) if face_row and face_row[1] else []
+                    except Exception:
+                        face_tags = []
+                        face_embeddings = []
+
+                    face_tags_lower = " ".join(face_tags).lower() if face_tags else ""
+                    all_results.append({
+                        'media_id': row[0],
+                        'album_name': row[1],
+                        'file_name': row[2],
+                        'file_path': row[3],
+                        'file_type': 'photo',
+                        'created_at': row[5],
+                        'similarity': similarity,
+                        'score': similarity,
+                        'segment_start': None,
+                        'segment_end': None,
+                        'ai_tags': ai_tags,
+                        'face_tags': face_tags,
+                        'face_tag_embeddings': face_embeddings,
+                        'match_type': 'metadata'
+                    })
                     'media_id': row[0],
                     'album_name': row[1],
                     'file_name': row[2],
@@ -509,19 +525,6 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
             
             score = min(score, 1.0)
             
-            all_results.append({
-                'media_id': row[0],
-                'album_name': row[1],
-                'file_name': row[2],
-                'file_path': row[3],
-                'file_type': 'video',
-                'created_at': row[5],
-                'similarity': score,
-                'score': score,
-                'segment_start': None,
-                'segment_end': None,
-                'ai_tags': ai_tags,
-                'video_title': video_title,
                 'match_type': 'metadata'
             })
         
