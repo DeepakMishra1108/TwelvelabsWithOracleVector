@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find My Photos - Camera Search</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .camera-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+        }
+
+        .camera-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #video {
+            width: 100%;
+            max-width: 640px;
+            height: 480px;
+            background: #000;
+            border-radius: 15px;
+            object-fit: cover;
+        }
+
+        #canvas {
+            display: none;
+        }
+
+        .captured-image {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 15px;
+            display: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: 500;
+        }
+
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .status.loading {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .results-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: none;
+        }
+
+        .results-header {
+            margin-bottom: 20px;
+        }
+
+        .results-header h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .results-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .photos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .photo-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+
+        .photo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .photo-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .photo-info {
+            padding: 15px;
+        }
+
+        .photo-info h3 {
+            font-size: 1rem;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .face-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .face-tag {
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+        }
+
+        .confidence-bar {
+            background: #e0e0e0;
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+            transition: width 0.3s ease;
+        }
+
+        .settings {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .settings h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .setting-item {
+            margin-bottom: 10px;
+        }
+
+        .setting-item label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .setting-item input[type="range"] {
+            width: 100%;
+        }
+
+        .setting-value {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .photos-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📸 Find My Photos</h1>
+            <p>Take a selfie and find all photos containing you</p>
+        </div>
+
+        <div class="camera-section">
+            <div class="camera-container">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="canvas"></canvas>
+                <img id="capturedImage" class="captured-image">
+
+                <div class="controls">
+                    <button id="startCamera" class="btn btn-primary">
+                        <span>📷</span> Start Camera
+                    </button>
+                    <button id="captureBtn" class="btn btn-success" disabled>
+                        <span>📸</span> Take Photo
+                    </button>
+                    <button id="searchBtn" class="btn btn-primary" style="display:none">
+                        <span>🔍</span> Search My Photos
+                    </button>
+                    <button id="retakeBtn" class="btn btn-secondary" style="display:none">
+                        <span>🔄</span> Retake
+                    </button>
+                </div>
+
+                <div id="status" class="status info" style="display:none"></div>
+            </div>
+
+            <div class="settings">
+                <h3>Search Settings</h3>
+                <div class="setting-item">
+                    <label>
+                        Match Sensitivity
+                        <span class="setting-value" id="thresholdValue">60%</span>
+                    </label>
+                    <input type="range" id="threshold" min="0.3" max="0.8" step="0.05" value="0.6">
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        Lower = stricter matching (fewer but more accurate results)
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div id="resultsSection" class="results-section">
+            <div class="results-header">
+                <h2>Search Results</h2>
+                <div class="results-stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="photosCount">0</div>
+                        <div class="stat-label">Photos Found</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="matchesCount">0</div>
+                        <div class="stat-label">Face Matches</div>
+                    </div>
+                </div>
+            </div>
+            <div id="photosGrid" class="photos-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const capturedImage = document.getElementById('capturedImage');
+        const startCameraBtn = document.getElementById('startCamera');
+        const captureBtn = document.getElementById('captureBtn');
+        const searchBtn = document.getElementById('searchBtn');
+        const retakeBtn = document.getElementById('retakeBtn');
+        const statusDiv = document.getElementById('status');
+        const resultsSection = document.getElementById('resultsSection');
+        const photosGrid = document.getElementById('photosGrid');
+        const thresholdInput = document.getElementById('threshold');
+        const thresholdValue = document.getElementById('thresholdValue');
+        
+        let stream = null;
+        let capturedImageData = null;
+
+        // Update threshold display
+        thresholdInput.addEventListener('input', (e) => {
+            const value = (1 - parseFloat(e.target.value)) * 100;
+            thresholdValue.textContent = Math.round(value) + '%';
+        });
+
+        // Start camera
+        startCameraBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user'
+                    } 
+                });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                capturedImage.style.display = 'none';
+                captureBtn.disabled = false;
+                startCameraBtn.disabled = true;
+                showStatus('Camera ready! Position your face in the frame and click "Take Photo"', 'info');
+            } catch (error) {
+                showStatus('Error accessing camera: ' + error.message, 'error');
+            }
+        });
+
+        // Capture photo
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+            
+            capturedImageData = canvas.toDataURL('image/jpeg', 0.9);
+            capturedImage.src = capturedImageData;
+            capturedImage.style.display = 'block';
+            video.style.display = 'none';
+            
+            captureBtn.style.display = 'none';
+            searchBtn.style.display = 'inline-flex';
+            retakeBtn.style.display = 'inline-flex';
+            
+            // Stop camera
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
+            showStatus('Photo captured! Click "Search My Photos" to find matching photos', 'success');
+        });
+
+        // Retake photo
+        retakeBtn.addEventListener('click', () => {
+            capturedImage.style.display = 'none';
+            searchBtn.style.display = 'none';
+            retakeBtn.style.display = 'none';
+            captureBtn.style.display = 'inline-flex';
+            startCameraBtn.disabled = false;
+            startCameraBtn.click();
+            resultsSection.style.display = 'none';
+        });
+
+        // Search photos
+        searchBtn.addEventListener('click', async () => {
+            if (!capturedImageData) {
+                showStatus('Please capture a photo first', 'error');
+                return;
+            }
+
+            showStatus('🔍 Searching for photos... This may take a moment', 'loading');
+            searchBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/search/selfie', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: capturedImageData,
+                        similarity_threshold: parseFloat(thresholdInput.value),
+                        max_results: 100
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    displayResults(result);
+                    showStatus(`✅ Found ${result.unique_photos} photos with ${result.matches_found} face matches!`, 'success');
+                } else {
+                    showStatus('❌ ' + (result.error || 'Search failed'), 'error');
+                }
+            } catch (error) {
+                showStatus('❌ Error: ' + error.message, 'error');
+            } finally {
+                searchBtn.disabled = false;
+            }
+        });
+
+        // Display results
+        function displayResults(result) {
+            document.getElementById('photosCount').textContent = result.unique_photos || 0;
+            document.getElementById('matchesCount').textContent = result.matches_found || 0;
+            
+            photosGrid.innerHTML = '';
+            
+            if (!result.photos || result.photos.length === 0) {
+                photosGrid.innerHTML = '<p style="text-align:center;color:#666;grid-column:1/-1;">No matching photos found. Try adjusting the match sensitivity.</p>';
+                resultsSection.style.display = 'block';
+                return;
+            }
+
+            result.photos.forEach(photo => {
+                const card = document.createElement('div');
+                card.className = 'photo-card';
+                
+                const bestMatch = photo.matched_faces[0];
+                const confidence = Math.round(bestMatch.confidence * 100);
+                
+                card.innerHTML = `
+                    <img src="${photo.thumbnail_url || photo.stream_url}" alt="${photo.file_name}">
+                    <div class="photo-info">
+                        <h3>${photo.file_name}</h3>
+                        <div class="face-tags">
+                            ${photo.matched_faces.map(face => 
+                                `<span class="face-tag">${face.face_name} (${Math.round(face.confidence * 100)}%)</span>`
+                            ).join('')}
+                        </div>
+                        <small style="color:#666;">${photo.match_count} match(es)</small>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${confidence}%"></div>
+                        </div>
+                    </div>
+                `;
+                
+                card.addEventListener('click', () => {
+                    window.open(photo.stream_url, '_blank');
+                });
+                
+                photosGrid.appendChild(card);
+            });
+            
+            resultsSection.style.display = 'block';
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Show status message
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.style.display = 'block';
+        }
+
+        // Auto-start camera on load
+        window.addEventListener('load', () => {
+            showStatus('Click "Start Camera" to begin', 'info');
+        });
+    </script>
+</body>
+</html>

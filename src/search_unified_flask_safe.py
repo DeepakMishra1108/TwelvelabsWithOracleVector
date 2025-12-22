@@ -6,7 +6,6 @@ import json
 import logging
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
-from twelvelabs import TwelveLabs
 
 # Add path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'twelvelabvideoai', 'src'))
@@ -113,7 +112,7 @@ def save_embedding_to_cache(query_text: str, embedding_list: List[float], user_i
         logger.warning(f"Failed to save to cache (may already exist): {e}")
 
 def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: str = None, top_k: int = 20, min_similarity: float = 0.30) -> List[Dict]:
-    """Search both photos and video segments using TwelveLabs embedding and Oracle VECTOR similarity
+    """Search both photos and video segments using ImageBind embedding and Oracle VECTOR similarity
     
     Args:
         query_text: Natural language search query
@@ -126,73 +125,29 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
         Combined list of photo and video segment results with similarity scores above threshold
     """
     try:
-        # For caching: if user_id is None (admin), we need the actual user_id from Flask context
-        # For filtering: None means show all results
-        cache_user_id = user_id
-        if cache_user_id is None:
-            # Try to get from Flask login context
-            try:
-                from flask_login import current_user
-                if current_user and current_user.is_authenticated:
-                    cache_user_id = current_user.id
-            except:
-                cache_user_id = 1  # Fallback to user 1 for global cache
-        
-        # Check cache first (with cache_user_id for isolation)
-        vector_json = get_cached_embedding(query_text, cache_user_id)
+        # Check cache first (with user_id for isolation)
+        vector_json = get_cached_embedding(query_text, user_id) if user_id else get_cached_embedding(query_text)
         
         if not vector_json:
-            # Cache miss - get embedding from TwelveLabs API
-            client = TwelveLabs(api_key=os.getenv("TWELVE_LABS_API_KEY"))
+            # Cache miss - get embedding from ImageBind (free, instant)
+            from utils.imagebind_helper import get_imagebind_embedder
             
-            logger.info(f"🔍 Creating embedding for query: '{query_text}'")
-            task = client.embed.create(
-                model_name="Marengo-retrieval-2.7",
-                text=query_text
-            )
+            logger.info(f"🔍 Creating ImageBind embedding for query: '{query_text}'")
+            embedder = get_imagebind_embedder()
+            embedding_array = embedder.generate_text_embedding(query_text)
             
-            # Wait for embedding
-            task_id = getattr(task, 'id', None) or getattr(task, 'task_id', None)
-            if hasattr(client.embed, 'tasks') and hasattr(client.embed.tasks, 'wait_for_done') and task_id:
-                client.embed.tasks.wait_for_done(sleep_interval=2, task_id=task_id)
-                final = client.embed.tasks.retrieve(task_id=task_id)
-            elif hasattr(task, 'wait_for_done'):
-                task.wait_for_done(sleep_interval=2)
-                final = task
-            else:
-                final = task
+            if embedding_array is None:
+                raise ValueError("Failed to generate text embedding")
             
-            # Extract embedding
-            query_embedding = None
+            # Convert to JSON format for Oracle VECTOR
+            vector_json = json.dumps(embedding_array.tolist())
             
-            if hasattr(final, 'text_embedding'):
-                text_emb = final.text_embedding
-                
-                if hasattr(text_emb, 'segments') and text_emb.segments:
-                    first_segment = text_emb.segments[0]
-                    
-                    if hasattr(first_segment, 'embeddings_float'):
-                        query_embedding = first_segment.embeddings_float
-                    elif hasattr(first_segment, 'embedding'):
-                        query_embedding = first_segment.embedding
-                    elif hasattr(first_segment, 'float_'):
-                        query_embedding = first_segment.float_
-                elif hasattr(text_emb, 'float_'):
-                    query_embedding = text_emb.float_
-                elif hasattr(text_emb, 'float'):
-                    query_embedding = text_emb.float
-            
-            if not query_embedding:
-                logger.error("❌ Failed to extract embedding from query")
-                return []
-            
-            # Convert to Oracle VECTOR format
-            query_vector_list = list(query_embedding)
-            vector_json = json.dumps(query_vector_list)
+            # Convert to list and save to cache
+            query_vector_list = embedding_array.tolist()
             logger.info(f"✅ Query vector has {len(query_vector_list)} dimensions")
             
-            # Save to cache for future use (with cache_user_id for isolation)
-            save_embedding_to_cache(query_text, query_vector_list, cache_user_id)
+            # Save to cache for future use (with user_id for isolation)
+            save_embedding_to_cache(query_text, query_vector_list, user_id)
         else:
             logger.info(f"✅ Using cached query vector")
         
@@ -212,7 +167,7 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
             VECTOR_DISTANCE(embedding_vector, TO_VECTOR(:query_vector), COSINE) as distance,
             NULL as segment_start,
             NULL as segment_end,
-            AI_TAGS
+            NULL as ai_tags
         FROM album_media
         WHERE file_type = 'photo'
         AND embedding_vector IS NOT NULL
@@ -225,28 +180,118 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
         if album_name:
             photo_sql += " AND album_name = :album_name"
         
+        # Fetch more initially for face matching boost, then limit later
         photo_sql += """
         ORDER BY distance
-        FETCH FIRST :top_k ROWS ONLY
+        FETCH FIRST :top_k_initial ROWS ONLY
         """
         
-        photo_params = {'query_vector': vector_json, 'top_k': top_k}
+        photo_params = {'query_vector': vector_json, 'top_k_initial': min(top_k * 2, 50)}
         if user_id:
             photo_params['user_id'] = user_id
         if album_name:
-                    # Fetch face tags and embeddings
-                    try:
-                        with get_flask_safe_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("SELECT FACE_TAGS, FACE_TAG_EMBEDDINGS FROM album_media WHERE id = :id", {'id': row[0]})
-                            face_row = cursor.fetchone()
-                            face_tags = json.loads(face_row[0]) if face_row and face_row[0] else []
-                            face_embeddings = json.loads(face_row[1]) if face_row and face_row[1] else []
-                    except Exception:
-                        face_tags = []
-                        face_embeddings = []
-
-                    face_tags_lower = " ".join(face_tags).lower() if face_tags else ""
+            photo_params['album_name'] = album_name
+        
+        photo_results = flask_safe_execute_query(photo_sql, photo_params)
+        
+        # Log top results for debugging
+        if photo_results:
+            logger.info(f"🔍 Top photo search results (showing similarity scores):")
+            for i, row in enumerate(photo_results[:5]):
+                distance = row[6]
+                similarity = 1.0 - distance
+                logger.info(f"  {i+1}. {row[2]} - similarity: {similarity:.3f} (threshold: {min_similarity:.3f})")
+        
+        for row in photo_results:
+            distance = row[6]
+            similarity = 1.0 - distance
+            
+            if similarity >= min_similarity:
+                # AI_TAGS is already converted from CLOB to string by flask_safe_execute_query
+                ai_tags = row[9] if len(row) > 9 else None
+                
+                all_results.append({
+                    'media_id': row[0],
+                    'album_name': row[1],
+                    'file_name': row[2],
+                    'file_path': row[3],
+                    'file_type': 'photo',
+                    'created_at': row[5],
+                    'similarity': similarity,
+                    'score': similarity,
+                    'segment_start': None,
+                    'segment_end': None,
+                    'ai_tags': None
+                })
+        
+        logger.info(f"✅ Found {len([r for r in all_results if r['file_type']=='photo'])} photos")
+        
+        # 1b. Search by FACE NAMES (e.g., "Rahul with smile")
+        # Extract potential person names from query and search face_tags
+        logger.info("👤 Searching by face names...")
+        
+        # Simple approach: check if query contains known names or search face_tags directly
+        face_search_sql = """
+        SELECT DISTINCT
+            am.id as media_id,
+            am.album_name,
+            am.file_name,
+            am.file_path,
+            'photo' as file_type,
+            am.created_at,
+            ft.face_name,
+            ft.confidence
+        FROM face_tags ft
+        JOIN album_media am ON ft.media_id = am.id
+        WHERE LOWER(ft.face_name) LIKE LOWER(:face_query)
+        AND ft.face_name != 'Unknown'
+        """
+        
+        if user_id:
+            face_search_sql += " AND am.user_id = :user_id"
+        
+        if album_name:
+            face_search_sql += " AND am.album_name = :album_name"
+        
+        face_search_sql += " FETCH FIRST 20 ROWS ONLY"
+        
+        # Try to extract name from query - search for each word separately
+        face_results = []
+        words = [w.strip() for w in query_text.split() if len(w.strip()) > 2]  # Skip short words like "a", "in", "with"
+        
+        try:
+            for word in words:
+                face_params = {'face_query': f"%{word}%"}
+                if user_id:
+                    face_params['user_id'] = user_id
+                if album_name:
+                    face_params['album_name'] = album_name
+                
+                word_results = flask_safe_execute_query(face_search_sql, face_params)
+                if word_results:
+                    face_results.extend(word_results)
+            
+            # Remove duplicates based on media_id
+            seen_ids = set()
+            unique_results = []
+            for row in face_results:
+                if row[0] not in seen_ids:
+                    seen_ids.add(row[0])
+                    unique_results.append(row)
+            face_results = unique_results
+            
+            for row in face_results:
+                # High similarity for face name matches
+                similarity = 0.95  # Strong match for face names
+                
+                # Check if already in results
+                existing = next((r for r in all_results if r['media_id'] == row[0]), None)
+                if existing:
+                    # Boost score if face name matches
+                    existing['similarity'] = max(existing['similarity'], similarity)
+                    existing['score'] = existing['similarity']
+                    existing['face_name'] = row[6]
+                else:
                     all_results.append({
                         'media_id': row[0],
                         'album_name': row[1],
@@ -258,25 +303,98 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
                         'score': similarity,
                         'segment_start': None,
                         'segment_end': None,
-                        'ai_tags': ai_tags,
-                        'face_tags': face_tags,
-                        'face_tag_embeddings': face_embeddings,
-                        'match_type': 'metadata'
+                        'ai_tags': None,
+                        'face_name': row[6],
+                        'face_confidence': float(row[7]) if row[7] else None
                     })
-                    'media_id': row[0],
-                    'album_name': row[1],
-                    'file_name': row[2],
-                    'file_path': row[3],
-                    'file_type': 'photo',
-                    'created_at': row[5],
-                    'similarity': similarity,
-                    'score': similarity,
-                    'segment_start': None,
-                    'segment_end': None,
-                    'ai_tags': ai_tags
-                })
+            
+            logger.info(f"✅ Found {len(face_results)} photos with matching face names")
+        except Exception as e:
+            logger.error(f"Face name search failed: {e}")
         
-        logger.info(f"✅ Found {len([r for r in all_results if r['file_type']=='photo'])} photos")
+        # 1c. Search by RICH METADATA (GPT-extracted tags, objects, activities, etc.)
+        logger.info("🏷️  Searching rich metadata...")
+        
+        try:
+            # Search across multiple JSON fields in rich_metadata
+            metadata_search_sql = """
+            SELECT DISTINCT
+                id as media_id,
+                album_name,
+                file_name,
+                file_path,
+                'photo' as file_type,
+                created_at,
+                rich_metadata
+            FROM album_media
+            WHERE file_type = 'photo'
+            AND rich_metadata IS NOT NULL
+            AND (
+                JSON_EXISTS(rich_metadata, '$?(@.tags.type() == "array")')
+                AND JSON_EXISTS(rich_metadata, '$.tags[*]?(@ like_regex $pattern flag "i")')
+            )
+            """
+            
+            if user_id:
+                metadata_search_sql += " AND user_id = :user_id"
+            
+            if album_name:
+                metadata_search_sql += " AND album_name = :album_name"
+            
+            metadata_search_sql += " FETCH FIRST 30 ROWS ONLY"
+            
+            # Search for query words in metadata
+            metadata_results = []
+            for word in words:
+                if len(word) > 3:  # Only search meaningful words
+                    metadata_params = {'pattern': f".*{word}.*"}
+                    if user_id:
+                        metadata_params['user_id'] = user_id
+                    if album_name:
+                        metadata_params['album_name'] = album_name
+                    
+                    word_results = flask_safe_execute_query(metadata_search_sql, metadata_params)
+                    if word_results:
+                        metadata_results.extend(word_results)
+            
+            # Remove duplicates
+            seen_metadata_ids = set()
+            unique_metadata = []
+            for row in metadata_results:
+                if row[0] not in seen_metadata_ids:
+                    seen_metadata_ids.add(row[0])
+                    unique_metadata.append(row)
+            metadata_results = unique_metadata
+            
+            for row in metadata_results:
+                # Good similarity for metadata matches
+                similarity = 0.85
+                
+                # Check if already in results
+                existing = next((r for r in all_results if r['media_id'] == row[0]), None)
+                if existing:
+                    # Boost score for metadata match
+                    existing['similarity'] = max(existing['similarity'], similarity)
+                    existing['score'] = existing['similarity']
+                else:
+                    all_results.append({
+                        'media_id': row[0],
+                        'album_name': row[1],
+                        'file_name': row[2],
+                        'file_path': row[3],
+                        'file_type': 'photo',
+                        'created_at': row[5],
+                        'similarity': similarity,
+                        'score': similarity,
+                        'segment_start': None,
+                        'segment_end': None,
+                        'ai_tags': None,
+                        'metadata_match': True
+                    })
+            
+            logger.info(f"✅ Found {len(metadata_results)} photos from metadata search")
+        except Exception as e:
+            logger.error(f"Metadata search failed: {e}")
         
         # 2. Search VIDEO SEGMENTS from video_embeddings table
         logger.info("🎬 Searching video segments...")
@@ -294,7 +412,7 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
             ve.start_time,
             ve.end_time,
             am.id as media_id,
-            am.AI_TAGS
+            NULL as ai_tags
         FROM video_embeddings ve
         JOIN album_media am ON ve.video_file = am.file_name
         WHERE ve.embedding_vector IS NOT NULL
@@ -309,10 +427,10 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
         
         video_sql += """
         ORDER BY distance
-        FETCH FIRST :top_k ROWS ONLY
+        FETCH FIRST :top_k_initial ROWS ONLY
         """
         
-        video_params = {'query_vector': vector_json, 'top_k': top_k}
+        video_params = {'query_vector': vector_json, 'top_k_initial': min(top_k, 30)}
         if user_id:
             video_params['user_id'] = user_id
         if album_name:
@@ -525,6 +643,19 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
             
             score = min(score, 1.0)
             
+            all_results.append({
+                'media_id': row[0],
+                'album_name': row[1],
+                'file_name': row[2],
+                'file_path': row[3],
+                'file_type': 'video',
+                'created_at': row[5],
+                'similarity': score,
+                'score': score,
+                'segment_start': None,
+                'segment_end': None,
+                'ai_tags': ai_tags,
+                'video_title': video_title,
                 'match_type': 'metadata'
             })
         

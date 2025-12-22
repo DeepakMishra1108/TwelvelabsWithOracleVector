@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Flask-safe vector search using TwelveLabs embeddings and Oracle VECTOR"""
+"""Flask-safe vector search using ImageBind embeddings and Oracle VECTOR"""
 import os
 import sys
 import array
 import logging
 from typing import List, Dict, Any
 from dotenv import load_dotenv
-from twelvelabs import TwelveLabs
 
 # Add path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'twelvelabvideoai', 'src'))
@@ -19,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def search_photos_flask_safe(query_text: str, album_name: str = None, top_k: int = 10, min_similarity: float = 0.30) -> List[Dict]:
-    """Search photos using TwelveLabs embedding and Oracle VECTOR similarity
+    """Search photos using ImageBind embedding and Oracle VECTOR similarity
     
     Args:
         query_text: Natural language search query
@@ -31,70 +30,22 @@ def search_photos_flask_safe(query_text: str, album_name: str = None, top_k: int
         List of photo results with similarity scores above threshold
     """
     try:
-        # Get TwelveLabs embedding for the query
-        client = TwelveLabs(api_key=os.getenv("TWELVE_LABS_API_KEY"))
+        # Get ImageBind embedding for the query (free, instant)
+        from utils.imagebind_helper import get_imagebind_embedder
+        import json
         
-        task = client.embed.create(
-            model_name="Marengo-retrieval-2.7",
-            text=query_text
-        )
+        embedder = get_imagebind_embedder()
+        query_embedding = embedder.generate_text_embedding(query_text)
         
-        # Wait for embedding
-        task_id = getattr(task, 'id', None) or getattr(task, 'task_id', None)
-        if hasattr(client.embed, 'tasks') and hasattr(client.embed.tasks, 'wait_for_done') and task_id:
-            client.embed.tasks.wait_for_done(sleep_interval=2, task_id=task_id)
-            final = client.embed.tasks.retrieve(task_id=task_id)
-        elif hasattr(task, 'wait_for_done'):
-            task.wait_for_done(sleep_interval=2)
-            final = task
-        else:
-            final = task
-        
-        # Extract embedding
-        query_embedding = None
-        
-        # Debug: log the final object structure
-        logger.info(f"Task result type: {type(final)}")
-        
-        if hasattr(final, 'text_embedding'):
-            text_emb = final.text_embedding
-            logger.info(f"text_embedding type: {type(text_emb)}")
-            
-            # TextEmbeddingResult has 'segments' which is a list of embeddings
-            if hasattr(text_emb, 'segments') and text_emb.segments:
-                logger.info(f"Found {len(text_emb.segments)} segments")
-                # Take the first segment's embedding
-                first_segment = text_emb.segments[0]
-                logger.info(f"First segment type: {type(first_segment)}")
-                logger.info(f"First segment attributes: {dir(first_segment)}")
-                
-                # Segment should have 'embedding_scope' and 'embeddings_float' or similar
-                if hasattr(first_segment, 'embeddings_float'):
-                    query_embedding = first_segment.embeddings_float
-                elif hasattr(first_segment, 'embedding'):
-                    query_embedding = first_segment.embedding
-                elif hasattr(first_segment, 'float_'):
-                    query_embedding = first_segment.float_
-                    logger.info(f"Extracted embedding with {len(query_embedding)} dimensions")
-            elif hasattr(text_emb, 'float_'):
-                query_embedding = text_emb.float_
-            elif hasattr(text_emb, 'float'):
-                query_embedding = text_emb.float
-            else:
-                # Try direct access
-                query_embedding = text_emb
-        
-        if not query_embedding:
-            logger.error("Failed to extract embedding from query")
-            logger.error(f"Final object: {final}")
+        if query_embedding is None:
+            logger.error("❌ Failed to generate text embedding")
             return []
         
         # Convert to Oracle VECTOR format (as a string for SQL)
-        query_vector_list = list(query_embedding)
-        logger.info(f"Query vector has {len(query_vector_list)} dimensions")
+        query_vector_list = query_embedding.tolist()
+        logger.info(f"✅ Query vector has {len(query_vector_list)} dimensions")
         
         # Convert vector to JSON string for Oracle TO_VECTOR function
-        import json
         vector_json = json.dumps(query_vector_list)
         
         # Build SQL query with VECTOR similarity

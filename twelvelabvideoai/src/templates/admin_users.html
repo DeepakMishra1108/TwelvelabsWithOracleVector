@@ -104,13 +104,16 @@
                         <i class="bi bi-person-circle"></i> {{ current_user.username }}
                         <span class="badge role-admin ms-2">Admin</span>
                     </span>
+                    <a href="/face_tags_manager" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-person-badge"></i> Face Tags
+                    </a>
                     <a href="/admin/quotas" class="btn btn-outline-success btn-sm">
                         <i class="bi bi-speedometer2"></i> Rate Limits
                     </a>
                     <a href="/" class="btn btn-outline-primary btn-sm">
                         <i class="bi bi-house-door"></i> Home
                     </a>
-                    <a href="/user/profile" class="btn btn-outline-secondary btn-sm">
+                    <a href="/profile" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-person"></i> Profile
                     </a>
                     <a href="/logout" class="btn btn-outline-danger btn-sm">
@@ -129,9 +132,14 @@
                     </h2>
                     <p class="text-muted mb-0">Manage user accounts, roles, and permissions</p>
                 </div>
-                <button class="btn btn-gradient" data-bs-toggle="modal" data-bs-target="#addUserModal">
-                    <i class="bi bi-person-plus"></i> Add New User
-                </button>
+                <div class="d-flex gap-2">
+                    <a href="/face_tags_manager" class="btn btn-warning">
+                        <i class="bi bi-person-badge"></i> Face Tag Management
+                    </a>
+                    <button class="btn btn-gradient" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                        <i class="bi bi-person-plus"></i> Add New User
+                    </button>
+                </div>
             </div>
         </div>
 

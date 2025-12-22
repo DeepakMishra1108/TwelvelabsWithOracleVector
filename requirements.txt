@@ -10,3 +10,4 @@ geopy
 bcrypt
 email-validator
 openai
+opencv-python

@@ -1,0 +1,449 @@
+<!-- Face Capture Modal - For first-time login face capture -->
+<div id="faceCaptureModal" class="modal fade" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">📸 Capture Your Face</h5>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Welcome!</strong> We'll use your face to show you photos you're in.
+                    This is a one-time setup for viewers.
+                </div>
+                
+                <div id="cameraContainer" class="text-center mb-3">
+                    <video id="cameraPreview" width="640" height="480" autoplay playsinline 
+                           style="max-width: 100%; border: 2px solid #ccc; border-radius: 8px;"></video>
+                    <canvas id="captureCanvas" style="display: none;"></canvas>
+                    <div id="capturedImagePreview" style="display: none;">
+                        <img id="capturedImage" style="max-width: 100%; border-radius: 8px; margin-top: 10px;" />
+                    </div>
+                </div>
+                
+                <div id="cameraError" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="cameraErrorMessage"></span>
+                </div>
+                
+                <div id="captureInstructions" class="alert alert-secondary">
+                    <strong>Instructions:</strong>
+                    <ul class="mb-0">
+                        <li>Ensure good lighting on your face</li>
+                        <li>Look directly at the camera</li>
+                        <li>Make sure only your face is visible</li>
+                        <li>Remove sunglasses and hats if possible</li>
+                    </ul>
+                </div>
+                
+                <div id="captureStatus" class="alert" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="skipFaceCapture">
+                    Skip for Now
+                </button>
+                <button type="button" class="btn btn-primary" id="capturePhotoBtn">
+                    <i class="fas fa-camera"></i> Take Photo
+                </button>
+                <button type="button" class="btn btn-success" id="confirmCaptureBtn" style="display: none;">
+                    <i class="fas fa-check"></i> Confirm & Save
+                </button>
+                <button type="button" class="btn btn-warning" id="retakePhotoBtn" style="display: none;">
+                    <i class="fas fa-redo"></i> Retake
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Face Tagging UI - Add to photo detail view -->
+<div id="faceTaggingPanel" class="card mt-3" style="display: none;">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-user-tag"></i> Face Tagging
+            <button class="btn btn-sm btn-primary float-right" id="detectFacesBtn">
+                <i class="fas fa-search"></i> Detect Faces
+            </button>
+        </h5>
+    </div>
+    <div class="card-body">
+        <!-- Face detection container with overlay -->
+        <div id="faceDetectionContainer" style="position: relative; display: inline-block;">
+            <!-- Photo will be inserted here -->
+            <div id="faceBoxesOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                <!-- Face bounding boxes will be dynamically added here -->
+            </div>
+        </div>
+        
+        <!-- Detected faces list -->
+        <div id="detectedFacesList" class="mt-3" style="display: none;">
+            <h6>Detected Faces</h6>
+            <div id="facesListContainer"></div>
+        </div>
+        
+        <!-- Tagged faces list -->
+        <div id="taggedFacesList" class="mt-3">
+            <h6>Tagged Faces (<span id="taggedFacesCount">0</span>)</h6>
+            <ul id="taggedFacesContainer" class="list-group">
+                <!-- Tagged faces will be listed here -->
+            </ul>
+        </div>
+        
+        <div id="faceTaggingStatus" class="alert mt-3" style="display: none;"></div>
+    </div>
+</div>
+
+<script>
+// Face Capture at Login
+let cameraStream = null;
+let capturedImageData = null;
+
+async function checkUserFaceProfile() {
+    try {
+        const response = await fetch('/user/face_profile');
+        const data = await response.json();
+        
+        // Show modal only if user doesn't have a face profile and is not admin
+        if (!data.has_profile && '{{ current_user.role }}' === 'viewer') {
+            $('#faceCaptureModal').modal('show');
+            startCamera();
+        }
+    } catch (error) {
+        console.error('Error checking face profile:', error);
+    }
+}
+
+async function startCamera() {
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: 'user'
+            } 
+        });
+        document.getElementById('cameraPreview').srcObject = cameraStream;
+        $('#cameraError').hide();
+    } catch (error) {
+        console.error('Camera error:', error);
+        $('#cameraErrorMessage').text('Unable to access camera: ' + error.message);
+        $('#cameraError').show();
+    }
+}
+
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+}
+
+$('#capturePhotoBtn').click(function() {
+    const video = document.getElementById('cameraPreview');
+    const canvas = document.getElementById('captureCanvas');
+    const context = canvas.getContext('2d');
+    
+    // Set canvas size to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw current frame to canvas
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Get image data as base64
+    capturedImageData = canvas.toDataURL('image/jpeg', 0.9);
+    
+    // Show preview
+    document.getElementById('capturedImage').src = capturedImageData;
+    $('#cameraPreview').hide();
+    $('#capturedImagePreview').show();
+    $('#capturePhotoBtn').hide();
+    $('#confirmCaptureBtn').show();
+    $('#retakePhotoBtn').show();
+    $('#captureInstructions').hide();
+});
+
+$('#retakePhotoBtn').click(function() {
+    $('#cameraPreview').show();
+    $('#capturedImagePreview').hide();
+    $('#capturePhotoBtn').show();
+    $('#confirmCaptureBtn').hide();
+    $('#retakePhotoBtn').hide();
+    $('#captureInstructions').show();
+    capturedImageData = null;
+});
+
+$('#confirmCaptureBtn').click(async function() {
+    if (!capturedImageData) return;
+    
+    try {
+        $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+        
+        const response = await fetch('/user/capture_face', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_data: capturedImageData })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            $('#captureStatus').removeClass('alert-danger').addClass('alert-success')
+                .html('<i class="fas fa-check"></i> ' + data.message).show();
+            
+            setTimeout(() => {
+                stopCamera();
+                $('#faceCaptureModal').modal('hide');
+            }, 2000);
+        } else {
+            throw new Error(data.error || 'Unknown error');
+        }
+    } catch (error) {
+        $('#captureStatus').removeClass('alert-success').addClass('alert-danger')
+            .html('<i class="fas fa-exclamation-triangle"></i> ' + error.message).show();
+        $('#confirmCaptureBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Confirm & Save');
+    }
+});
+
+$('#skipFaceCapture').click(function() {
+    stopCamera();
+    $('#faceCaptureModal').modal('hide');
+});
+
+// Cleanup on modal close
+$('#faceCaptureModal').on('hidden.bs.modal', function() {
+    stopCamera();
+});
+
+// Check face profile on page load
+$(document).ready(function() {
+    checkUserFaceProfile();
+});
+
+
+// Face Detection and Tagging
+let currentMediaId = null;
+let detectedFaces = [];
+
+function initFaceTagging(mediaId, isPhoto) {
+    currentMediaId = mediaId;
+    
+    // Show face tagging panel only for photos
+    if (isPhoto) {
+        $('#faceTaggingPanel').show();
+        loadTaggedFaces(mediaId);
+    }
+}
+
+$('#detectFacesBtn').click(async function() {
+    if (!currentMediaId) return;
+    
+    try {
+        $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Detecting...');
+        
+        const response = await fetch(`/media/${currentMediaId}/detect_faces`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            detectedFaces = data.faces || [];
+            displayDetectedFaces(detectedFaces);
+            showFaceTaggingStatus('success', `Detected ${detectedFaces.length} face(s)`);
+        } else {
+            throw new Error(data.error || 'Detection failed');
+        }
+    } catch (error) {
+        showFaceTaggingStatus('danger', 'Error: ' + error.message);
+    } finally {
+        $(this).prop('disabled', false).html('<i class="fas fa-search"></i> Detect Faces');
+    }
+});
+
+function displayDetectedFaces(faces) {
+    if (faces.length === 0) {
+        $('#detectedFacesList').hide();
+        return;
+    }
+    
+    const container = $('#facesListContainer');
+    container.empty();
+    
+    faces.forEach((face, index) => {
+        const bbox = face.facial_area;
+        const faceCard = $(`
+            <div class="card mb-2">
+                <div class="card-body">
+                    <h6>Face ${index + 1}</h6>
+                    <p class="mb-2">Position: (${bbox.x}, ${bbox.y}), Size: ${bbox.w}×${bbox.h}</p>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="faceName${index}" 
+                               placeholder="Enter person's name">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" onclick="tagFace(${index})">
+                                <i class="fas fa-tag"></i> Tag
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+        container.append(faceCard);
+    });
+    
+    $('#detectedFacesList').show();
+}
+
+async function tagFace(faceIndex) {
+    const faceName = $(`#faceName${faceIndex}`).val().trim();
+    
+    if (!faceName) {
+        alert('Please enter a name');
+        return;
+    }
+    
+    const face = detectedFaces[faceIndex];
+    
+    try {
+        const response = await fetch(`/media/${currentMediaId}/tag_face`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                face_name: faceName,
+                face_bbox: face.facial_area
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showFaceTaggingStatus('success', `Successfully tagged as "${faceName}"`);
+            loadTaggedFaces(currentMediaId);
+            $(`#faceName${faceIndex}`).val('');
+        } else {
+            throw new Error(data.error || 'Tagging failed');
+        }
+    } catch (error) {
+        showFaceTaggingStatus('danger', 'Error: ' + error.message);
+    }
+}
+
+async function loadTaggedFaces(mediaId) {
+    try {
+        const response = await fetch(`/media/${mediaId}/faces`);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayTaggedFaces(data.face_tags || []);
+            $('#taggedFacesCount').text(data.total || 0);
+        }
+    } catch (error) {
+        console.error('Error loading tagged faces:', error);
+    }
+}
+
+function displayTaggedFaces(tags) {
+    const container = $('#taggedFacesContainer');
+    container.empty();
+    
+    if (tags.length === 0) {
+        container.append('<li class="list-group-item text-muted">No faces tagged yet</li>');
+        return;
+    }
+    
+    tags.forEach(tag => {
+        const confidence = Math.round(tag.confidence * 100);
+        const confidenceBadge = tag.confidence === 1.0 
+            ? '<span class="badge badge-primary">Manual</span>'
+            : `<span class="badge badge-info">${confidence}% match</span>`;
+        
+        const item = $(`
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${tag.face_name}</strong>
+                    ${confidenceBadge}
+                    <small class="text-muted d-block">
+                        Tagged by ${tag.tagged_by} on ${new Date(tag.created_at).toLocaleDateString()}
+                    </small>
+                </div>
+                <button class="btn btn-sm btn-danger" onclick="deleteFaceTag(${tag.id})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </li>
+        `);
+        container.append(item);
+    });
+}
+
+async function deleteFaceTag(tagId) {
+    if (!confirm('Delete this face tag?')) return;
+    
+    try {
+        const response = await fetch(`/face_tags/${tagId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showFaceTaggingStatus('success', 'Face tag deleted');
+            loadTaggedFaces(currentMediaId);
+        } else {
+            throw new Error(data.error || 'Deletion failed');
+        }
+    } catch (error) {
+        showFaceTaggingStatus('danger', 'Error: ' + error.message);
+    }
+}
+
+function showFaceTaggingStatus(type, message) {
+    $('#faceTaggingStatus')
+        .removeClass('alert-success alert-danger alert-info')
+        .addClass(`alert-${type}`)
+        .html(message)
+        .show();
+    
+    setTimeout(() => $('#faceTaggingStatus').fadeOut(), 3000);
+}
+</script>
+
+<style>
+/* Face tagging styles */
+#faceDetectionContainer {
+    max-width: 100%;
+    overflow: auto;
+}
+
+.face-box {
+    position: absolute;
+    border: 2px solid #007bff;
+    background: rgba(0, 123, 255, 0.1);
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.face-box:hover {
+    background: rgba(0, 123, 255, 0.3);
+}
+
+.face-tag-label {
+    position: absolute;
+    bottom: -25px;
+    left: 0;
+    background: rgba(0, 123, 255, 0.9);
+    color: white;
+    padding: 2px 8px;
+    font-size: 12px;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+#cameraPreview {
+    background: #000;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+</style>

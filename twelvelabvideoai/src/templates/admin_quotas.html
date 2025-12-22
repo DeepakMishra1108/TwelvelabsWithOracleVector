@@ -96,6 +96,15 @@
             background: #218838;
         }
         
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+        
         .btn-sm {
             padding: 5px 12px;
             font-size: 12px;
@@ -391,8 +400,15 @@
                 <p class="subtitle">Monitor and manage user quotas in real-time</p>
             </div>
             <div>
-                <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">👥 User Management</a>
-                <a href="{{ url_for('index') }}" class="btn btn-secondary">🏠 Home</a>
+                <a href="/face_tags_manager" class="btn btn-warning">
+                    <i class="bi bi-person-badge"></i> Face Tag Management
+                </a>
+                <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">
+                    <i class="bi bi-people"></i> User Management
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                    <i class="bi bi-house-door"></i> Home
+                </a>
             </div>
         </div>
         

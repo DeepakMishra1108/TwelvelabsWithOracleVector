@@ -93,10 +93,44 @@ def reset_counters_if_needed(user_id, limits, cursor, conn):
     Returns:
         Updated limits dict
     """
-    # TEMPORARILY DISABLED due to ORA-01745 error with bind variables
-    # The counters will reset naturally when limits are exceeded or at application restart
-    # TODO: Fix Oracle bind variable issue
-    logger.debug(f"⏭️  Skipping counter reset for user {user_id} (disabled due to Oracle bind variable bug)")
+    now = datetime.now()
+    updates = {}
+    
+    # Check daily reset
+    if limits['last_daily_reset']:
+        time_since_daily = now - limits['last_daily_reset']
+        if time_since_daily >= timedelta(days=1):
+            updates['uploads_today'] = 0
+            updates['video_minutes_today'] = 0
+            updates['last_daily_reset'] = now
+            logger.info(f"🔄 Reset daily counters for user {user_id}")
+    
+    # Check hourly reset
+    if limits['last_hourly_reset']:
+        time_since_hourly = now - limits['last_hourly_reset']
+        if time_since_hourly >= timedelta(hours=1):
+            updates['searches_this_hour'] = 0
+            updates['last_hourly_reset'] = now
+            logger.info(f"🔄 Reset hourly counters for user {user_id}")
+    
+    # Check minute reset
+    if limits['last_minute_reset']:
+        time_since_minute = now - limits['last_minute_reset']
+        if time_since_minute >= timedelta(minutes=1):
+            updates['api_calls_this_minute'] = 0
+            updates['last_minute_reset'] = now
+            logger.info(f"🔄 Reset minute counters for user {user_id}")
+    
+    # Apply updates if any
+    if updates:
+        set_clause = ', '.join([f"{k} = :{k}" for k in updates.keys()])
+        sql = f"UPDATE user_rate_limits SET {set_clause} WHERE user_id = :user_id"
+        cursor.execute(sql, {**updates, 'user_id': user_id})
+        conn.commit()
+        
+        # Update limits dict with new values
+        limits.update(updates)
+    
     return limits
 
 
@@ -120,28 +154,11 @@ def increment_counter(user_id, counter_name, increment_by=1, cursor=None, conn=N
         cursor = conn.cursor()
     
     try:
-        # Build SQL without f-string to avoid Oracle bind variable confusion
-        # We manually construct the SQL with validated column name
-        allowed_counters = [
-            'uploads_today', 
-            'searches_this_hour', 
-            'api_calls_this_minute', 
-            'video_minutes_today', 
-            'storage_used_gb'
-        ]
-        
-        if counter_name not in allowed_counters:
-            raise ValueError(f"Invalid counter name: {counter_name}")
-        
-        # Use string formatting for column name (safe since validated) 
-        # Use positional parameters to avoid Oracle bind variable name issues
-        sql = """
+        cursor.execute(f"""
             UPDATE user_rate_limits 
-            SET {} = NVL({}, 0) + :1
-            WHERE user_id = :2
-        """.format(counter_name, counter_name)
-        
-        cursor.execute(sql, [increment_by, user_id])
+            SET {counter_name} = NVL({counter_name}, 0) + :increment
+            WHERE user_id = :user_id
+        """, {'increment': increment_by, 'user_id': user_id})
         
         conn.commit()
         logger.info(f"📊 Incremented {counter_name} for user {user_id} by {increment_by}")
@@ -329,8 +346,7 @@ def rate_limit_upload(f):
             increment_counter(current_user.id, 'uploads_today', cursor=cursor, conn=conn)
             
             # Log usage
-            file_obj = request.files.get('file') if request and request.files else None
-            filename = file_obj.filename if file_obj else None
+            filename = request.files.get('file').filename if request and request.files else None
             log_usage(current_user.id, 'upload', action_details=filename)
         
         return f(*args, **kwargs)

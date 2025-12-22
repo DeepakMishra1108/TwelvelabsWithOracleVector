@@ -14,6 +14,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     
+    <!-- Face Detection Library -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+    
     <style>
         :root {
             --primary: #2563eb;
@@ -727,6 +730,20 @@
                 <select id="albumFilter" class="form-select" style="max-width: 300px;">
                     <option value="">All Albums</option>
                 </select>
+                <div class="input-group" style="max-width: 450px;">
+                    <span class="input-group-text" title="Finds tagged photos + similar untagged faces">
+                        <i class="bi bi-person-circle"></i>
+                    </span>
+                    <input type="text" 
+                           id="faceSearchQuery" 
+                           class="form-control" 
+                           placeholder="Search by person name (finds similar faces too)..."
+                           title="Searches tagged photos and automatically finds similar faces in untagged photos"
+                           aria-label="Face search">
+                    <button class="btn btn-primary" onclick="searchByFace()" title="Find all photos with this person">
+                        <i class="bi bi-search"></i> Find Person
+                    </button>
+                </div>
                 <button class="btn btn-outline-secondary" onclick="toggleAdvancedSearch()">
                     <i class="bi bi-funnel"></i> Advanced
                 </button>
@@ -810,6 +827,11 @@
                 </a>
             </li>
             {% endif %}
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#camera-search-tab" role="tab">
+                    <i class="bi bi-camera me-2"></i>Camera Search
+                </a>
+            </li>
             <li class="nav-item">
                 <a class="nav-link" data-bs-toggle="tab" href="#map-tab" role="tab">
                     <i class="bi bi-geo-alt me-2"></i>Map View
@@ -1034,6 +1056,58 @@
             </div>
             {% endif %}
 
+            <!-- Camera Search Tab -->
+            <div class="tab-pane fade" id="camera-search-tab" role="tabpanel">
+                <div class="content-card">
+                    <h3 class="card-title">
+                        <i class="bi bi-camera me-2"></i>Find My Photos
+                    </h3>
+                    <p class="text-muted">Take a selfie and find all photos containing you</p>
+
+                    <div class="camera-section mt-4">
+                        <div class="camera-container position-relative" style="display: inline-block;">
+                            <video id="video" autoplay playsinline style="width: 100%; max-width: 640px; height: 480px; background: #000; border-radius: 15px; object-fit: cover; display: none;"></video>
+                            <canvas id="faceOverlay" style="position: absolute; top: 0; left: 0; pointer-events: none; display: none;"></canvas>
+                            <canvas id="canvas" style="display: none;"></canvas>
+                            <img id="capturedImage" class="captured-image" style="width: 100%; max-width: 640px; border-radius: 15px; display: none;">
+                            <div id="faceStatus" class="position-absolute top-0 start-0 m-2" style="display: none;">
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Face Detected</span>
+                            </div>
+                        </div>
+
+                            <div class="controls mt-3 d-flex gap-3 flex-wrap justify-content-center">
+                                <button id="startCamera" class="btn btn-primary">
+                                    <i class="bi bi-camera"></i> Start Camera
+                                </button>
+                                <button id="captureBtn" class="btn btn-success" disabled>
+                                    <i class="bi bi-camera-fill"></i> Take Photo
+                                </button>
+                                <button id="searchBtn" class="btn btn-primary" style="display:none">
+                                    <i class="bi bi-search"></i> Search My Photos
+                                </button>
+                                <button id="retakeBtn" class="btn btn-secondary" style="display:none">
+                                    <i class="bi bi-arrow-clockwise"></i> Retake
+                                </button>
+                            </div>
+
+                            <div id="cameraStatus" class="alert mt-3" style="display:none"></div>
+                        </div>
+
+                        <div class="settings mt-4 p-3 bg-light rounded">
+                            <h5>Search Settings</h5>
+                            <div class="setting-item">
+                                <label class="form-label">
+                                    Match Sensitivity
+                                    <span class="badge bg-primary ms-2" id="thresholdValue">60%</span>
+                                </label>
+                                <input type="range" class="form-range" id="threshold" min="0.3" max="0.8" step="0.05" value="0.6">
+                                <small class="text-muted">Lower = stricter matching (fewer but more accurate results)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Map Tab -->
             <div class="tab-pane fade" id="map-tab" role="tabpanel">
                 <div class="content-card">
@@ -1078,6 +1152,68 @@
                 </div>
                 <div class="modal-body text-center">
                     <img id="modalImage" src="" alt="" style="max-width: 100%; max-height: 70vh; object-fit: contain;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Face Tagging Modal -->
+    <div class="modal fade" id="faceTaggingModal" tabindex="-1" aria-labelledby="faceTaggingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="faceTaggingModalLabel">
+                        <i class="bi bi-person-badge me-2"></i>Face Tagging
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Photo Preview Column -->
+                        <div class="col-md-7">
+                            <div class="card">
+                                <div class="card-body text-center" style="position: relative; overflow: visible;">
+                                    <div style="position: relative; display: inline-block;">
+                                        <img id="faceTaggingImage" src="" alt="" 
+                                             style="max-width: 100%; max-height: 60vh; object-fit: contain; display: block;">
+                                        <!-- Face bounding boxes overlay -->
+                                        <div id="faceBoxesOverlay" style="position: absolute; top: 0; left: 0; pointer-events: none;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button id="detectFacesBtn" class="btn btn-primary">
+                                    <i class="bi bi-search me-1"></i>Detect Faces
+                                </button>
+                                <span id="faceDetectionStatus" class="ms-2 text-muted"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Face Tagging Panel Column -->
+                        <div class="col-md-5">
+                            <!-- Detected Faces -->
+                            <div id="detectedFacesPanel" class="card mb-3" style="display: none;">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Detected Faces (<span id="detectedFaceCount">0</span>)</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="detectedFacesList"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Tagged Faces -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Tagged Faces (<span id="taggedFaceCount">0</span>)</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="taggedFacesList">
+                                        <p class="text-muted text-center">No faces tagged yet</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1241,6 +1377,126 @@
             }
         }
 
+        // Search by face/person name
+        async function searchByFace() {
+            const faceName = document.getElementById('faceSearchQuery').value.trim();
+            
+            if (!faceName) {
+                showStatus('Please enter a person name to search', 'error');
+                return;
+            }
+            
+            showStatus(`🔍 Searching for ${faceName} (including similar faces)...`, 'info');
+            
+            try {
+                console.log('Sending face search request for:', faceName);
+                
+                const response = await fetch('/search/faces', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        face_name: faceName,
+                        include_similar: true,
+                        similarity_threshold: 0.6
+                    })
+                });
+                
+                console.log('Response status:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server error response:', errorText);
+                    showStatus(`Server error: ${response.status} - ${errorText}`, 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                console.log('Face search response data:', data);
+                
+                if (data.error) {
+                    console.error('API error:', data.error);
+                    showStatus(data.error, 'error');
+                    return;
+                }
+                
+                // Validate data structure
+                if (!data.results || !Array.isArray(data.results)) {
+                    console.error('Invalid response format - no results array:', data);
+                    showStatus('Invalid response from server', 'error');
+                    return;
+                }
+                
+                console.log(`Processing ${data.results.length} results...`);
+                
+                // Convert face search results to standard display format
+                const results = data.results.map((item, index) => {
+                    console.log(`Result ${index}:`, item);
+                    return {
+                        media_id: item.media_id,
+                        file_name: item.file_name,
+                        album_name: item.album_name,
+                        file_type: item.file_type || 'photo',  // Default to photo
+                        file_path: item.file_path,
+                        upload_date: item.upload_date,
+                        file_size: item.file_size,
+                        score: 1.0,  // Face match = 100% relevance
+                        segment_start: null,  // Not applicable for photos
+                        segment_end: null,
+                        face_matches: item.faces  // Store face info for display
+                    };
+                });
+                
+                console.log('Mapped results:', results);
+                console.log('Calling displayResults with', results.length, 'items');
+                
+                displayResults(results);
+                
+                // Enhanced status message with breakdown
+                const breakdown = data.breakdown || {};
+                const manualCount = breakdown.manually_tagged || 0;
+                const similarCount = breakdown.similar_faces || 0;
+                const autoDetectedCount = breakdown.auto_detected || 0;
+                
+                let statusMsg = `Found ${data.total} photos with ${faceName}`;
+                const parts = [];
+                if (manualCount > 0) parts.push(`${manualCount} tagged`);
+                if (similarCount > 0) parts.push(`${similarCount} similar`);
+                if (autoDetectedCount > 0) parts.push(`${autoDetectedCount} auto-detected`);
+                
+                if (parts.length > 0) {
+                    statusMsg += ` (${parts.join(' + ')})`;
+                }
+                
+                showStatus(statusMsg, 'success');
+                
+                // Log for debugging
+                console.log('Face search complete:', {
+                    total: data.total,
+                    manually_tagged: manualCount,
+                    similar_faces: similarCount,
+                    auto_detected: autoDetectedCount,
+                    results_displayed: results.length
+                });
+                
+            } catch (error) {
+                console.error('Face search error:', error);
+                console.error('Error stack:', error.stack);
+                showStatus(`Face search failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Allow Enter key to trigger face search
+        document.addEventListener('DOMContentLoaded', function() {
+            const faceSearchInput = document.getElementById('faceSearchQuery');
+            if (faceSearchInput) {
+                faceSearchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchByFace();
+                    }
+                });
+            }
+        });
+
         // Perform search
         async function performSearch() {
             const query = document.getElementById('searchQuery').value.trim();
@@ -1395,6 +1651,13 @@
                                                 title="Generate AI tags">
                                             <i class="bi bi-tags"></i> Tags
                                         </button>
+                                        ${!isVideo ? `
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="showFaceTagging(${mediaId}, '${result.file_name}')"
+                                                title="Tag people in this photo">
+                                            <i class="bi bi-person-badge"></i> Faces
+                                        </button>
+                                        ` : ''}
                                         ${isVideo ? `
                                         <button class="btn btn-sm btn-outline-success" 
                                                 onclick="showClipExtractor(${mediaId}, '${result.file_name}')"
@@ -2473,6 +2736,365 @@
             }
         }
 
+        // Face Tagging Functions
+        let currentFaceTaggingMediaId = null;
+        let detectedFaces = [];
+
+        async function showFaceTagging(mediaId, fileName) {
+            currentFaceTaggingMediaId = mediaId;
+            
+            // Set modal title
+            document.getElementById('faceTaggingModalLabel').innerHTML = 
+                `<i class="bi bi-person-badge me-2"></i>Face Tagging - ${fileName}`;
+            
+            // Reset state
+            detectedFaces = [];
+            document.getElementById('detectedFacesPanel').style.display = 'none';
+            document.getElementById('faceDetectionStatus').textContent = '';
+            document.getElementById('faceBoxesOverlay').innerHTML = '';
+            
+            // Load photo into modal using the media URL endpoint
+            try {
+                const response = await fetch(`/get_media_url/${mediaId}`);
+                if (!response.ok) throw new Error('Failed to get media URL');
+                
+                const data = await response.json();
+                const img = document.getElementById('faceTaggingImage');
+                img.src = data.par_url;
+                img.alt = data.file_name;
+                
+                // Handle image load error
+                img.onerror = function() {
+                    showStatus('Error loading photo', 'danger');
+                    img.alt = 'Failed to load image';
+                };
+                
+                // Auto-detect faces when image loads
+                img.onload = function() {
+                    console.log('Image loaded, auto-detecting faces...');
+                    detectFaces();
+                };
+            } catch (error) {
+                console.error('Error loading photo:', error);
+                showStatus(`Error loading photo: ${error.message}`, 'danger');
+            }
+            
+            // Load existing tagged faces
+            await loadTaggedFaces(mediaId);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('faceTaggingModal'));
+            modal.show();
+        }
+
+        async function detectFaces() {
+            if (!currentFaceTaggingMediaId) return;
+            
+            const statusEl = document.getElementById('faceDetectionStatus');
+            const btn = document.getElementById('detectFacesBtn');
+            
+            try {
+                btn.disabled = true;
+                statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Detecting faces...';
+                
+                const response = await fetch(`/media/${currentFaceTaggingMediaId}/detect_faces`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${data.error}</span>`;
+                    return;
+                }
+                
+                detectedFaces = data.faces || [];
+                const existingTags = data.existing_tags || [];
+                
+                if (detectedFaces.length === 0) {
+                    statusEl.innerHTML = '<span class="text-muted"><i class="bi bi-info-circle me-1"></i>No faces detected</span>';
+                    document.getElementById('detectedFacesPanel').style.display = 'none';
+                } else {
+                    const taggedCount = existingTags.length;
+                    statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Found ${detectedFaces.length} face(s) (${taggedCount} already tagged)</span>`;
+                    displayDetectedFaces(detectedFaces, existingTags);
+                }
+            } catch (error) {
+                console.error('Face detection error:', error);
+                statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Error: ${error.message}</span>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function displayDetectedFaces(faces, existingTags = []) {
+            const panel = document.getElementById('detectedFacesPanel');
+            const list = document.getElementById('detectedFacesList');
+            const countEl = document.getElementById('detectedFaceCount');
+            
+            countEl.textContent = faces.length;
+            
+            list.innerHTML = faces.map((face, index) => {
+                const isMatched = face.matched_tag;
+                const tagName = isMatched ? face.matched_tag.face_name : '';
+                
+                return `
+                <div class="card mb-2 ${isMatched ? 'border-success' : ''}">
+                    <div class="card-body p-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge ${isMatched ? 'bg-success' : 'bg-primary'}">
+                                ${isMatched ? '<i class="bi bi-check-circle me-1"></i>' : ''}Face ${index + 1}
+                            </span>
+                            ${isMatched ? 
+                                `<span class="text-success fw-bold">${tagName}</span>
+                                 <small class="text-muted">(already tagged)</small>` : 
+                                `<input type="text" 
+                                       class="form-control form-control-sm" 
+                                       id="faceName${index}" 
+                                       placeholder="Enter name">
+                                 <button class="btn btn-sm btn-success" 
+                                        onclick="tagFace(${index})">
+                                    <i class="bi bi-tag"></i> Tag
+                                 </button>`
+                            }
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+            
+            panel.style.display = 'block';
+            
+            // Draw bounding boxes on the image with existing tags
+            drawFaceBoundingBoxes(faces, existingTags);
+        }
+
+        function drawFaceBoundingBoxes(faces, existingTags = []) {
+            const img = document.getElementById('faceTaggingImage');
+            const overlay = document.getElementById('faceBoxesOverlay');
+            
+            console.log('Drawing bounding boxes for', faces.length, 'faces');
+            console.log('Face data:', faces);
+            console.log('Existing tags:', existingTags);
+            
+            // Clear existing boxes
+            overlay.innerHTML = '';
+            
+            if (!img.complete || !img.naturalWidth) {
+                // Image not loaded yet, wait for it
+                console.log('Image not loaded, waiting...');
+                img.onload = function() {
+                    drawFaceBoundingBoxes(faces, existingTags);
+                };
+                return;
+            }
+            
+            // Get the displayed image dimensions
+            const displayedWidth = img.offsetWidth;
+            const displayedHeight = img.offsetHeight;
+            const naturalWidth = img.naturalWidth;
+            const naturalHeight = img.naturalHeight;
+            
+            console.log('Image dimensions:', {
+                displayed: { width: displayedWidth, height: displayedHeight },
+                natural: { width: naturalWidth, height: naturalHeight }
+            });
+            
+            // Calculate scale factors
+            const scaleX = displayedWidth / naturalWidth;
+            const scaleY = displayedHeight / naturalHeight;
+            
+            console.log('Scale factors:', { scaleX, scaleY });
+            
+            // Position overlay to match image
+            const imgRect = img.getBoundingClientRect();
+            const parentRect = img.parentElement.getBoundingClientRect();
+            
+            overlay.style.left = (imgRect.left - parentRect.left) + 'px';
+            overlay.style.top = (imgRect.top - parentRect.top) + 'px';
+            overlay.style.width = displayedWidth + 'px';
+            overlay.style.height = displayedHeight + 'px';
+            
+            console.log('Overlay positioned:', {
+                left: overlay.style.left,
+                top: overlay.style.top,
+                width: overlay.style.width,
+                height: overlay.style.height
+            });
+            
+            // Draw each face box
+            faces.forEach((face, index) => {
+                // Handle both formats: face.bbox (array) or face.facial_area (object)
+                let x, y, width, height;
+                
+                if (face.bbox && Array.isArray(face.bbox) && face.bbox.length === 4) {
+                    [x, y, width, height] = face.bbox;
+                } else if (face.facial_area) {
+                    // OpenCV format: {x, y, w, h}
+                    x = face.facial_area.x;
+                    y = face.facial_area.y;
+                    width = face.facial_area.w;
+                    height = face.facial_area.h;
+                } else {
+                    console.warn('Face data missing bbox or facial_area:', face);
+                    return;
+                }
+                
+                // Check if this face is matched with an existing tag
+                const isMatched = face.matched_tag;
+                const borderColor = isMatched ? '#198754' : '#0d6efd';  // Green if matched, blue otherwise
+                const shadowColor = isMatched ? 'rgba(25, 135, 84, 0.5)' : 'rgba(13, 110, 253, 0.5)';
+                
+                // Scale to displayed size
+                const scaledX = x * scaleX;
+                const scaledY = y * scaleY;
+                const scaledWidth = width * scaleX;
+                const scaledHeight = height * scaleY;
+                
+                // Create box element
+                const box = document.createElement('div');
+                box.style.position = 'absolute';
+                box.style.left = scaledX + 'px';
+                box.style.top = scaledY + 'px';
+                box.style.width = scaledWidth + 'px';
+                box.style.height = scaledHeight + 'px';
+                box.style.border = `3px solid ${borderColor}`;
+                box.style.boxShadow = `0 0 10px ${shadowColor}`;
+                box.style.borderRadius = '4px';
+                
+                // Create label with face number or matched name
+                const label = document.createElement('div');
+                label.style.position = 'absolute';
+                label.style.top = '-28px';
+                label.style.left = '0';
+                label.style.background = borderColor;
+                label.style.color = 'white';
+                label.style.padding = '4px 10px';
+                label.style.borderRadius = '4px';
+                label.style.fontWeight = 'bold';
+                label.style.fontSize = '14px';
+                label.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+                
+                if (isMatched) {
+                    label.innerHTML = `<i class="bi bi-check-circle me-1"></i>${face.matched_tag.face_name}`;
+                } else {
+                    label.textContent = `Face ${index + 1}`;
+                }
+                
+                box.appendChild(label);
+                overlay.appendChild(box);
+            });
+        }
+
+
+        async function tagFace(faceIndex) {
+            const nameInput = document.getElementById(`faceName${faceIndex}`);
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('Please enter a name');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/media/${currentFaceTaggingMediaId}/tag_face`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        face_index: faceIndex,
+                        name: name
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                showStatus(`Tagged face as "${name}"`, 'success');
+                nameInput.value = '';
+                
+                // Reload tagged faces
+                await loadTaggedFaces(currentFaceTaggingMediaId);
+            } catch (error) {
+                console.error('Face tagging error:', error);
+                showStatus(`Error: ${error.message}`, 'danger');
+            }
+        }
+
+        async function loadTaggedFaces(mediaId) {
+            try {
+                const response = await fetch(`/media/${mediaId}/faces`);
+                const data = await response.json();
+                
+                const list = document.getElementById('taggedFacesList');
+                const countEl = document.getElementById('taggedFaceCount');
+                
+                const faces = data.faces || [];
+                countEl.textContent = faces.length;
+                
+                if (faces.length === 0) {
+                    list.innerHTML = '<p class="text-muted text-center mb-0">No faces tagged yet</p>';
+                    return;
+                }
+                
+                list.innerHTML = faces.map(face => `
+                    <div class="card mb-2">
+                        <div class="card-body p-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong><i class="bi bi-person-fill me-1"></i>${face.name}</strong>
+                                    <div class="small text-muted">
+                                        ${face.auto_tagged ? 
+                                            `<span class="badge bg-info">Auto</span> ${Math.round(face.confidence * 100)}%` : 
+                                            '<span class="badge bg-success">Manual</span>'}
+                                        · Tagged by ${face.tagged_by}
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger" 
+                                        onclick="deleteFaceTag(${face.tag_id})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading tagged faces:', error);
+            }
+        }
+
+        async function deleteFaceTag(tagId) {
+            if (!confirm('Delete this face tag?')) return;
+            
+            try {
+                const response = await fetch(`/face_tags/${tagId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus(`Error: ${data.error}`, 'danger');
+                    return;
+                }
+                
+                showStatus('Face tag deleted', 'success');
+                await loadTaggedFaces(currentFaceTaggingMediaId);
+            } catch (error) {
+                console.error('Error deleting face tag:', error);
+                showStatus(`Error: ${error.message}`, 'danger');
+            }
+        }
+
+        // Attach detect faces button handler
+        document.addEventListener('DOMContentLoaded', function() {
+            const detectBtn = document.getElementById('detectFacesBtn');
+            if (detectBtn) {
+                detectBtn.addEventListener('click', detectFaces);
+            }
+        });
+
         // Generic Modal Display
         function showModal(title, content) {
             const modal = document.createElement('div');
@@ -3329,6 +3951,351 @@
                 hideProcessingOverlay();
                 showUploadResults('Processing canceled by user', 'error');
             }
+        }
+
+        /* ========================================
+         * Camera Search Functionality with Real-Time Face Detection
+         * ======================================== */
+        
+        let cameraStream = null;
+        let capturedImageData = null;
+        let faceDetectionInterval = null;
+        let modelsLoaded = false;
+
+        // Load face-api.js models
+        async function loadFaceDetectionModels() {
+            if (modelsLoaded) return true;
+            
+            try {
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                modelsLoaded = true;
+                console.log('✅ Face detection models loaded');
+                return true;
+            } catch (error) {
+                console.error('❌ Error loading face detection models:', error);
+                return false;
+            }
+        }
+
+        // Detect faces in real-time and draw overlay
+        async function detectFacesRealtime() {
+            const video = document.getElementById('video');
+            const overlay = document.getElementById('faceOverlay');
+            const faceStatus = document.getElementById('faceStatus');
+            const captureBtn = document.getElementById('captureBtn');
+            
+            if (!video || video.paused || video.ended) return;
+            
+            try {
+                const detections = await faceapi.detectAllFaces(
+                    video, 
+                    new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
+                );
+                
+                // Clear overlay
+                const ctx = overlay.getContext('2d');
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
+                
+                if (detections.length > 0) {
+                    // Draw bounding boxes for all detected faces
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 3;
+                    ctx.font = '16px Arial';
+                    ctx.fillStyle = '#00ff00';
+                    
+                    detections.forEach((detection, i) => {
+                        const box = detection.box;
+                        ctx.strokeRect(box.x, box.y, box.width, box.height);
+                        ctx.fillText(`Face ${i + 1}`, box.x, box.y - 5);
+                    });
+                    
+                    // Show status and enable capture
+                    faceStatus.style.display = 'block';
+                    faceStatus.innerHTML = `<span class="badge bg-success">
+                        <i class="bi bi-check-circle"></i> ${detections.length} Face(s) Detected
+                    </span>`;
+                    captureBtn.disabled = false;
+                } else {
+                    faceStatus.style.display = 'block';
+                    faceStatus.innerHTML = `<span class="badge bg-warning">
+                        <i class="bi bi-exclamation-triangle"></i> No Face Detected
+                    </span>`;
+                    captureBtn.disabled = true;
+                }
+            } catch (error) {
+                console.error('Face detection error:', error);
+            }
+        }
+
+        // Initialize camera search when tab is shown
+        document.addEventListener('DOMContentLoaded', () => {
+            const cameraTab = document.querySelector('a[href="#camera-search-tab"]');
+            if (cameraTab) {
+                cameraTab.addEventListener('shown.bs.tab', initCameraSearch);
+            }
+        });
+
+        function initCameraSearch() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const overlay = document.getElementById('faceOverlay');
+            const capturedImage = document.getElementById('capturedImage');
+            const startCameraBtn = document.getElementById('startCamera');
+            const captureBtn = document.getElementById('captureBtn');
+            const searchBtn = document.getElementById('searchBtn');
+            const retakeBtn = document.getElementById('retakeBtn');
+            const cameraStatus = document.getElementById('cameraStatus');
+            const faceStatus = document.getElementById('faceStatus');
+            const thresholdInput = document.getElementById('threshold');
+            const thresholdValue = document.getElementById('thresholdValue');
+
+            // Update threshold display
+            if (thresholdInput) {
+                thresholdInput.addEventListener('input', (e) => {
+                    const value = (1 - parseFloat(e.target.value)) * 100;
+                    thresholdValue.textContent = Math.round(value) + '%';
+                });
+            }
+
+            // Start camera
+            if (startCameraBtn) {
+                startCameraBtn.onclick = async () => {
+                    try {
+                        // Load face detection models first
+                        showCameraStatus('📦 Loading face detection models...', 'info');
+                        const loaded = await loadFaceDetectionModels();
+                        if (!loaded) {
+                            showCameraStatus('❌ Failed to load face detection models', 'danger');
+                            return;
+                        }
+
+                        cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                            video: { 
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 },
+                                facingMode: 'user'
+                            } 
+                        });
+                        
+                        video.srcObject = cameraStream;
+                        await video.play();
+                        
+                        // Setup overlay canvas to match video
+                        video.addEventListener('loadedmetadata', () => {
+                            overlay.width = video.videoWidth;
+                            overlay.height = video.videoHeight;
+                            overlay.style.width = video.offsetWidth + 'px';
+                            overlay.style.height = video.offsetHeight + 'px';
+                        });
+                        
+                        video.style.display = 'block';
+                        overlay.style.display = 'block';
+                        capturedImage.style.display = 'none';
+                        faceStatus.style.display = 'none';
+                        startCameraBtn.disabled = true;
+                        
+                        showCameraStatus('📹 Camera active - Position your face in the frame', 'info');
+                        
+                        // Start real-time face detection
+                        faceDetectionInterval = setInterval(detectFacesRealtime, 300); // Check every 300ms
+                    } catch (error) {
+                        const isSecure = window.location.protocol === 'https:';
+                        const errorMsg = isSecure 
+                            ? 'Camera access denied. Please allow camera access in your browser settings.'
+                            : '🔒 Camera requires HTTPS. Please access via https://' + window.location.hostname + ':8443';
+                        showCameraStatus(errorMsg, 'danger');
+                    }
+                };
+            }
+
+            // Capture photo
+            if (captureBtn) {
+                captureBtn.onclick = async () => {
+                    // Stop face detection
+                    if (faceDetectionInterval) {
+                        clearInterval(faceDetectionInterval);
+                        faceDetectionInterval = null;
+                    }
+                    
+                    // Detect face one more time to get bounding box
+                    const detections = await faceapi.detectAllFaces(
+                        video,
+                        new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
+                    );
+                    
+                    if (detections.length === 0) {
+                        showCameraStatus('⚠️ No face detected. Please try again.', 'warning');
+                        return;
+                    }
+                    
+                    // Use the largest detected face
+                    const detection = detections.reduce((prev, curr) => 
+                        curr.box.width * curr.box.height > prev.box.width * prev.box.height ? curr : prev
+                    );
+                    
+                    const box = detection.box;
+                    
+                    // Capture full frame
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0);
+                    
+                    // Crop to face region with some padding
+                    const padding = 50;
+                    const cropX = Math.max(0, box.x - padding);
+                    const cropY = Math.max(0, box.y - padding);
+                    const cropW = Math.min(canvas.width - cropX, box.width + padding * 2);
+                    const cropH = Math.min(canvas.height - cropY, box.height + padding * 2);
+                    
+                    const croppedCanvas = document.createElement('canvas');
+                    croppedCanvas.width = cropW;
+                    croppedCanvas.height = cropH;
+                    const croppedCtx = croppedCanvas.getContext('2d');
+                    croppedCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+                    
+                    capturedImageData = croppedCanvas.toDataURL('image/jpeg', 0.9);
+                    capturedImage.src = capturedImageData;
+                    capturedImage.style.display = 'block';
+                    video.style.display = 'none';
+                    overlay.style.display = 'none';
+                    faceStatus.style.display = 'none';
+                    
+                    captureBtn.style.display = 'none';
+                    searchBtn.style.display = 'inline-block';
+                    retakeBtn.style.display = 'inline-block';
+                    
+                    // Stop camera
+                    if (cameraStream) {
+                        cameraStream.getTracks().forEach(track => track.stop());
+                    }
+                    
+                    showCameraStatus('✅ Face captured! Click "Search My Photos" to find matches', 'success');
+                };
+            }
+
+            // Retake photo
+            if (retakeBtn) {
+                retakeBtn.onclick = () => {
+                    capturedImage.style.display = 'none';
+                    searchBtn.style.display = 'none';
+                    retakeBtn.style.display = 'none';
+                    captureBtn.style.display = 'inline-block';
+                    captureBtn.disabled = true;
+                    startCameraBtn.disabled = false;
+                    startCameraBtn.click();
+                };
+            }
+
+            // Search photos
+            if (searchBtn) {
+                searchBtn.onclick = async () => {
+                    if (!capturedImageData) {
+                        showCameraStatus('Please capture a photo first', 'danger');
+                        return;
+                    }
+
+                    showCameraStatus('🔍 Searching for photos... This may take a moment', 'info');
+                    searchBtn.disabled = true;
+
+                    try {
+                        const response = await fetch('/api/search/selfie', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                image: capturedImageData,
+                                similarity_threshold: parseFloat(thresholdInput.value),
+                                max_results: 100
+                            })
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            // Display results in the main results tab
+                            displayCameraSearchResults(result);
+                            // Switch to results tab
+                            const resultsTab = document.querySelector('a[href="#results-tab"]');
+                            if (resultsTab) {
+                                const tab = new bootstrap.Tab(resultsTab);
+                                tab.show();
+                            }
+                            showCameraStatus(`✅ Found ${result.unique_photos} photos! Check the Results tab`, 'success');
+                        } else {
+                            showCameraStatus('❌ ' + (result.error || 'Search failed'), 'danger');
+                        }
+                    } catch (error) {
+                        showCameraStatus('❌ Error: ' + error.message, 'danger');
+                    } finally {
+                        searchBtn.disabled = false;
+                    }
+                };
+            }
+        }
+
+        function showCameraStatus(message, type) {
+            const statusDiv = document.getElementById('cameraStatus');
+            if (statusDiv) {
+                statusDiv.textContent = message;
+                statusDiv.className = `alert alert-${type}`;
+                statusDiv.style.display = 'block';
+            }
+        }
+
+        function displayCameraSearchResults(result) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            if (!resultsContainer) return;
+
+            resultsContainer.innerHTML = '';
+
+            // Add header
+            const header = document.createElement('div');
+            header.className = 'alert alert-success mb-4';
+            header.innerHTML = `
+                <h5><i class="bi bi-camera-fill me-2"></i>Camera Search Results</h5>
+                <p class="mb-0">Found ${result.unique_photos} photos with ${result.matches_found} face matches</p>
+            `;
+            resultsContainer.appendChild(header);
+
+            if (!result.photos || result.photos.length === 0) {
+                resultsContainer.innerHTML += '<div class="alert alert-info">No matching photos found. Try adjusting the match sensitivity.</div>';
+                return;
+            }
+
+            // Create gallery grid
+            const grid = document.createElement('div');
+            grid.className = 'row g-3';
+
+            result.photos.forEach(photo => {
+                const col = document.createElement('div');
+                col.className = 'col-6 col-md-4 col-lg-3';
+                
+                const bestMatch = photo.matched_faces[0];
+                const confidence = Math.round(bestMatch.confidence * 100);
+                
+                col.innerHTML = `
+                    <div class="card h-100 shadow-sm hover-lift" style="cursor: pointer;" onclick="window.open('${photo.stream_url}', '_blank')">
+                        <img src="${photo.thumbnail_url || photo.stream_url}" class="card-img-top" alt="${photo.file_name}" style="height: 200px; object-fit: cover;">
+                        <div class="card-body">
+                            <h6 class="card-title text-truncate">${photo.file_name}</h6>
+                            <div class="mb-2">
+                                ${photo.matched_faces.map(face => 
+                                    `<span class="badge bg-primary me-1">${face.face_name} (${Math.round(face.confidence * 100)}%)</span>`
+                                ).join('')}
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: ${confidence}%"></div>
+                            </div>
+                            <small class="text-muted">${photo.match_count} match(es)</small>
+                        </div>
+                    </div>
+                `;
+                
+                grid.appendChild(col);
+            });
+
+            resultsContainer.appendChild(grid);
         }
     </script>
 </body>

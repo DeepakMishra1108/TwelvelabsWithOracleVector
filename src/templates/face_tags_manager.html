@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Tags Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .stats {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .table-container {
+            padding: 30px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f8f9fa;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f3f5;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .face-name {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .face-name.unknown {
+            color: #dc3545;
+            font-style: italic;
+        }
+
+        .face-thumbnail {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #dee2e6;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .face-thumbnail:hover {
+            transform: scale(2.5);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            z-index: 100;
+            position: relative;
+        }
+
+        .edit-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .edit-input:focus {
+            outline: none;
+            border-color: #764ba2;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 14px;
+            border-radius: 6px;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .pagination {
+            padding: 20px 30px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid #dee2e6;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination .current-page {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-size: 1.2em;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #212529;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.success {
+            border-left: 4px solid #28a745;
+        }
+
+        .toast.error {
+            border-left: 4px solid #dc3545;
+        }
+
+        .toast.show {
+            display: flex;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👤 Face Tags Manager</h1>
+            <p>Manage and correct face tag names</p>
+        </div>
+
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 Search face names...">
+            </div>
+            <select id="groupFilter" style="padding: 12px 20px; border: 2px solid #ddd; border-radius: 25px; font-size: 16px; min-width: 180px; cursor: pointer;">
+                <option value="">All Groups</option>
+            </select>
+            <button class="btn btn-primary" onclick="openBulkUpdateModal()">
+                Bulk Update
+            </button>
+            <button class="btn btn-primary" onclick="selectAllVisibleGroup()">
+                Select Group
+            </button>
+            <a href="/admin/users" class="btn btn-secondary">
+                👥 Users
+            </a>
+            <a href="/admin/quotas" class="btn btn-secondary">
+                📊 Quotas
+            </a>
+            <a href="/" class="btn btn-secondary">
+                🏠 Home
+            </a>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <span class="stat-label">Total Tags:</span>
+                <span class="stat-value" id="totalTags">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Current Page:</span>
+                <span class="stat-value" id="currentPageStat">1</span>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div id="loadingIndicator" class="loading">Loading face tags...</div>
+            <table id="faceTagsTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Face Thumbnail</th>
+                        <th>Media ID</th>
+                        <th>Face Name</th>
+                        <th>Confidence</th>
+                        <th>Created At</th>
+                        <th>Auto Tagged</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="faceTagsBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" id="paginationControls" style="display: none;">
+            <button id="prevBtn" onclick="previousPage()">← Previous</button>
+            <span class="current-page">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+            <button id="nextBtn" onclick="nextPage()">Next →</button>
+        </div>
+    </div>
+
+    <!-- Bulk Update Modal -->
+    <div id="bulkUpdateModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Bulk Update Face Names</div>
+            <div class="form-group">
+                <label>Old Name</label>
+                <input type="text" id="bulkOldName" placeholder="e.g., Unknown">
+            </div>
+            <div class="form-group">
+                <label>New Name</label>
+                <input type="text" id="bulkNewName" placeholder="e.g., John Doe">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary btn-sm" onclick="closeBulkUpdateModal()">Cancel</button>
+                <button class="btn btn-primary btn-sm" onclick="performBulkUpdate()">Update All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        <span id="toastMessage"></span>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        let searchTimeout = null;
+        let editingRow = null;
+        let availableGroups = new Set();
+
+        // Load face tags on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFaceTags();
+            loadGroups();
+            
+            // Search with debounce
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    currentPage = 1;
+                    loadFaceTags(e.target.value);
+                }, 500);
+            });
+            
+            // Group filter
+            document.getElementById('groupFilter').addEventListener('change', (e) => {
+                currentPage = 1;
+                const search = document.getElementById('searchInput').value;
+                loadFaceTags(search);
+            });
+        });
+
+        async function loadGroups() {
+            try {
+                const response = await fetch('/api/face_tags?page=1&per_page=1000');
+                const data = await response.json();
+                
+                if (response.ok && data.face_tags) {
+                    const groups = new Set();
+                    data.face_tags.forEach(tag => {
+                        if (tag.face_name && tag.face_name.startsWith('Group_')) {
+                            groups.add(tag.face_name);
+                        }
+                    });
+                    
+                    const groupFilter = document.getElementById('groupFilter');
+                    groupFilter.innerHTML = '<option value="">All Groups</option>';
+                    
+                    // Sort groups numerically
+                    const sortedGroups = Array.from(groups).sort((a, b) => {
+                        const numA = parseInt(a.split('_')[1]);
+                        const numB = parseInt(b.split('_')[1]);
+                        return numA - numB;
+                    });
+                    
+                    sortedGroups.forEach(group => {
+                        const option = document.createElement('option');
+                        option.value = group;
+                        option.textContent = group;
+                        groupFilter.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading groups:', error);
+            }
+        }
+
+        async function loadFaceTags(search = '') {
+            try {
+                document.getElementById('loadingIndicator').style.display = 'block';
+                document.getElementById('faceTagsTable').style.display = 'none';
+                
+                const groupFilter = document.getElementById('groupFilter').value;
+                const searchTerm = groupFilter || search;
+                const exactMatch = groupFilter ? 'true' : 'false'; // Use exact match for group filter
+                
+                const url = `/api/face_tags?page=${currentPage}&per_page=50${searchTerm ? '&search=' + encodeURIComponent(searchTerm) : ''}&exact_match=${exactMatch}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (!response.ok) throw new Error(data.error || 'Failed to load face tags');
+                
+                displayFaceTags(data);
+                updatePagination(data);
+                
+                document.getElementById('loadingIndicator').style.display = 'none';
+                document.getElementById('faceTagsTable').style.display = 'table';
+                document.getElementById('paginationControls').style.display = 'flex';
+                
+            } catch (error) {
+                showToast('Error loading face tags: ' + error.message, 'error');
+                document.getElementById('loadingIndicator').textContent = 'Error loading face tags';
+            }
+        }
+
+        function displayFaceTags(data) {
+            const tbody = document.getElementById('faceTagsBody');
+            tbody.innerHTML = '';
+            
+            document.getElementById('totalTags').textContent = data.total;
+            document.getElementById('currentPageStat').textContent = data.page;
+            
+            data.face_tags.forEach(tag => {
+                const row = document.createElement('tr');
+                row.id = `row-${tag.id}`;
+                
+                const isUnknown = tag.face_name === 'Unknown';
+                const nameClass = isUnknown ? 'face-name unknown' : 'face-name';
+                
+                // Use face_tag_thumbnail endpoint which will fetch from media_id
+                const thumbnailUrl = `/face_tag_thumbnail/${tag.id}`;
+                
+                row.innerHTML = `
+                    <td>${tag.id}</td>
+                    <td>
+                        <img src="${thumbnailUrl}" 
+                             alt="Face thumbnail" 
+                             class="face-thumbnail" 
+                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3ENo Image%3C/text%3E%3C/svg%3E'"
+                             loading="lazy">
+                    </td>
+                    <td>${tag.media_id}</td>
+                    <td>
+                        <span class="${nameClass}" id="name-${tag.id}">${tag.face_name}</span>
+                        <input type="text" class="edit-input" id="edit-${tag.id}" value="${tag.face_name}" style="display: none;">
+                    </td>
+                    <td>${(tag.confidence * 100).toFixed(1)}%</td>
+                    <td>${tag.created_at ? new Date(tag.created_at).toLocaleDateString() : 'N/A'}</td>
+                    <td>${tag.auto_tagged ? '✅ Yes' : '❌ No'}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-primary btn-sm" id="edit-btn-${tag.id}" onclick="editFaceTag(${tag.id})">Edit</button>
+                            <button class="btn btn-success btn-sm" id="save-btn-${tag.id}" onclick="saveFaceTag(${tag.id})" style="display: none;">Save</button>
+                            <button class="btn btn-danger btn-sm" id="cancel-btn-${tag.id}" onclick="cancelEdit(${tag.id})" style="display: none;">Cancel</button>
+                            ${tag.face_name.startsWith('Group_') ? `<button class="btn btn-danger btn-sm" onclick="removeFromGroup(${tag.id}, '${tag.face_name}')">Remove</button>` : ''}
+                        </div>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function editFaceTag(faceId) {
+            // Cancel any existing edit
+            if (editingRow) cancelEdit(editingRow);
+            
+            editingRow = faceId;
+            document.getElementById(`name-${faceId}`).style.display = 'none';
+            document.getElementById(`edit-${faceId}`).style.display = 'block';
+            document.getElementById(`edit-btn-${faceId}`).style.display = 'none';
+            document.getElementById(`save-btn-${faceId}`).style.display = 'inline-block';
+            document.getElementById(`cancel-btn-${faceId}`).style.display = 'inline-block';
+            
+            // Focus the input
+            document.getElementById(`edit-${faceId}`).focus();
+        }
+
+        function cancelEdit(faceId) {
+            document.getElementById(`name-${faceId}`).style.display = 'inline';
+            document.getElementById(`edit-${faceId}`).style.display = 'none';
+            document.getElementById(`edit-btn-${faceId}`).style.display = 'inline-block';
+            document.getElementById(`save-btn-${faceId}`).style.display = 'none';
+            document.getElementById(`cancel-btn-${faceId}`).style.display = 'none';
+            
+            editingRow = null;
+        }
+
+        async function saveFaceTag(faceId) {
+            const newName = document.getElementById(`edit-${faceId}`).value.trim();
+            
+            if (!newName) {
+                showToast('Face name cannot be empty', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/face_tags/${faceId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ face_name: newName })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) throw new Error(data.error || 'Failed to update face tag');
+                
+                // Update the display
+                document.getElementById(`name-${faceId}`).textContent = newName;
+                document.getElementById(`name-${faceId}`).className = 'face-name';
+                
+                cancelEdit(faceId);
+                showToast(`Updated: ${data.old_name} → ${data.new_name}`, 'success');
+                
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function previousPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                loadFaceTags(document.getElementById('searchInput').value);
+            }
+        }
+
+        function nextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                loadFaceTags(document.getElementById('searchInput').value);
+            }
+        }
+
+        function updatePagination(data) {
+            currentPage = data.page;
+            totalPages = data.total_pages;
+            
+            document.getElementById('currentPage').textContent = currentPage;
+            document.getElementById('totalPages').textContent = totalPages;
+            
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        }
+
+        function openBulkUpdateModal() {
+            document.getElementById('bulkUpdateModal').classList.add('active');
+        }
+
+        function closeBulkUpdateModal() {
+            document.getElementById('bulkUpdateModal').classList.remove('active');
+            document.getElementById('bulkOldName').value = '';
+            document.getElementById('bulkNewName').value = '';
+        }
+
+        async function performBulkUpdate() {
+            const oldName = document.getElementById('bulkOldName').value.trim();
+            const newName = document.getElementById('bulkNewName').value.trim();
+            
+            if (!oldName || !newName) {
+                showToast('Both old name and new name are required', 'error');
+                return;
+            }
+            
+            if (!confirm(`This will update ALL face tags named "${oldName}" to "${newName}". Continue?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/face_tags/bulk_update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ old_name: oldName, new_name: newName })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) throw new Error(data.error || 'Failed to bulk update');
+                
+                closeBulkUpdateModal();
+                showToast(`Updated ${data.updated_count} face tags`, 'success');
+                
+                // Reload the current page
+                setTimeout(() => loadFaceTags(document.getElementById('searchInput').value), 1000);
+                
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            toast.className = `toast ${type} show`;
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function selectAllVisibleGroup() {
+            const groupFilter = document.getElementById('groupFilter').value;
+            if (!groupFilter) {
+                showToast('Please select a group first', 'error');
+                return;
+            }
+            
+            // Set the old name to the group name
+            document.getElementById('bulkOldName').value = groupFilter;
+            openBulkUpdateModal();
+            showToast(`Ready to update all faces in ${groupFilter}. Enter the new name.`, 'success');
+        }
+
+        async function removeFromGroup(faceId, groupName) {
+            if (!confirm(`Remove this face from ${groupName}? It will be set to Unknown.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/face_tags/${faceId}/remove_from_group`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) throw new Error(data.error || 'Failed to remove from group');
+                
+                showToast(`Removed face from ${groupName}`, 'success');
+                
+                // Reload the page to refresh the list
+                setTimeout(() => loadFaceTags(document.getElementById('searchInput').value), 500);
+                
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
