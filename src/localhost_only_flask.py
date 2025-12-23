@@ -4908,7 +4908,11 @@ def auto_tag_similar_faces():
             tagged_count = 0
             for face_row in similar_faces:
                 face_tag_id = face_row[0]
-                distance = float(face_row[3])
+                distance = face_row[3]
+                if distance is None:
+                    logger.warning(f"⚠️ Skipping face tag {face_tag_id} with null distance")
+                    continue
+                distance = float(distance)
                 
                 if distance < similarity_threshold:
                     # Update face tag with new name
@@ -5084,6 +5088,9 @@ def search_camera_face():
                     # Count votes for each person
                     person_votes = {}
                     for face_name, distance, count in identity_matches:
+                        if distance is None:
+                            logger.warning(f"⚠️ Skipping null distance for face '{face_name}'")
+                            continue
                         if face_name not in person_votes:
                             person_votes[face_name] = {"votes": 0, "best_distance": distance}
                         person_votes[face_name]["votes"] += count

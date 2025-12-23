@@ -246,6 +246,9 @@ class SimilarMediaFinder:
                 return []
             
             source_embedding = row[0]
+            if source_embedding is None:
+                logger.error(f"❌ Photo {photo_id} has no embedding vector")
+                return []
             
             # Find similar photos using VECTOR_DISTANCE
             cursor.execute("""
@@ -267,7 +270,11 @@ class SimilarMediaFinder:
             
             results = []
             for row in cursor.fetchall():
-                similarity = 1.0 - float(row[3])  # Convert distance to similarity
+                distance = row[3]
+                if distance is None:
+                    logger.warning(f"⚠️ Skipping photo {row[0]} with null distance")
+                    continue
+                similarity = 1.0 - float(distance)  # Convert distance to similarity
                 if similarity >= min_similarity:
                     results.append({
                         "media_id": row[0],
@@ -322,6 +329,9 @@ class SimilarMediaFinder:
                 return []
             
             source_embedding = row[0]
+            if source_embedding is None:
+                logger.error(f"❌ Video {video_id} has no embedding vector")
+                return []
             
             # Find similar videos using VECTOR_DISTANCE
             # Group by parent video (same file_name) and use min distance
@@ -345,7 +355,11 @@ class SimilarMediaFinder:
             
             results = []
             for row in cursor.fetchall():
-                similarity = 1.0 - float(row[3])  # Convert distance to similarity
+                distance = row[3]
+                if distance is None:
+                    logger.warning(f"⚠️ Skipping video {row[0]} with null distance")
+                    continue
+                similarity = 1.0 - float(distance)  # Convert distance to similarity
                 if similarity >= min_similarity:
                     results.append({
                         "media_id": row[0],
