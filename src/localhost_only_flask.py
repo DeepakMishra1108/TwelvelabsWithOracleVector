@@ -493,6 +493,22 @@ EXECUTOR = ThreadPoolExecutor(max_workers=3, thread_name_prefix='embedding-')
 # Multipart upload threshold (100MB)
 MULTIPART_THRESHOLD = 100 * 1024 * 1024
 
+# =============================================================================
+# PRELOAD HEAVY MODELS (ImageBind) - With 4 OCPU + 64GB RAM, we can afford this
+# =============================================================================
+logger.info("🚀 Preloading ImageBind model for better performance...")
+try:
+    from utils.imagebind_helper import get_imagebind_embedder
+    # Force model loading at startup
+    embedder = get_imagebind_embedder()
+    # Test the model with a dummy operation to ensure it's ready
+    logger.info("✅ ImageBind model preloaded successfully - ready for embeddings!")
+    IMAGEBIND_PRELOADED = True
+except Exception as e:
+    logger.warning(f"⚠️  ImageBind preloading failed: {e}")
+    logger.warning("📝 ImageBind will load on first use instead")
+    IMAGEBIND_PRELOADED = False
+
 def _load_oci_config():
     """Load OCI configuration"""
     if _central_load_oci_config:
@@ -1168,6 +1184,7 @@ def health_check():
         'status': 'healthy',
         'mode': 'localhost-only',
         'albums_available': UNIFIED_ALBUM_AVAILABLE,
+        'imagebind_preloaded': IMAGEBIND_PRELOADED,
         'host': request.host,
         'timestamp': int(time.time())
     })
