@@ -1987,7 +1987,51 @@
             modalImage.alt = fileName;
             modalLabel.textContent = fileName;
 
+            // Clean up modal when hidden to prevent backdrop issues
+            const modalElement = document.getElementById('imageModal');
+            modalElement.addEventListener('hidden.bs.modal', function() {
+                // Force remove backdrop and reset body
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                // Remove any remaining backdrops
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                
+                // Reset modal state
+                modalElement.style.display = 'none';
+                modalElement.classList.remove('show');
+                modalElement.setAttribute('aria-hidden', 'true');
+                modalElement.removeAttribute('aria-modal');
+                modalElement.removeAttribute('role');
+            }, { once: true });
+
             modal.show();
+        }
+
+        // Force cleanup any stuck modal backdrops
+        function cleanupModalBackdrops() {
+            // Remove modal-open class from body
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            // Remove any remaining modal backdrops
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+
+            // Reset any shown modals
+            const shownModals = document.querySelectorAll('.modal.show');
+            shownModals.forEach(modal => {
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+                modal.setAttribute('aria-hidden', 'true');
+                modal.removeAttribute('aria-modal');
+                modal.removeAttribute('role');
+            });
+
+            console.log('✅ Modal backdrops cleaned up');
         }
 
         // Show status message
@@ -2941,8 +2985,29 @@
             // Load existing tagged faces
             await loadTaggedFaces(mediaId);
             
-            // Show modal
+            // Show modal with cleanup
             const modal = new bootstrap.Modal(document.getElementById('faceTaggingModal'));
+            
+            // Clean up modal when hidden to prevent backdrop issues
+            const modalElement = document.getElementById('faceTaggingModal');
+            modalElement.addEventListener('hidden.bs.modal', function() {
+                // Force remove backdrop and reset body
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                // Remove any remaining backdrops
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                
+                // Reset modal state
+                modalElement.style.display = 'none';
+                modalElement.classList.remove('show');
+                modalElement.setAttribute('aria-hidden', 'true');
+                modalElement.removeAttribute('aria-modal');
+                modalElement.removeAttribute('role');
+            }, { once: true });
+            
             modal.show();
         }
 
@@ -4389,6 +4454,21 @@
             if (cameraTab) {
                 cameraTab.addEventListener('shown.bs.tab', initCameraSearch);
             }
+
+            // Add keyboard shortcut for modal cleanup (double Escape)
+            let escapeCount = 0;
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    escapeCount++;
+                    if (escapeCount === 2) {
+                        cleanupModalBackdrops();
+                        escapeCount = 0;
+                        showStatus('Modal backdrops cleaned up', 'info');
+                    }
+                    // Reset counter after 1 second
+                    setTimeout(() => { escapeCount = 0; }, 1000);
+                }
+            });
         });
 
         function initCameraSearch() {
