@@ -65,7 +65,7 @@ def auto_recognize_faces(media_id: int, image_path: str, user_id: int, connectio
         faces_recognized = 0
         faces_tagged = 0
         recognition_results = []
-        match_threshold = 0.6  # Distance threshold for recognition
+        match_threshold = 0.95  # Distance threshold for recognition (higher = more permissive)
         
         for i, face in enumerate(faces):
             face_bbox = face['facial_area']
@@ -139,15 +139,43 @@ def auto_recognize_faces(media_id: int, image_path: str, user_id: int, connectio
                             "error": str(e)
                         })
                 else:
-                    # Match found but distance too high
+                    # Match found but distance too high - save as Unknown
                     logger.info(f"ℹ️  Face {i+1} has closest match '{matched_name}' but distance {distance:.4f} exceeds threshold {match_threshold}")
-                    recognition_results.append({
-                        "face_index": i + 1,
-                        "bbox": face_bbox,
-                        "recognized_as": None,
-                        "confidence": 0.0,
-                        "auto_tagged": False
-                    })
+                    
+                    # Save as Unknown face for manual tagging later
+                    try:
+                        cursor.execute("""
+                            INSERT INTO face_tags 
+                            (media_id, face_name, face_embedding, bounding_box, confidence, created_by, auto_tagged)
+                            VALUES (:media_id, :face_name, :face_embedding, :bbox, :confidence, :user_id, 0)
+                        """, {
+                            "media_id": media_id,
+                            "face_name": "Unknown",
+                            "face_embedding": vector_bytes,
+                            "bbox": bbox_to_json(face_bbox),
+                            "confidence": 0.0,
+                            "user_id": user_id
+                        })
+                        
+                        faces_tagged += 1
+                        
+                        recognition_results.append({
+                            "face_index": i + 1,
+                            "bbox": face_bbox,
+                            "recognized_as": "Unknown",
+                            "confidence": 0.0,
+                            "auto_tagged": False
+                        })
+                    except Exception as e:
+                        logger.error(f"❌ Failed to save Unknown face {i+1}: {e}")
+                        recognition_results.append({
+                            "face_index": i + 1,
+                            "bbox": face_bbox,
+                            "recognized_as": None,
+                            "confidence": 0.0,
+                            "auto_tagged": False,
+                            "error": str(e)
+                        })
         
         # Commit all auto-tags
         connection.commit()

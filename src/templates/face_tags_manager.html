@@ -174,6 +174,16 @@
             border: 2px solid #dee2e6;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+        }
+        
+        .face-thumbnail.loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
         }
 
         .face-thumbnail:hover {
@@ -189,11 +199,33 @@
             border: 2px solid #667eea;
             border-radius: 8px;
             font-size: 14px;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
         }
 
         .edit-input:focus {
             outline: none;
             border-color: #764ba2;
+        }
+
+        .face-name {
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            display: inline-block;
+        }
+
+        .face-name:hover {
+            background-color: #f0f0f0;
+        }
+
+        .face-name.editing {
+            display: none !important;
+        }
+
+        .unknown {
+            color: #dc3545;
+            font-style: italic;
         }
 
         .action-buttons {
@@ -372,6 +404,9 @@
         <div class="header">
             <h1>👤 Face Tags Manager</h1>
             <p>Manage and correct face tag names</p>
+            <p style="font-size: 0.9em; margin-top: 10px; opacity: 0.9;">
+                💡 <strong>Quick Edit:</strong> Double-click any name to edit | Press <kbd style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 3px;">Enter</kbd> to save | <kbd style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 3px;">Esc</kbd> to cancel
+            </p>
         </div>
 
         <div class="controls">
@@ -567,6 +602,7 @@
                 const nameClass = isUnknown ? 'face-name unknown' : 'face-name';
                 
                 // Use face_tag_thumbnail endpoint which will fetch from media_id
+                // Cache timestamp removed - server-side caching handles this now
                 const thumbnailUrl = `/face_tag_thumbnail/${tag.id}`;
                 
                 row.innerHTML = `
@@ -574,14 +610,15 @@
                     <td>
                         <img src="${thumbnailUrl}" 
                              alt="Face thumbnail" 
-                             class="face-thumbnail" 
-                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3ENo Image%3C/text%3E%3C/svg%3E'"
+                             class="face-thumbnail loading" 
+                             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3ENo Image%3C/text%3E%3C/svg%3E';this.classList.remove('loading')"
+                             onload="this.classList.remove('loading')"
                              loading="lazy">
                     </td>
                     <td>${tag.media_id}</td>
                     <td>
-                        <span class="${nameClass}" id="name-${tag.id}">${tag.face_name}</span>
-                        <input type="text" class="edit-input" id="edit-${tag.id}" value="${tag.face_name}" style="display: none;">
+                        <span class="${nameClass}" id="name-${tag.id}" ondblclick="editFaceTag(${tag.id})" title="Double-click to edit or use Edit button">${tag.face_name}</span>
+                        <input type="text" class="edit-input" id="edit-${tag.id}" value="${tag.face_name}" style="display: none;" onkeydown="handleKeyPress(event, ${tag.id})">
                     </td>
                     <td>${(tag.confidence * 100).toFixed(1)}%</td>
                     <td>${tag.created_at ? new Date(tag.created_at).toLocaleDateString() : 'N/A'}</td>
@@ -602,36 +639,79 @@
 
         function editFaceTag(faceId) {
             // Cancel any existing edit
-            if (editingRow) cancelEdit(editingRow);
+            if (editingRow && editingRow !== faceId) cancelEdit(editingRow);
             
             editingRow = faceId;
-            document.getElementById(`name-${faceId}`).style.display = 'none';
-            document.getElementById(`edit-${faceId}`).style.display = 'block';
-            document.getElementById(`edit-btn-${faceId}`).style.display = 'none';
-            document.getElementById(`save-btn-${faceId}`).style.display = 'inline-block';
-            document.getElementById(`cancel-btn-${faceId}`).style.display = 'inline-block';
+            const nameSpan = document.getElementById(`name-${faceId}`);
+            const editInput = document.getElementById(`edit-${faceId}`);
+            const editBtn = document.getElementById(`edit-btn-${faceId}`);
+            const saveBtn = document.getElementById(`save-btn-${faceId}`);
+            const cancelBtn = document.getElementById(`cancel-btn-${faceId}`);
             
-            // Focus the input
-            document.getElementById(`edit-${faceId}`).focus();
+            nameSpan.style.display = 'none';
+            nameSpan.classList.add('editing');
+            editInput.style.display = 'block';
+            editBtn.style.display = 'none';
+            saveBtn.style.display = 'inline-block';
+            cancelBtn.style.display = 'inline-block';
+            
+            // Focus and select all text for easy replacement
+            editInput.focus();
+            editInput.select();
+        }
+
+        function handleKeyPress(event, faceId) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                saveFaceTag(faceId);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelEdit(faceId);
+            }
         }
 
         function cancelEdit(faceId) {
-            document.getElementById(`name-${faceId}`).style.display = 'inline';
-            document.getElementById(`edit-${faceId}`).style.display = 'none';
-            document.getElementById(`edit-btn-${faceId}`).style.display = 'inline-block';
-            document.getElementById(`save-btn-${faceId}`).style.display = 'none';
-            document.getElementById(`cancel-btn-${faceId}`).style.display = 'none';
+            const nameSpan = document.getElementById(`name-${faceId}`);
+            const editInput = document.getElementById(`edit-${faceId}`);
+            const editBtn = document.getElementById(`edit-btn-${faceId}`);
+            const saveBtn = document.getElementById(`save-btn-${faceId}`);
+            const cancelBtn = document.getElementById(`cancel-btn-${faceId}`);
+            
+            // Reset input to original value
+            editInput.value = nameSpan.textContent;
+            
+            nameSpan.style.display = 'inline';
+            nameSpan.classList.remove('editing');
+            editInput.style.display = 'none';
+            editBtn.style.display = 'inline-block';
+            saveBtn.style.display = 'none';
+            cancelBtn.style.display = 'none';
             
             editingRow = null;
         }
 
         async function saveFaceTag(faceId) {
             const newName = document.getElementById(`edit-${faceId}`).value.trim();
+            const oldName = document.getElementById(`name-${faceId}`).textContent;
             
             if (!newName) {
                 showToast('Face name cannot be empty', 'error');
                 return;
             }
+            
+            // No change, just cancel
+            if (newName === oldName) {
+                cancelEdit(faceId);
+                return;
+            }
+            
+            // Disable buttons during save
+            const saveBtn = document.getElementById(`save-btn-${faceId}`);
+            const cancelBtn = document.getElementById(`cancel-btn-${faceId}`);
+            const originalSaveText = saveBtn.textContent;
+            saveBtn.disabled = true;
+            cancelBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
             
             try {
                 const response = await fetch(`/api/face_tags/${faceId}`, {
@@ -651,10 +731,14 @@
                 document.getElementById(`name-${faceId}`).className = 'face-name';
                 
                 cancelEdit(faceId);
-                showToast(`Updated: ${data.old_name} → ${data.new_name}`, 'success');
+                showToast(`✅ Updated: ${data.old_name} → ${data.new_name}`, 'success');
                 
             } catch (error) {
-                showToast('Error: ' + error.message, 'error');
+                showToast('❌ Error: ' + error.message, 'error');
+                // Re-enable buttons on error
+                saveBtn.disabled = false;
+                cancelBtn.disabled = false;
+                saveBtn.textContent = originalSaveText;
             }
         }
 

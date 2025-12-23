@@ -3,6 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- Version: 2025-12-23-face-edit-v2 -->
     <title>Data Guardian - Art of Possible</title>
     
     <!-- Bootstrap 5 -->
@@ -35,12 +39,27 @@
             box-sizing: border-box;
         }
         
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
         body {
             font-family: 'Inter', -apple-system, system-ui, sans-serif;
             background: var(--light-bg);
             color: var(--text-primary);
-            margin: 0;
-            padding: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Main Content Wrapper */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1rem 0;
         }
         
         /* Header */
@@ -618,6 +637,86 @@
             border-radius: 6px;
         }
         
+        /* Footer Styles - Compact & Elegant */
+        .app-footer {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #ffffff;
+            padding: 0.75rem 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            bottom: 0;
+            z-index: 1000;
+            flex-shrink: 0;
+            font-size: 0.85rem;
+        }
+        
+        .footer-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .footer-tech {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .footer-label {
+            font-weight: 600;
+            margin-right: 0.5rem;
+            opacity: 0.9;
+        }
+        
+        .tech-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        
+        .tech-badge:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-1px);
+        }
+        
+        .tech-badge i {
+            font-size: 0.9rem;
+        }
+        
+        .footer-credits {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            white-space: nowrap;
+        }
+        
+        .footer-link {
+            color: rgba(255,255,255,0.9);
+            text-decoration: none;
+            transition: color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        
+        .footer-link:hover {
+            color: #ffffff;
+        }
+        
+        .footer-divider {
+            color: rgba(255,255,255,0.4);
+        }
+        
         /* Responsive */
         @media (max-width: 768px) {
             .album-grid, .results-grid {
@@ -627,6 +726,62 @@
             #map {
                 height: 300px;
             }
+            
+            .app-footer {
+                padding: 1rem 0;
+                font-size: 0.8rem;
+            }
+            
+            .footer-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+            
+            .footer-tech {
+                width: 100%;
+            }
+            
+            .tech-badge {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.5rem;
+            }
+        }
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .album-grid, .results-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            #map {
+                height: 300px;
+            }
+            
+            .app-footer {
+                padding: 2rem 0 1rem 0;
+            }
+        }
+
+        /* Progressive Image Loading */
+        .placeholder-image {
+            transition: opacity 0.3s ease-out;
+        }
+
+        .main-image {
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+        }
+
+        .main-image.loaded {
+            opacity: 1;
+        }
+
+        .main-image.loaded + .placeholder-image {
+            opacity: 0;
         }
     </style>
 </head>
@@ -639,18 +794,9 @@
                     <h1 class="app-title">
                         <i class="bi bi-shield-check me-2"></i>Data Guardian - Art of Possible
                     </h1>
-                    <p class="app-subtitle">AI-Powered Media Search & Management</p>
+                    <p class="app-subtitle mb-0">AI-Powered Media Search & Management</p>
                 </div>
                 <div class="d-flex align-items-center gap-3">
-                    <span class="badge bg-primary">
-                        <i class="bi bi-database me-1"></i>Oracle Vector DB
-                    </span>
-                    <span class="badge bg-success">
-                        <i class="bi bi-cpu me-1"></i>TwelveLabs AI
-                    </span>
-                    <span class="badge bg-info">
-                        <i class="bi bi-robot me-1"></i>OpenAI GPT
-                    </span>
                     {% if user %}
                     <div class="dropdown">
                         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
@@ -708,8 +854,10 @@
         </div>
     </header>
 
-    <!-- Main Content -->
-    <div class="container my-4">
+    <!-- Main Content Wrapper -->
+    <div class="main-content">
+        <!-- Main Content -->
+        <div class="container my-4">
         <!-- Search Bar -->
         <div class="search-container">
             <div class="row g-3">
@@ -1716,22 +1864,22 @@
                 if (!thumbElement) return;
                 
                 if (fileType === 'photo') {
-                    // Display image thumbnail
-                    const response = await fetch(`/get_media_url/${mediaId}`);
-                    if (!response.ok) throw new Error('Failed to get media URL');
-                    
-                    const data = await response.json();
+                    // Use optimized thumbnail endpoint instead of full image
+                    const thumbnailUrl = `/media_thumbnail/${mediaId}`;
                     
                     thumbElement.innerHTML = `
-                        <img src="${data.par_url}" 
-                             alt="${data.file_name}" 
+                        <img src="${thumbnailUrl}" 
+                             alt="Photo thumbnail" 
                              style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer;"
+                             loading="lazy"
                              onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\\'bi bi-image-fill text-danger\\' style=\\'font-size: 3rem;\\' title=\\'Image failed to load\\'></i>';">
                     `;
                     
                     // Add click handler to show full image
-                    thumbElement.querySelector('img').addEventListener('click', function() {
-                        showImageModal(data.par_url, data.file_name);
+                    thumbElement.querySelector('img').addEventListener('click', async function() {
+                        const response = await fetch(`/get_media_url/${mediaId}`);
+                        const data = await response.json();
+                        showImageModal(mediaId, data.file_name);
                     });
                 } else if (fileType === 'video') {
                     // For video segments, use thumbnail endpoint
@@ -1742,6 +1890,7 @@
                         <img src="${thumbnailUrl}" 
                              alt="Video thumbnail at ${formatTime(timestamp)}" 
                              style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer;"
+                             loading="lazy"
                              onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\\'bi bi-camera-video-fill text-warning\\' style=\\'font-size: 3rem; opacity: 0.5;\\' title=\\'Thumbnail generation failed\\'></i>';">
                     `;
                     
@@ -1827,15 +1976,17 @@
         }
         
         // Show full image in modal
-        function showImageModal(imageUrl, fileName) {
+        function showImageModal(mediaId, fileName) {
             const modal = new bootstrap.Modal(document.getElementById('imageModal'));
             const modalImage = document.getElementById('modalImage');
             const modalLabel = document.getElementById('imageModalLabel');
-            
-            modalImage.src = imageUrl;
+
+            // Use cached modal-sized image for faster loading
+            const modalImageUrl = `/media_modal/${mediaId}`;
+            modalImage.src = modalImageUrl;
             modalImage.alt = fileName;
             modalLabel.textContent = fileName;
-            
+
             modal.show();
         }
 
@@ -2965,31 +3116,29 @@
                 box.style.top = scaledY + 'px';
                 box.style.width = scaledWidth + 'px';
                 box.style.height = scaledHeight + 'px';
-                box.style.border = `2px solid ${borderColor}`;
-                box.style.boxShadow = `0 0 8px ${shadowColor}`;
-                box.style.borderRadius = '3px';
+                box.style.border = `3px solid ${borderColor}`;
+                box.style.boxShadow = `0 0 10px ${shadowColor}`;
+                box.style.borderRadius = '4px';
                 
                 // Create label with face number or matched name
                 const label = document.createElement('div');
                 label.style.position = 'absolute';
+                label.style.top = '-28px';
                 label.style.left = '0';
-                label.style.bottom = `calc(100% + 2px)`; // place above the box
-                label.style.background = isMatched ? 'rgba(25, 135, 84, 0.5)' : 'rgba(13, 110, 253, 0.5)';
+                label.style.background = borderColor;
                 label.style.color = 'white';
-                label.style.padding = '1px 6px';
-                label.style.borderRadius = '2px';
-                label.style.fontWeight = '500';
-                label.style.fontSize = '10px';
-                label.style.boxShadow = '0 1px 2px rgba(0,0,0,0.15)';
-                label.style.backdropFilter = 'blur(2px)';
-                label.style.pointerEvents = 'none';
-
+                label.style.padding = '4px 10px';
+                label.style.borderRadius = '4px';
+                label.style.fontWeight = 'bold';
+                label.style.fontSize = '14px';
+                label.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+                
                 if (isMatched) {
-                    label.textContent = face.matched_tag.face_name;
+                    label.innerHTML = `<i class="bi bi-check-circle me-1"></i>${face.matched_tag.face_name}`;
                 } else {
                     label.textContent = `Face ${index + 1}`;
                 }
-
+                
                 box.appendChild(label);
                 overlay.appendChild(box);
             });
@@ -3044,7 +3193,7 @@
                 const list = document.getElementById('taggedFacesList');
                 const countEl = document.getElementById('taggedFaceCount');
                 
-                const faces = data.faces || [];
+                const faces = data.face_tags || data.faces || [];
                 countEl.textContent = faces.length;
                 
                 if (faces.length === 0) {
@@ -3052,27 +3201,74 @@
                     return;
                 }
                 
-                list.innerHTML = faces.map(face => `
-                    <div class="card mb-2">
+                list.innerHTML = faces.map(face => {
+                    const faceId = face.tag_id || face.id;
+                    const faceName = face.name || face.face_name;
+                    const autoTagged = face.auto_tagged !== undefined ? face.auto_tagged : false;
+                    const confidence = face.confidence || 0;
+                    const taggedBy = face.tagged_by || 'Unknown';
+                    
+                    return `
+                    <div class="card mb-2" id="face-card-${faceId}">
                         <div class="card-body p-2">
                             <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong><i class="bi bi-person-fill me-1"></i>${face.name}</strong>
-                                    <div class="small text-muted">
-                                        ${face.auto_tagged ? 
-                                            `<span class="badge bg-info">Auto</span> ${Math.round(face.confidence * 100)}%` : 
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-person-fill"></i>
+                                        <span id="face-name-${faceId}" 
+                                              class="face-name-display" 
+                                              ondblclick="editFaceTagInline(${faceId}, '${faceName.replace(/'/g, "\\'")}')"
+                                              title="Double-click to edit"
+                                              style="cursor: pointer; padding: 2px 8px; border-radius: 4px; transition: background-color 0.2s;"
+                                              onmouseover="this.style.backgroundColor='#f0f0f0'"
+                                              onmouseout="this.style.backgroundColor='transparent'">
+                                            <strong>${faceName}</strong>
+                                        </span>
+                                        <input type="text" 
+                                               id="face-edit-${faceId}" 
+                                               class="form-control form-control-sm" 
+                                               value="${faceName.replace(/"/g, '&quot;')}" 
+                                               style="display: none; max-width: 200px;"
+                                               onkeydown="handleFaceEditKeyPress(event, ${faceId})">
+                                    </div>
+                                    <div class="small text-muted mt-1">
+                                        ${autoTagged ? 
+                                            `<span class="badge bg-info">Auto</span> ${Math.round(confidence * 100)}%` : 
                                             '<span class="badge bg-success">Manual</span>'}
-                                        · Tagged by ${face.tagged_by}
+                                        · Tagged by ${taggedBy}
                                     </div>
                                 </div>
-                                <button class="btn btn-sm btn-outline-danger" 
-                                        onclick="deleteFaceTag(${face.tag_id})">
-                                    <i class="bi bi-trash"></i>
-                                </button>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button class="btn btn-outline-primary" 
+                                            id="face-edit-btn-${faceId}"
+                                            onclick="editFaceTagInline(${faceId}, '${faceName.replace(/'/g, "\\'")}')"
+                                            title="Edit name">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-success" 
+                                            id="face-save-btn-${faceId}"
+                                            onclick="saveFaceTagInline(${faceId})"
+                                            style="display: none;"
+                                            title="Save">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" 
+                                            id="face-cancel-btn-${faceId}"
+                                            onclick="cancelFaceEditInline(${faceId}, '${faceName.replace(/'/g, "\\'")}')"
+                                            style="display: none;"
+                                            title="Cancel">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" 
+                                            onclick="deleteFaceTag(${faceId})"
+                                            title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
             } catch (error) {
                 console.error('Error loading tagged faces:', error);
             }
@@ -3114,6 +3310,135 @@
             } catch (error) {
                 console.error('Error deleting face tag:', error);
                 showStatus(`Error: ${error.message}`, 'danger');
+            }
+        }
+
+        // Face tag inline editing functions
+        let currentEditingFaceId = null;
+
+        function editFaceTagInline(faceId, currentName) {
+            // Cancel any existing edit
+            if (currentEditingFaceId && currentEditingFaceId !== faceId) {
+                cancelFaceEditInline(currentEditingFaceId, currentName);
+            }
+
+            currentEditingFaceId = faceId;
+            
+            // Hide display, show input
+            const nameDisplay = document.getElementById(`face-name-${faceId}`);
+            const editInput = document.getElementById(`face-edit-${faceId}`);
+            const editBtn = document.getElementById(`face-edit-btn-${faceId}`);
+            const saveBtn = document.getElementById(`face-save-btn-${faceId}`);
+            const cancelBtn = document.getElementById(`face-cancel-btn-${faceId}`);
+            
+            if (nameDisplay) nameDisplay.style.display = 'none';
+            if (editInput) {
+                editInput.style.display = 'inline-block';
+                editInput.focus();
+                editInput.select();
+            }
+            if (editBtn) editBtn.style.display = 'none';
+            if (saveBtn) saveBtn.style.display = 'inline-block';
+            if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        }
+
+        function cancelFaceEditInline(faceId, originalName) {
+            const nameDisplay = document.getElementById(`face-name-${faceId}`);
+            const editInput = document.getElementById(`face-edit-${faceId}`);
+            const editBtn = document.getElementById(`face-edit-btn-${faceId}`);
+            const saveBtn = document.getElementById(`face-save-btn-${faceId}`);
+            const cancelBtn = document.getElementById(`face-cancel-btn-${faceId}`);
+            
+            // Reset to original value
+            if (editInput) editInput.value = originalName;
+            
+            // Show display, hide input
+            if (nameDisplay) nameDisplay.style.display = 'inline-block';
+            if (editInput) editInput.style.display = 'none';
+            if (editBtn) editBtn.style.display = 'inline-block';
+            if (saveBtn) saveBtn.style.display = 'none';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            
+            currentEditingFaceId = null;
+        }
+
+        async function saveFaceTagInline(faceId) {
+            const editInput = document.getElementById(`face-edit-${faceId}`);
+            const newName = editInput ? editInput.value.trim() : '';
+            const nameDisplay = document.getElementById(`face-name-${faceId}`);
+            const oldName = nameDisplay ? nameDisplay.textContent.trim() : '';
+            
+            if (!newName) {
+                showStatus('Face name cannot be empty', 'danger');
+                return;
+            }
+            
+            // No change
+            if (newName === oldName) {
+                cancelFaceEditInline(faceId, oldName);
+                return;
+            }
+            
+            // Disable buttons during save
+            const saveBtn = document.getElementById(`face-save-btn-${faceId}`);
+            const cancelBtn = document.getElementById(`face-cancel-btn-${faceId}`);
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+            }
+            if (cancelBtn) cancelBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`/api/face_tags/${faceId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ face_name: newName })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to update face tag');
+                }
+                
+                // Update display
+                if (nameDisplay) {
+                    nameDisplay.innerHTML = `<strong>${newName}</strong>`;
+                    // Update the ondblclick and onclick attributes with new name
+                    nameDisplay.setAttribute('ondblclick', `editFaceTagInline(${faceId}, '${newName.replace(/'/g, "\\'")}')`);
+                }
+                
+                // Update cancel button
+                const cancelButton = document.getElementById(`face-cancel-btn-${faceId}`);
+                if (cancelButton) {
+                    cancelButton.setAttribute('onclick', `cancelFaceEditInline(${faceId}, '${newName.replace(/'/g, "\\'")}')`);
+                }
+                
+                cancelFaceEditInline(faceId, newName);
+                showStatus(`✅ Updated: ${data.old_name} → ${data.new_name}`, 'success');
+                
+            } catch (error) {
+                showStatus(`❌ Error: ${error.message}`, 'danger');
+                // Re-enable buttons on error
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
+                }
+                if (cancelBtn) cancelBtn.disabled = false;
+            }
+        }
+
+        function handleFaceEditKeyPress(event, faceId) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                saveFaceTagInline(faceId);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                const nameDisplay = document.getElementById(`face-name-${faceId}`);
+                const originalName = nameDisplay ? nameDisplay.textContent.trim() : '';
+                cancelFaceEditInline(faceId, originalName);
             }
         }
 
@@ -4313,12 +4638,16 @@
                 const bestMatch = photo.matched_faces && photo.matched_faces[0] ? photo.matched_faces[0] : {confidence: 0};
                 const confidence = Math.round(bestMatch.confidence * 100);
                 
-                const imageUrl = photo.thumbnail_url || photo.stream_url || '/static/placeholder.jpg';
+                // Use optimized thumbnail endpoint
+                const imageUrl = `/media_thumbnail/${photo.media_id}`;
                 const streamUrl = photo.stream_url || '#';
                 
                 col.innerHTML = `
                     <div class="card h-100 shadow-sm hover-lift" style="cursor: pointer;" onclick="window.open('${streamUrl}', '_blank')">
-                        <img src="${imageUrl}" class="card-img-top" alt="${photo.file_name || 'Photo'}" style="height: 200px; object-fit: cover;" onerror="this.src='/static/placeholder.jpg'">
+                        <div class="position-relative">
+                            <img src="/static/placeholder.jpg" class="card-img-top placeholder-image" alt="Loading..." style="height: 200px; object-fit: cover; filter: blur(2px);">
+                            <img src="${imageUrl}" class="card-img-top main-image" alt="${photo.file_name || 'Photo'}" style="height: 200px; object-fit: cover; position: absolute; top: 0; left: 0;" loading="lazy" onerror="this.parentElement.innerHTML='<i class=\\'bi bi-image-fill text-danger\\' style=\\'font-size: 3rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);\\' title=\\'Image failed to load\\'></i>';">
+                        </div>
                         <div class="card-body">
                             <h6 class="card-title text-truncate">${photo.file_name}</h6>
                             <div class="mb-2">
@@ -4339,6 +4668,63 @@
 
             resultsContainer.appendChild(grid);
         }
+
+        // Progressive Image Loading Enhancement
+        function setupProgressiveLoading() {
+            const mainImages = document.querySelectorAll('.main-image');
+            mainImages.forEach(img => {
+                if (img.complete) {
+                    img.classList.add('loaded');
+                } else {
+                    img.addEventListener('load', function() {
+                        this.classList.add('loaded');
+                    });
+                }
+            });
+        }
+
+        // Setup progressive loading when new images are added
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                    setupProgressiveLoading();
+                }
+            });
+        });
+
+        // Observe changes to the results container
+        const resultsContainer = document.getElementById('searchResults');
+        if (resultsContainer) {
+            observer.observe(resultsContainer, { childList: true, subtree: true });
+        }
+
+        // Initial setup
+        setupProgressiveLoading();
     </script>
+    </div>
+    <!-- End Main Content Wrapper -->
+
+    <!-- Professional Footer - Compact -->
+    <footer class="app-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-tech">
+                    <span class="footer-label">Powered by:</span>
+                    <span class="tech-badge" title="Oracle 26ai Vector Database"><i class="bi bi-server"></i> Oracle 26ai</span>
+                    <span class="tech-badge" title="TwelveLabs Marengo-2.6"><i class="bi bi-camera-video"></i> TwelveLabs</span>
+                    <span class="tech-badge" title="Meta ImageBind"><i class="bi bi-link-45deg"></i> ImageBind</span>
+                    <span class="tech-badge" title="DeepFace"><i class="bi bi-person-badge"></i> DeepFace</span>
+                    <span class="tech-badge" title="OpenAI GPT-4o-mini"><i class="bi bi-stars"></i> GPT-4o-mini</span>
+                </div>
+                <div class="footer-credits">
+                    <span><i class="bi bi-c-circle"></i> 2025 Deepak Mishra</span>
+                    <span class="footer-divider">|</span>
+                    <a href="https://github.com/deepamis/TwelvelabsVideoAI" target="_blank" rel="noopener noreferrer" class="footer-link">
+                        <i class="bi bi-github"></i> Source
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
 </body>
 </html>

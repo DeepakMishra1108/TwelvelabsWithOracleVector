@@ -108,7 +108,13 @@ def search_photos_by_selfie(
         for name, dist in sample_distances:
             logger.info(f"   {name}: distance={dist:.4f} (threshold={similarity_threshold})")
         
+        # Check if any face tags exist at all
+        cursor.execute("SELECT COUNT(*) FROM face_tags")
+        total_face_tags = cursor.fetchone()[0]
+        logger.info(f"📊 Total face tags in database: {total_face_tags}")
+        
         # Now do the actual search
+        logger.info(f"🔍 Executing vector search query with threshold {similarity_threshold}...")
         cursor.execute("""
             SELECT 
                 ft.id as face_tag_id,
@@ -134,6 +140,13 @@ def search_photos_by_selfie(
         })
         
         matches = cursor.fetchall()
+        
+        logger.info(f"📊 Query returned {len(matches)} matching faces")
+        
+        if len(matches) == 0:
+            logger.warning(f"⚠️ NO MATCHES FOUND with threshold {similarity_threshold}")
+            logger.warning(f"⚠️ Review the distances logged above - they should be < {similarity_threshold}")
+            logger.warning(f"⚠️ If all distances are ~0.97, embeddings need regeneration")
         
         logger.info(f"✅ Found {len(matches)} matching face tags (threshold < {similarity_threshold})")
         

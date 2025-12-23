@@ -50,41 +50,64 @@ def extract_rich_metadata(image_path: str, api_key: Optional[str] = None) -> Dic
         
         client = openai.OpenAI(api_key=api_key)
         
-        # Create detailed prompt for metadata extraction
+        # Create detailed prompt for metadata extraction with cultural awareness
         prompt = f"""Analyze this image and extract structured metadata in JSON format.
 
 Identify and return ONLY the categories that are clearly visible or evident in the image:
 
-**Background/Setting**: Where was this photo taken? (e.g., beach, indoor, outdoor, mountains, forest, city, park, garden, room, street, water)
+**Cultural Context & Event Type**: Identify the cultural context and specific event type:
+- Indian events: Look for traditional attire (lehenga, sherwani, saree, veshti), decorations (marigold, rangoli, diyas, mandap), rituals (mehndi, saptapadi, baraat), sweets (ladoo, barfi, jalebi)
+- Australian events: Look for casual outdoor settings (beach weddings, BBQ/barbie), eucalyptus decor, rustic wineries, pavlova, fairy bread, casual summer attire
+- American events: Look for milestone celebrations (graduation caps/gowns, prom attire), holiday themes (4th of July flags, Thanksgiving turkey), white wedding dresses, solo cups
+- Other cultural contexts: Identify specific traditional elements, clothing, decorations, or rituals
 
-**Objects**: What objects are visible? (e.g., car, dog, cat, flowers, food, cake, phone, camera, furniture, building, tree)
+**Background/Setting**: Where was this photo taken? (e.g., beach, indoor, outdoor, mountains, forest, city, park, garden, wedding mandap, rustic winery, backyard BBQ, banquet hall)
 
-**Activities**: What are people doing? (e.g., swimming, eating, drinking, playing, running, walking, sitting, dancing, cooking)
+**Objects & Cultural Artifacts**: What objects and cultural items are visible? 
+- Traditional: rangoli, diyas, marigold garlands, jasmine flowers, brass lamps, turbans
+- Food: cultural dishes, wedding cakes, traditional sweets, specific cuisines
+- Decor: fairy lights, silk drapes, eucalyptus, flags, balloons
+- Other: furniture, vehicles, instruments
 
-**Clothing/Appearance**: What are people wearing? Describe style and colors (e.g., red dress, suit, casual, formal, traditional)
+**Activities & Rituals**: What are people doing? Include cultural rituals:
+- General: swimming, eating, drinking, playing, dancing, celebrating
+- Cultural: mehndi ceremony, saptapadi (seven steps), baraat procession, cricket playing, turkey carving, graduation ceremony
 
-**Theme/Event**: What type of event or occasion? (e.g., birthday, party, wedding, vacation, holiday, celebration, festival, graduation)
+**Clothing/Appearance**: Describe attire with cultural specificity and colors:
+- Indian: red/gold lehenga with zari work, sherwani, colorful turban, silk saree with gold border, traditional jewelry
+- Western: white wedding dress with lace veil, linen suit, tuxedo, prom gown, graduation cap and gown
+- Casual: summer dress, beach attire, BBQ casual wear
+- Include colors, patterns, and cultural significance
 
-**People**: How many people? (e.g., group, couple, family, children, adults, friends, alone, crowd)
+**Theme/Event**: Identify the specific cultural event or occasion:
+- Indian: North Indian wedding, South Indian wedding, Diwali celebration, Holi festival, Mehndi ceremony
+- Western: Beach wedding, Backyard BBQ party, High school graduation, Prom, 4th of July party, Thanksgiving dinner
+- Universal: birthday, anniversary, vacation, family gathering
 
-**Mood/Atmosphere**: What's the emotional tone? (e.g., happy, joyful, serious, casual, formal, relaxed, energetic)
+**People**: How many people and their relationships? (e.g., bride and groom, family group, children, wedding party, graduation class, friends at BBQ)
 
-**Time of Day**: When was this taken? (e.g., morning, afternoon, evening, night, sunset, sunrise)
+**Mood/Atmosphere**: What's the emotional tone? (e.g., festive, joyful, formal ceremony, casual celebration, intimate gathering, energetic party)
+
+**Time of Day**: When was this taken? (e.g., morning, afternoon, evening, night, sunset, golden hour)
 
 Return a JSON object with these fields (omit fields if not applicable):
 {{
+    "cultural_context": "Indian/Australian/American/Other",
+    "event_type": "specific event name",
     "background": ["value1", "value2"],
     "objects": ["value1", "value2"],
+    "cultural_artifacts": ["value1", "value2"],
     "activities": ["value1", "value2"],
+    "rituals": ["value1", "value2"],
     "clothing": ["value1", "value2"],
     "themes": ["value1", "value2"],
     "people": ["value1", "value2"],
     "mood": ["value1", "value2"],
     "time": ["value1", "value2"],
-    "description": "A brief 1-2 sentence natural description of the scene"
+    "description": "A brief 1-2 sentence natural description emphasizing cultural context and event type"
 }}
 
-Be specific and descriptive. Include colors, styles, and details."""
+Be specific about cultural markers: traditional clothing details, ritual objects, color symbolism, architectural elements, food items, and ceremonial activities."""
 
         logger.info("🔍 Calling GPT-4 Vision for rich metadata extraction...")
         
@@ -120,11 +143,15 @@ Be specific and descriptive. Include colors, styles, and details."""
         
         metadata = json.loads(content)
         
-        # Validate and clean metadata
+        # Validate and clean metadata with cultural context
         validated_metadata = {
+            "cultural_context": metadata.get("cultural_context", ""),
+            "event_type": metadata.get("event_type", ""),
             "background": metadata.get("background", []),
             "objects": metadata.get("objects", []),
+            "cultural_artifacts": metadata.get("cultural_artifacts", []),
             "activities": metadata.get("activities", []),
+            "rituals": metadata.get("rituals", []),
             "clothing": metadata.get("clothing", []),
             "themes": metadata.get("themes", []),
             "people": metadata.get("people", []),
@@ -135,11 +162,15 @@ Be specific and descriptive. Include colors, styles, and details."""
             "extraction_success": True
         }
         
-        # Create searchable text from all metadata
+        # Create searchable text from all metadata including cultural context
         searchable_text = " ".join([
+            validated_metadata.get("cultural_context", ""),
+            validated_metadata.get("event_type", ""),
             " ".join(validated_metadata.get("background", [])),
             " ".join(validated_metadata.get("objects", [])),
+            " ".join(validated_metadata.get("cultural_artifacts", [])),
             " ".join(validated_metadata.get("activities", [])),
+            " ".join(validated_metadata.get("rituals", [])),
             " ".join(validated_metadata.get("clothing", [])),
             " ".join(validated_metadata.get("themes", [])),
             " ".join(validated_metadata.get("people", [])),
@@ -196,8 +227,9 @@ def search_by_metadata(
     try:
         cursor = connection.cursor()
         
-        # Build SQL query with text search on rich_metadata CLOB
-        query_params = {'query': f'%{query.lower()}%', 'limit': limit}
+        # Build SQL query with JSON text search on rich_metadata
+        # Uses JSON_TEXTCONTAINS for native JSON type or falls back to DBMS_LOB for CLOB
+        query_params = {'search_text': query.lower(), 'limit': limit}
         
         user_filter = ""
         if user_id:
@@ -216,8 +248,8 @@ def search_by_metadata(
             FROM album_media am
             WHERE am.rich_metadata IS NOT NULL
             AND (
-                LOWER(am.rich_metadata) LIKE :query
-                OR DBMS_LOB.INSTR(LOWER(am.rich_metadata), :query) > 0
+                JSON_TEXTCONTAINS(am.rich_metadata, '$', :search_text)
+                OR DBMS_LOB.INSTR(LOWER(am.rich_metadata), LOWER(:search_text), 1, 1) > 0
             )
             {user_filter}
             ORDER BY am.created_at DESC

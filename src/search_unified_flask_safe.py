@@ -206,23 +206,77 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
             distance = row[6]
             similarity = 1.0 - distance
             
-            if similarity >= min_similarity:
-                # AI_TAGS is already converted from CLOB to string by flask_safe_execute_query
-                ai_tags = row[9] if len(row) > 9 else None
-                
-                all_results.append({
-                    'media_id': row[0],
-                    'album_name': row[1],
-                    'file_name': row[2],
-                    'file_path': row[3],
-                    'file_type': 'photo',
-                    'created_at': row[5],
-                    'similarity': similarity,
-                    'score': similarity,
-                    'segment_start': None,
-                    'segment_end': None,
-                    'ai_tags': None
-                })
+            # Apply minimum similarity threshold
+            if similarity < min_similarity:
+                continue
+            
+            media_id = row[0]
+            file_name = row[2]
+            
+            # Extract key concepts from query for verification
+            query_lower = query_text.lower()
+            query_words = set(w.strip().lower() for w in query_text.split() if len(w.strip()) > 2)
+            
+            # Get rich_metadata to verify semantic match
+            boost = 1.0
+            verification_passed = True
+            
+            try:
+                # Fetch rich_metadata for this photo to verify concepts
+                with get_flask_safe_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT rich_metadata
+                        FROM album_media
+                        WHERE id = :media_id
+                    """, {"media_id": media_id})
+                    
+                    metadata_row = cursor.fetchone()
+                    if metadata_row and metadata_row[0]:
+                        # Parse metadata
+                        import json as json_module
+                        try:
+                            metadata = json_module.loads(metadata_row[0]) if isinstance(metadata_row[0], str) else metadata_row[0]
+                        except:
+                            metadata = {}
+                        
+                        # Check if key query concepts exist in metadata
+                        metadata_str = json_module.dumps(metadata).lower()
+                        
+                        # Count how many query words appear in metadata
+                        matches = sum(1 for word in query_words if word in metadata_str)
+                        match_ratio = matches / len(query_words) if query_words else 0
+                        
+                        # Boost score if metadata confirms the query concepts
+                        if match_ratio >= 0.5:  # At least half the query words match
+                            boost = 1.2
+                            logger.debug(f"  ✓ {file_name}: {matches}/{len(query_words)} query words found in metadata")
+                        elif match_ratio < 0.3 and similarity < 0.6:  # Low match and low similarity
+                            # Skip results with poor semantic match
+                            verification_passed = False
+                            logger.debug(f"  ✗ {file_name}: Only {matches}/{len(query_words)} query words found, skipping")
+            except Exception as e:
+                logger.debug(f"  Metadata check skipped for {file_name}: {e}")
+            
+            if not verification_passed:
+                continue
+            
+            # AI_TAGS is already converted from CLOB to string by flask_safe_execute_query
+            ai_tags = row[9] if len(row) > 9 else None
+            
+            all_results.append({
+                'media_id': media_id,
+                'album_name': row[1],
+                'file_name': file_name,
+                'file_path': row[3],
+                'file_type': 'photo',
+                'created_at': row[5],
+                'similarity': similarity * boost,
+                'score': similarity * boost,
+                'segment_start': None,
+                'segment_end': None,
+                'ai_tags': None
+            })
         
         logger.info(f"✅ Found {len([r for r in all_results if r['file_type']=='photo'])} photos")
         
@@ -316,38 +370,35 @@ def search_unified_flask_safe(query_text: str, user_id: int = None, album_name: 
         logger.info("🏷️  Searching rich metadata...")
         
         try:
-            # Search across multiple JSON fields in rich_metadata
-            metadata_search_sql = """
-            SELECT DISTINCT
-                id as media_id,
-                album_name,
-                file_name,
-                file_path,
-                'photo' as file_type,
-                created_at,
-                rich_metadata
-            FROM album_media
-            WHERE file_type = 'photo'
-            AND rich_metadata IS NOT NULL
-            AND (
-                JSON_EXISTS(rich_metadata, '$?(@.tags.type() == "array")')
-                AND JSON_EXISTS(rich_metadata, '$.tags[*]?(@ like_regex $pattern flag "i")')
-            )
-            """
-            
-            if user_id:
-                metadata_search_sql += " AND user_id = :user_id"
-            
-            if album_name:
-                metadata_search_sql += " AND album_name = :album_name"
-            
-            metadata_search_sql += " FETCH FIRST 30 ROWS ONLY"
-            
-            # Search for query words in metadata
+            # Search for query words in metadata using native JSON functions
             metadata_results = []
             for word in words:
                 if len(word) > 3:  # Only search meaningful words
-                    metadata_params = {'pattern': f".*{word}.*"}
+                    # Use JSON_TEXTCONTAINS for efficient JSON search (works with native JSON or CLOB with JSON constraint)
+                    metadata_search_sql = f"""
+                    SELECT 
+                        id as media_id,
+                        album_name,
+                        file_name,
+                        file_path,
+                        'photo' as file_type,
+                        created_at,
+                        rich_metadata
+                    FROM album_media
+                    WHERE file_type = 'photo'
+                    AND rich_metadata IS NOT NULL
+                    AND JSON_TEXTCONTAINS(rich_metadata, '$', :search_word)
+                    """
+                    
+                    if user_id:
+                        metadata_search_sql += " AND user_id = :user_id"
+                    
+                    if album_name:
+                        metadata_search_sql += " AND album_name = :album_name"
+                    
+                    metadata_search_sql += " FETCH FIRST 30 ROWS ONLY"
+                    
+                    metadata_params = {'search_word': word.lower()}
                     if user_id:
                         metadata_params['user_id'] = user_id
                     if album_name:
@@ -518,6 +569,7 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
         all_results = []
         
         # Search photos by filename and AI tags
+        # Note: AI_TAGS might be CLOB or JSON depending on schema
         photo_sql = """
         SELECT 
             id,
@@ -531,7 +583,9 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
         WHERE file_type = 'photo'
         AND (
             LOWER(file_name) LIKE :keyword
-            OR LOWER(AI_TAGS) LIKE :keyword
+            OR (AI_TAGS IS NOT NULL AND 
+                (JSON_TEXTCONTAINS(AI_TAGS, '$', :search_text) OR 
+                 DBMS_LOB.INSTR(LOWER(AI_TAGS), LOWER(:search_text), 1, 1) > 0))
         )
         """
         
@@ -542,10 +596,14 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
         
         photo_sql += " FETCH FIRST :top_k ROWS ONLY"
         
-        # Build OR conditions for multiple keywords
+        # Build search parameters
         keyword_pattern = f"%{query_text.lower()}%"
         
-        photo_params = {'keyword': keyword_pattern, 'top_k': top_k}
+        photo_params = {
+            'keyword': keyword_pattern, 
+            'search_text': query_text.lower(),
+            'top_k': top_k
+        }
         if user_id:
             photo_params['user_id'] = user_id
         if album_name:
@@ -587,24 +645,146 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
         
         logger.info(f"   📸 Found {len(all_results)} photos via metadata")
         
-        # Search videos by filename, AI tags, and video title
+        # Search photos by face tag names (person names)
+        # Detect if query contains multiple person names (using "and" or "&")
+        person_names = []
+        if ' and ' in query_text.lower():
+            person_names = [name.strip() for name in query_text.lower().split(' and ')]
+        elif ' & ' in query_text:
+            person_names = [name.strip() for name in query_text.split(' & ')]
+        else:
+            # Single name search
+            person_names = [query_text.lower()]
+        
+        # Remove common words that aren't names
+        person_names = [name for name in person_names if name not in ['smile', 'with', 'at', 'in', 'the', 'a', 'an']]
+        
+        if len(person_names) > 1:
+            # Multiple names: Find photos that have ALL these people (AND logic)
+            logger.info(f"   👥 Searching for photos with multiple people: {person_names}")
+            
+            # Build a query that finds media_ids with all specified face names
+            face_sql = f"""
+            SELECT 
+                am.id,
+                am.album_name,
+                am.file_name,
+                am.file_path,
+                'photo' as file_type,
+                am.created_at,
+                am.AI_TAGS
+            FROM album_media am
+            WHERE am.file_type = 'photo'
+            AND am.id IN (
+                SELECT media_id
+                FROM face_tags
+                WHERE LOWER(face_name) LIKE :name1
+            )
+            """
+            
+            # Add conditions for each additional name
+            for i in range(1, len(person_names)):
+                face_sql += f"""
+                AND am.id IN (
+                    SELECT media_id
+                    FROM face_tags
+                    WHERE LOWER(face_name) LIKE :name{i+1}
+                )
+                """
+            
+            if user_id:
+                face_sql += " AND am.user_id = :user_id"
+            if album_name:
+                face_sql += " AND am.album_name = :album_name"
+            
+            face_sql += " FETCH FIRST :top_k ROWS ONLY"
+            
+            # Build parameters for each name
+            face_params = {'top_k': top_k}
+            for i, name in enumerate(person_names, 1):
+                face_params[f'name{i}'] = f"%{name}%"
+            
+            if user_id:
+                face_params['user_id'] = user_id
+            if album_name:
+                face_params['album_name'] = album_name
+            
+        else:
+            # Single name: Standard search
+            face_sql = """
+            SELECT DISTINCT
+                am.id,
+                am.album_name,
+                am.file_name,
+                am.file_path,
+                'photo' as file_type,
+                am.created_at,
+                am.AI_TAGS
+            FROM album_media am
+            INNER JOIN face_tags ft ON am.id = ft.media_id
+            WHERE am.file_type = 'photo'
+            AND LOWER(ft.face_name) LIKE :keyword
+            """
+            
+            if user_id:
+                face_sql += " AND am.user_id = :user_id"
+            if album_name:
+                face_sql += " AND am.album_name = :album_name"
+            
+            face_sql += " FETCH FIRST :top_k ROWS ONLY"
+            
+            face_params = {'keyword': keyword_pattern, 'top_k': top_k}
+            if user_id:
+                face_params['user_id'] = user_id
+            if album_name:
+                face_params['album_name'] = album_name
+        
+        face_results = flask_safe_execute_query(face_sql, face_params)
+        
+        for row in face_results:
+            # Check if this media_id is already in results
+            if any(r['media_id'] == row[0] for r in all_results):
+                continue  # Skip duplicates
+            
+            ai_tags = row[6] if len(row) > 6 else None
+            
+            # Higher score for multi-person matches (more specific query)
+            score = 0.9 if len(person_names) > 1 else 0.8
+            
+            all_results.append({
+                'media_id': row[0],
+                'album_name': row[1],
+                'file_name': row[2],
+                'file_path': row[3],
+                'file_type': 'photo',
+                'created_at': row[5],
+                'similarity': score,
+                'score': score,
+                'segment_start': None,
+                'segment_end': None,
+                'ai_tags': ai_tags,
+                'match_type': 'face_tag_multi' if len(person_names) > 1 else 'face_tag'
+            })
+        
+        logger.info(f"   👤 Found {len([r for r in all_results if r.get('match_type') in ['face_tag', 'face_tag_multi']])} photos via face tags")
+        
+        # Search videos by filename and AI tags
         video_sql = """
-        SELECT DISTINCT
+        SELECT
             am.id,
             am.album_name,
             am.file_name,
             am.file_path,
             'video' as file_type,
             am.created_at,
-            am.AI_TAGS,
-            ve.video_title
+            am.AI_TAGS
         FROM album_media am
-        LEFT JOIN video_embeddings ve ON am.file_name = ve.video_file
         WHERE am.file_type = 'video'
         AND (
             LOWER(am.file_name) LIKE :keyword
-            OR LOWER(am.AI_TAGS) LIKE :keyword
-            OR LOWER(ve.video_title) LIKE :keyword
+            OR (am.AI_TAGS IS NOT NULL AND 
+                (JSON_TEXTCONTAINS(am.AI_TAGS, '$', :search_text) OR 
+                 DBMS_LOB.INSTR(LOWER(am.AI_TAGS), LOWER(:search_text), 1, 1) > 0))
         )
         """
         
@@ -615,7 +795,11 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
         
         video_sql += " FETCH FIRST :top_k ROWS ONLY"
         
-        video_params = {'keyword': keyword_pattern, 'top_k': top_k}
+        video_params = {
+            'keyword': f"%{query_text.lower()}%",
+            'search_text': query_text.lower(),
+            'top_k': top_k
+        }
         if user_id:
             video_params['user_id'] = user_id
         if album_name:
@@ -625,21 +809,17 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
         
         for row in video_results:
             ai_tags = row[6] if len(row) > 6 else None
-            video_title = row[7] if len(row) > 7 else None
             
             # Calculate relevance score
             file_name_lower = row[2].lower() if row[2] else ""
             tags_lower = (ai_tags or "").lower()
-            title_lower = (video_title or "").lower()
             
             score = 0.0
             for keyword in keywords:
                 if keyword in file_name_lower:
-                    score += 0.4
-                if keyword in title_lower:
-                    score += 0.4
+                    score += 0.5
                 if keyword in tags_lower:
-                    score += 0.2
+                    score += 0.5
             
             score = min(score, 1.0)
             
@@ -655,7 +835,6 @@ def search_by_metadata(query_text: str, user_id: int = None, album_name: str = N
                 'segment_start': None,
                 'segment_end': None,
                 'ai_tags': ai_tags,
-                'video_title': video_title,
                 'match_type': 'metadata'
             })
         

@@ -14,16 +14,20 @@ import datetime
 import queue
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-from flask import Flask, request, render_template, jsonify, Response, stream_with_context, redirect, url_for, session, flash, send_from_directory, send_file
+from flask import Flask, request, render_template, jsonify, Response, stream_with_context, redirect, url_for, session, flash, send_from_directory, send_file, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from dotenv import load_dotenv
 
-# Add twelvelabvideoai/src to path
+# Add twelvelabvideoai/src to path for utility imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Go up one level from src/ to project root, then into twelvelabvideoai/src
 project_root = os.path.dirname(current_dir)
+
+# Import Python modules from twelvelabvideoai/src (for utilities like auth, RBAC, etc.)
 twelvelabs_src_dir = os.path.join(project_root, 'twelvelabvideoai', 'src')
 sys.path.insert(0, twelvelabs_src_dir)
+
+# Templates directory is local to this src folder
+TEMPLATES_DIR = os.path.join(current_dir, 'templates')
 
 # Load environment variables early
 try:
@@ -417,7 +421,7 @@ except Exception as e:
     OCI_CONFIG_AVAILABLE = False
 
 # Create Flask app - LOCALHOST ONLY CONFIGURATION
-TEMPLATES_DIR = os.path.join(twelvelabs_src_dir, 'templates')
+# Templates are in src/templates (same directory as this Flask app)
 app = Flask(__name__, template_folder=TEMPLATES_DIR)
 
 # LOCALHOST ONLY CONFIGURATION
@@ -702,6 +706,13 @@ def user_quotas():
 
 
 # ========== ADMIN USER MANAGEMENT ROUTES ==========
+
+@app.route('/admin/tools')
+@login_required
+@admin_required
+def admin_tools():
+    """Admin tools page for system maintenance"""
+    return render_template('admin_tools.html', user=current_user)
 
 @app.route('/admin/users')
 @login_required
@@ -2430,19 +2441,38 @@ def remove_face_from_group(face_id):
 @app.route('/face_tag_thumbnail/<int:face_tag_id>')
 @viewer_required
 def face_tag_thumbnail(face_tag_id):
-    """Get cropped face thumbnail from bounding box"""
+    """Get cropped face thumbnail from bounding box - with disk caching"""
+    import tempfile
+    import requests
+    from PIL import Image
+    import io
+    import hashlib
+    import os
+    
+    logger.info(f"🖼️ Generating face thumbnail for face_tag_id: {face_tag_id}")
+    
+    # Cache directory
+    cache_dir = os.path.join(tempfile.gettempdir(), 'face_thumbnails')
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f'face_{face_tag_id}.jpg')
+    
+    # Check if cached thumbnail exists and is recent (< 7 days old)
+    if os.path.exists(cache_file):
+        file_age = time.time() - os.path.getmtime(cache_file)
+        if file_age < 604800:  # 7 days in seconds
+            logger.info(f"✅ Returning cached thumbnail for face_tag_id: {face_tag_id}")
+            response = make_response(send_file(cache_file, mimetype='image/jpeg'))
+            response.headers['Cache-Control'] = 'public, max-age=604800'  # Cache for 7 days
+            return response
+    
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
-        from PIL import Image
-        import requests
-        from io import BytesIO
-        import json
         
-        # Get face tag info including media_id and bounding box
+        # Get face tag info including bounding box
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT ft.media_id, ft.bounding_box, am.file_path, am.file_type
+                SELECT ft.bounding_box, am.file_path, am.file_type
                 FROM face_tags ft
                 JOIN album_media am ON ft.media_id = am.id
                 WHERE ft.id = :face_tag_id
@@ -2450,76 +2480,69 @@ def face_tag_thumbnail(face_tag_id):
             row = cursor.fetchone()
         
         if not row:
+            logger.warning(f"⚠️ Face tag {face_tag_id} not found")
             return jsonify({'error': 'Face tag not found'}), 404
         
-        media_id, bounding_box, file_path, file_type = row
-        
-        logger.info(f"Face tag {face_tag_id}: media_id={media_id}, bbox={bounding_box}, type={type(bounding_box)}")
+        bounding_box, file_path, file_type = row
         
         if file_type != 'photo':
             return jsonify({'error': 'Not a photo'}), 400
         
-        # Get presigned URL for the photo using the existing function
-        photo_url = _get_par_url_for_oci(file_path)
+        if not bounding_box:
+            logger.warning(f"⚠️ No bounding box for face tag {face_tag_id}")
+            return jsonify({'error': 'No bounding box for this face tag'}), 400
         
+        # Get photo URL from OCI
+        photo_url = _get_par_url_for_oci(file_path)
         if not photo_url:
             return jsonify({'error': 'Could not generate photo URL'}), 500
         
-        # Download the image
-        response = requests.get(photo_url, timeout=10)
-        if response.status_code != 200:
-            return jsonify({'error': 'Could not download photo'}), 500
+        # Download the full image
+        response = requests.get(photo_url, timeout=30)
+        response.raise_for_status()
         
-        # Open image with PIL
-        img = Image.open(BytesIO(response.content))
+        # Open image
+        img = Image.open(io.BytesIO(response.content))
         
-        # If bounding box exists, crop to face
-        if bounding_box:
-            try:
-                logger.info(f"Parsing bounding box: {bounding_box}")
-                # Parse bounding box (TwelveLabs format: {"x": 100, "y": 200, "w": 150, "h": 150})
-                bbox = json.loads(bounding_box) if isinstance(bounding_box, str) else bounding_box
-                
-                logger.info(f"Parsed bbox: {bbox}")
-                
-                x = int(bbox.get('x', 0))
-                y = int(bbox.get('y', 0))
-                width = int(bbox.get('w', bbox.get('width', 100)))  # Try 'w' first, then 'width'
-                height = int(bbox.get('h', bbox.get('height', 100)))  # Try 'h' first, then 'height'
-                
-                logger.info(f"Coordinates: x={x}, y={y}, w={width}, h={height}, img_size={img.width}x{img.height}")
-                
-                # Add padding around face (20% on each side)
-                padding = int(max(width, height) * 0.2)
-                x1 = max(0, x - padding)
-                y1 = max(0, y - padding)
-                x2 = min(img.width, x + width + padding)
-                y2 = min(img.height, y + height + padding)
-                
-                logger.info(f"Crop box: ({x1}, {y1}, {x2}, {y2})")
-                
-                # Crop to face region
-                img = img.crop((x1, y1, x2, y2))
-            except Exception as crop_error:
-                logger.warning(f"Could not crop face: {crop_error}")
-                # Continue with full image if crop fails
+        # Parse bounding box JSON
+        import json
+        bbox = json.loads(bounding_box) if isinstance(bounding_box, str) else bounding_box
         
-        # Resize to thumbnail size (keep aspect ratio)
-        img.thumbnail((150, 150), Image.Resampling.LANCZOS)
+        # Extract coordinates (handle both formats)
+        if 'x' in bbox and 'w' in bbox:
+            x, y, w, h = bbox['x'], bbox['y'], bbox['w'], bbox['h']
+        elif 'facial_area' in bbox:
+            fa = bbox['facial_area']
+            x, y, w, h = fa['x'], fa['y'], fa['w'], fa['h']
+        else:
+            return jsonify({'error': 'Invalid bounding box format'}), 400
         
-        # Convert to RGB if needed
-        if img.mode in ('RGBA', 'P'):
-            img = img.convert('RGB')
+        # Add padding (10% on each side)
+        padding = int(max(w, h) * 0.1)
+        x1 = max(0, x - padding)
+        y1 = max(0, y - padding)
+        x2 = min(img.width, x + w + padding)
+        y2 = min(img.height, y + h + padding)
         
-        # Save to bytes
-        img_io = BytesIO()
-        img.save(img_io, 'JPEG', quality=85)
-        img_io.seek(0)
+        # Crop the face
+        face_img = img.crop((x1, y1, x2, y2))
         
-        return send_file(img_io, mimetype='image/jpeg', as_attachment=False)
+        # Resize to smaller thumbnail (100x100 for faster loading)
+        face_img.thumbnail((100, 100), Image.Resampling.LANCZOS)
+        
+        # Save to cache and return
+        face_img.convert('RGB').save(cache_file, 'JPEG', quality=75, optimize=True)
+        
+        logger.info(f"✅ Generated and cached {face_img.width}x{face_img.height} thumbnail for face_tag_id: {face_tag_id}")
+        
+        response = make_response(send_file(cache_file, mimetype='image/jpeg'))
+        response.headers['Cache-Control'] = 'public, max-age=604800'  # Cache for 7 days
+        return response
         
     except Exception as e:
         logger.error(f"❌ Error getting face tag thumbnail: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @app.route('/face_tags_manager')
@@ -2535,40 +2558,195 @@ def camera_face_search_page():
     return render_template('camera_face_search.html')
 
 @app.route('/media_thumbnail/<int:media_id>')
+@viewer_required
 def media_thumbnail(media_id):
-    """Generate thumbnail URL for media item (placeholder for now)"""
+    """Get optimized thumbnail for any media (photo or video) - with disk caching"""
+    import tempfile
+    import requests
+    from PIL import Image
+    import io
+    import os
+    
+    # Cache directory
+    cache_dir = os.path.join(tempfile.gettempdir(), 'media_thumbnails')
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f'media_{media_id}.jpg')
+    
+    # Check if cached thumbnail exists and is recent (< 7 days old)
+    if os.path.exists(cache_file):
+        file_age = time.time() - os.path.getmtime(cache_file)
+        if file_age < 604800:  # 7 days in seconds
+            response = make_response(send_file(cache_file, mimetype='image/jpeg'))
+            response.headers['Cache-Control'] = 'public, max-age=604800'
+            return response
+    
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
         
+        # Get media info
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT file_path, file_type
+                FROM album_media
+                WHERE id = :media_id
+            """, {'media_id': media_id})
+            row = cursor.fetchone()
+        
+        if not row:
+            return jsonify({'error': 'Media not found'}), 404
+        
+        file_path, file_type = row
+        
+        # Get media URL from OCI
+        media_url = _get_par_url_for_oci(file_path)
+        if not media_url:
+            return jsonify({'error': 'Could not generate media URL'}), 500
+        
+        if file_type == 'photo':
+            # Download and resize photo
+            response_img = requests.get(media_url, timeout=30, stream=True)
+            response_img.raise_for_status()
+            
+            img = Image.open(io.BytesIO(response_img.content))
+            
+            # Resize to 400x400 thumbnail (good for search results)
+            img.thumbnail((400, 400), Image.Resampling.LANCZOS)
+            
+            # Save to cache
+            img.convert('RGB').save(cache_file, 'JPEG', quality=75, optimize=True)
+            
+        elif file_type == 'video':
+            # For videos, redirect to video_thumbnail
+            return redirect(url_for('video_thumbnail', media_id=media_id))
+        else:
+            return jsonify({'error': 'Unsupported media type'}), 400
+        
+        response = make_response(send_file(cache_file, mimetype='image/jpeg'))
+        response.headers['Cache-Control'] = 'public, max-age=604800'
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting media thumbnail: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/media_modal/<int:media_id>')
+@viewer_required
+def media_modal(media_id):
+    """Get optimized modal-sized image (1200px max) with disk caching for faster modal loading"""
+    import tempfile
+    import requests
+    from PIL import Image
+    import io
+    import os
+
+    # Cache directory for modal images
+    cache_dir = os.path.join(tempfile.gettempdir(), 'media_modal')
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f'modal_{media_id}.jpg')
+
+    # Check if cached modal image exists and is recent (< 30 days old)
+    if os.path.exists(cache_file):
+        file_age = time.time() - os.path.getmtime(cache_file)
+        if file_age < 2592000:  # 30 days in seconds
+            response = make_response(send_file(cache_file, mimetype='image/jpeg'))
+            response.headers['Cache-Control'] = 'public, max-age=2592000'  # 30 days
+            return response
+
+    try:
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+
+        # Get media info
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT file_path, file_type
+                FROM album_media
+                WHERE id = :media_id
+            """, {'media_id': media_id})
+            row = cursor.fetchone()
+
+        if not row:
+            return jsonify({'error': 'Media not found'}), 404
+
+        file_path, file_type = row
+
+        if file_type != 'photo':
+            # For non-photos, redirect to full stream
+            return redirect(url_for('media_stream', media_id=media_id))
+
+        # Get media URL from OCI
+        media_url = _get_par_url_for_oci(file_path)
+        if not media_url:
+            return jsonify({'error': 'Could not generate media URL'}), 500
+
+        # Download and resize for modal viewing
+        response_img = requests.get(media_url, timeout=60, stream=True)
+        response_img.raise_for_status()
+
+        img = Image.open(io.BytesIO(response_img.content))
+
+        # Resize to 1200px max dimension (good for modal viewing)
+        max_size = (1200, 1200)
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+        # Save to cache with good quality
+        img.convert('RGB').save(cache_file, 'JPEG', quality=85, optimize=True)
+
+        response = make_response(send_file(cache_file, mimetype='image/jpeg'))
+        response.headers['Cache-Control'] = 'public, max-age=2592000'  # 30 days
+        return response
+
+    except Exception as e:
+        logger.error(f"❌ Error getting modal image: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        # Fallback to original stream if modal caching fails
+        return redirect(url_for('media_stream', media_id=media_id))
+    """Serve the actual image/video for a media item by redirecting to OCI PAR URL with caching headers"""
+    try:
+        logger.info(f"📸 media_stream request for media_id={media_id}")
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+
         query = """
         SELECT file_path, file_type, oci_namespace, oci_bucket, oci_object_path
         FROM album_media
         WHERE id = :media_id
         """
-        
+
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, {'media_id': media_id})
             row = cursor.fetchone()
-            
+
             if not row:
-                return jsonify({'error': 'Media not found'}), 404
-            
-            # For now, return a placeholder or the full image
-            # In production, you'd generate actual thumbnails
+                logger.error(f"❌ Media {media_id} not found in database")
+                return "Media not found", 404
+
             file_path, file_type, namespace, bucket, object_path = row
-            
+            logger.info(f"📂 Found media: file_path={file_path}, type={file_type}")
+
             # Generate PAR URL for the image
             par_url = _get_par_url_for_oci(file_path)
-            
+
             if par_url:
-                return jsonify({'url': par_url, 'type': file_type})
+                logger.info(f"✅ Generated PAR URL, redirecting to OCI with cache headers")
+                # Redirect to the OCI PAR URL with cache headers for better performance
+                response = redirect(par_url)
+                # Cache images for 1 hour (3600 seconds) since they don't change often
+                response.headers['Cache-Control'] = 'public, max-age=3600'
+                # Add other performance headers
+                response.headers['X-Accel-Expires'] = '3600'  # For nginx caching if used
+                return response
             else:
-                return jsonify({'error': 'Could not generate thumbnail URL'}), 500
-                
+                logger.error(f"❌ Could not generate PAR URL for {file_path}")
+                return "Could not generate media URL", 500
+
     except Exception as e:
-        logger.error(f"❌ Error generating thumbnail: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"❌ Error serving media {media_id}: {e}")
+        return str(e), 500
 
 @app.route('/search_unified', methods=['POST'])
 @login_required
@@ -2597,7 +2775,7 @@ def search_unified():
         query = data.get('query', '').strip()
         limit = data.get('limit', 20)
         album_filter = data.get('album_filter')
-        min_similarity = data.get('min_similarity', 0.30)  # Default 30% threshold
+        min_similarity = data.get('min_similarity', 0.45)  # Default 45% threshold (increased from 30% for better accuracy)
         search_mode = data.get('search_mode', 'vector')  # 'vector', 'metadata', or 'auto'
         
         if not query:
@@ -4204,7 +4382,7 @@ def tag_face_in_media(media_id):
         from utils.db_utils_flask_safe import get_flask_safe_connection
         from utils.face_detection_helper import (
             generate_placeholder_embedding, embedding_to_oracle_vector,
-            bbox_to_json, detect_faces_opencv
+            bbox_to_json, detect_faces_deepface
         )
         import tempfile
         import requests
@@ -4266,8 +4444,8 @@ def tag_face_in_media(media_id):
             with open(temp_file_path, 'wb') as f:
                 f.write(response.content)
             
-            # Detect faces to get bounding box for the specified index
-            faces = detect_faces_opencv(temp_file_path)
+            # Detect faces to get bounding box for the specified index (using DeepFace to match detect_faces endpoint)
+            faces = detect_faces_deepface(temp_file_path)
             
             if face_index >= len(faces):
                 return jsonify({"error": f"Face index {face_index} not found (only {len(faces)} faces detected)"}), 400
@@ -4379,7 +4557,8 @@ def get_media_face_tags(media_id):
                     ft.bounding_box,
                     ft.confidence,
                     ft.created_at,
-                    u.username as tagged_by
+                    u.username as tagged_by,
+                    ft.auto_tagged
                 FROM face_tags ft
                 LEFT JOIN users u ON ft.created_by = u.id
                 WHERE ft.media_id = :media_id
@@ -4396,7 +4575,8 @@ def get_media_face_tags(media_id):
                 "bounding_box": row[2],  # JSON string
                 "confidence": float(row[3]) if row[3] else 1.0,
                 "created_at": row[4].isoformat() if row[4] else None,
-                "tagged_by": row[5]
+                "tagged_by": row[5],
+                "auto_tagged": bool(row[6]) if row[6] is not None else False
             })
         
         return jsonify({
@@ -4460,393 +4640,197 @@ def delete_face_tag(tag_id):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/search/faces', methods=['POST'])
+@app.route('/api/face_names', methods=['GET'])
 @login_required
-def search_faces():
-    """Search for photos containing a specific person using face tags and similarity matching"""
+def get_unique_face_names():
+    """Get list of unique face names for autocomplete suggestions"""
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
-        from utils.face_detection_helper import detect_faces_opencv
-        import json
-        import tempfile
-        import requests
         
-        data = request.get_json()
-        face_name = data.get('face_name', '').strip()
-        include_similar = data.get('include_similar', True)  # Default: search similar faces too
-        similarity_threshold = data.get('similarity_threshold', 0.6)  # Cosine distance < 0.6
-        
-        if not face_name:
-            return jsonify({"error": "face_name is required"}), 400
-        
-        logger.info(f"🔍 Searching for photos with face: {face_name} (include_similar={include_similar})")
+        logger.info(f"📝 Getting unique face names for user {current_user.id}")
         
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             
-            # STEP 1: Search for manually tagged photos with matching face name
+            # Get unique face names from user's media (exclude "Unknown")
             cursor.execute("""
-                SELECT DISTINCT
+                SELECT DISTINCT ft.face_name, COUNT(*) as usage_count
+                FROM face_tags ft
+                INNER JOIN album_media am ON ft.media_id = am.id
+                WHERE am.user_id = :user_id 
+                AND ft.face_name != 'Unknown'
+                AND ft.face_name IS NOT NULL
+                GROUP BY ft.face_name
+                ORDER BY usage_count DESC, ft.face_name ASC
+            """, {"user_id": current_user.id})
+            
+            rows = cursor.fetchall()
+        
+        face_names = [{"name": row[0], "count": row[1]} for row in rows]
+        
+        logger.info(f"✅ Found {len(face_names)} unique face names")
+        
+        return jsonify({
+            "success": True,
+            "face_names": face_names,
+            "total": len(face_names)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Get face names error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/search/faces', methods=['POST'])
+@login_required
+def search_faces():
+    """Search for photos containing a specific person using face tags
+    
+    Accurate two-stage approach:
+    1. Find all face tags with matching name (exact match)
+    2. Return ONLY photos containing that specific person
+    3. No similarity search - only exact name matches
+    """
+    try:
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        import json
+        
+        data = request.get_json()
+        face_name = data.get('face_name', '').strip()
+        page = data.get('page', 1)
+        per_page = data.get('per_page', 50)
+        
+        if not face_name:
+            return jsonify({"error": "face_name is required"}), 400
+        
+        logger.info(f"🔍 Searching for photos with face: '{face_name}' (page={page})")
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Search for photos with EXACT face name match
+            cursor.execute("""
+                SELECT
                     am.id,
                     am.file_name,
                     am.album_name,
                     am.file_type,
                     am.file_path,
+                    am.oci_object_path,
                     am.created_at,
                     am.file_size,
                     ft.id as face_tag_id,
                     ft.face_name,
-                    ft.face_embedding,
                     ft.bounding_box,
                     ft.confidence,
+                    ft.auto_tagged,
                     u.username as tagged_by
                 FROM album_media am
                 INNER JOIN face_tags ft ON am.id = ft.media_id
                 LEFT JOIN users u ON ft.created_by = u.id
-                WHERE UPPER(ft.face_name) LIKE UPPER(:face_name)
+                WHERE UPPER(ft.face_name) = UPPER(:face_name)
                 AND am.user_id = :user_id
                 ORDER BY am.created_at DESC
             """, {
-                "face_name": f"%{face_name}%",
+                "face_name": face_name,
                 "user_id": current_user.id
             })
             
-            tagged_rows = cursor.fetchall()
+            rows = cursor.fetchall()
             
-            # Group manually tagged results
-            results = []
-            reference_tag_ids = []  # Collect face tag IDs for similarity search
+            if not rows:
+                logger.info(f"⚠️ No photos found for '{face_name}'")
+                return jsonify({
+                    "success": True,
+                    "face_name": face_name,
+                    "results": [],
+                    "total": 0,
+                    "message": f"No photos found with {face_name}",
+                    "pagination": {
+                        "page": page,
+                        "per_page": per_page,
+                        "total": 0,
+                        "total_pages": 0
+                    }
+                })
             
-            for row in tagged_rows:
-                media_id = row[0]
-                face_tag_id = row[7]
+            logger.info(f"📋 Found {len(rows)} face tag matches")
+            
+            # Group by photo (media_id)
+            photos_dict = {}
+            
+            for row in rows:
+                media_id, filename, album_name, file_type, file_path, oci_path, created_at, file_size, face_tag_id, face_name_val, bbox, confidence, auto_tagged, tagged_by = row
                 
-                # Store reference tag ID for similarity search
-                if face_tag_id and include_similar:
-                    reference_tag_ids.append(face_tag_id)
+                # Parse bounding box
+                try:
+                    bbox_parsed = json.loads(bbox.read()) if hasattr(bbox, 'read') else json.loads(bbox)
+                except:
+                    bbox_parsed = None
                 
-                # Check if media already in results
-                existing = next((r for r in results if r['media_id'] == media_id), None)
-                
-                face_info = {
-                    "face_name": row[8],
-                    "bounding_box": row[10],  # JSON string
-                    "confidence": float(row[11]) if row[11] else 1.0,
-                    "tagged_by": row[12],
-                    "match_type": "manual_tag"
-                }
-                
-                if existing:
-                    existing['faces'].append(face_info)
-                else:
-                    # Convert upload_date to string if it's a datetime object
-                    upload_date = row[5]
-                    if upload_date:
-                        try:
-                            upload_date_str = upload_date.isoformat() if hasattr(upload_date, 'isoformat') else str(upload_date)
-                        except:
-                            upload_date_str = None
-                    else:
-                        upload_date_str = None
+                # Add to photo if not exists
+                if media_id not in photos_dict:
+                    object_path = oci_path if oci_path else file_path
+                    upload_date_str = created_at.isoformat() if created_at and hasattr(created_at, 'isoformat') else None
                     
-                    results.append({
+                    photos_dict[media_id] = {
                         "media_id": media_id,
-                        "file_name": row[1],
-                        "album_name": row[2],
-                        "file_type": row[3],
-                        "file_path": row[4],
+                        "filename": filename,
+                        "album_name": album_name,
+                        "file_type": file_type,
+                        "file_path": file_path,
+                        "stream_url": f"/media_stream/{media_id}" if object_path else None,
+                        "thumbnail_url": f"/media_thumbnail/{media_id}" if object_path else None,
                         "upload_date": upload_date_str,
-                        "file_size": row[6],
-                        "faces": [face_info]
-                    })
-            
-            logger.info(f"📋 Found {len(results)} manually tagged photos")
-            
-            # STEP 2: OPTIMIZED similarity search using Oracle VECTOR features
-            if include_similar and reference_tag_ids:
-                try:
-                    logger.info(f"🔍 Searching for similar faces using {len(reference_tag_ids)} reference tags...")
-                    
-                    # Build list of already matched media IDs to exclude
-                    already_matched_media_ids = {r['media_id'] for r in results}
-                    exclude_ids_str = ','.join(str(id) for id in already_matched_media_ids) if already_matched_media_ids else '0'
-                    
-                    # OPTIMIZED: Single query using Oracle VECTOR_DISTANCE with CROSS JOIN
-                    # This compares ALL face embeddings against reference embeddings in one query
-                    similar_matches = []
-                    for ref_tag_id in reference_tag_ids:
-                        cursor.execute("""
-                            SELECT 
-                                ft.id as face_tag_id,
-                                ft.media_id,
-                                ft.face_name,
-                                ft.bounding_box,
-                                ft.confidence,
-                                am.file_name,
-                                am.album_name,
-                                am.file_type,
-                                am.file_path,
-                                am.created_at,
-                                am.file_size,
-                                VECTOR_DISTANCE(
-                                    (SELECT face_embedding FROM face_tags WHERE id = :ref_tag_id),
-                                    ft.face_embedding,
-                                    COSINE
-                                ) as distance
-                            FROM face_tags ft
-                            INNER JOIN album_media am ON ft.media_id = am.id
-                            WHERE am.user_id = :user_id
-                            AND am.file_type = 'photo'
-                            AND ft.face_embedding IS NOT NULL
-                            AND ft.media_id NOT IN (""" + exclude_ids_str + """)
-                            AND VECTOR_DISTANCE(
-                                (SELECT face_embedding FROM face_tags WHERE id = :ref_tag_id),
-                                ft.face_embedding,
-                                COSINE
-                            ) < :threshold
-                            ORDER BY distance ASC
-                        """, {
-                            "ref_tag_id": ref_tag_id,
-                            "user_id": current_user.id,
-                            "threshold": similarity_threshold
-                        })
-                        
-                        similar_faces = cursor.fetchall()
-                        logger.info(f"📸 Found {len(similar_faces)} similar faces for reference tag {ref_tag_id}")
-                        
-                        # Group by media_id
-                        for row in similar_faces:
-                            face_tag_id, media_id, face_name_val, bbox, confidence, file_name, album_name, file_type, file_path, created_at, file_size, distance = row
-                            
-                            # Convert upload_date to string
-                            upload_date_str = None
-                            if created_at:
-                                try:
-                                    upload_date_str = created_at.isoformat() if hasattr(created_at, 'isoformat') else str(created_at)
-                                except:
-                                    pass
-                            
-                            face_info = {
-                                "face_name": face_name_val if face_name_val else f"Similar to {face_name}",
-                                "bounding_box": bbox,
-                                "confidence": float(confidence) if confidence else 1.0,
-                                "tagged_by": "auto_match",
-                                "match_type": "similarity",
-                                "similarity_score": 1.0 - float(distance)
-                            }
-                            
-                            # Check if photo already in similar_matches
-                            existing_match = next((m for m in similar_matches if m['media_id'] == media_id), None)
-                            if existing_match:
-                                existing_match['faces'].append(face_info)
-                            else:
-                                similar_matches.append({
-                                    "media_id": media_id,
-                                    "file_name": file_name,
-                                    "album_name": album_name,
-                                    "file_type": file_type,
-                                    "file_path": file_path,
-                                    "upload_date": upload_date_str,
-                                    "file_size": file_size,
-                                    "faces": [face_info]
-                                })
+                        "file_size": file_size,
+                        "faces": [],
+                        "face_count": 0
+                    }
                 
-                    # Add similar matches to results
-                    results.extend(similar_matches)
-                    logger.info(f"🎯 Found {len(similar_matches)} additional photos with similar faces")
-                    
-                except Exception as sim_error:
-                    logger.error(f"⚠️  Similarity search failed: {sim_error}")
-                    import traceback
-                    logger.error(traceback.format_exc())
-                    # Continue with just the manually tagged results
+                # Add face match
+                photos_dict[media_id]["faces"].append({
+                    "face_tag_id": face_tag_id,
+                    "face_name": face_name_val,
+                    "bounding_box": bbox_parsed,
+                    "confidence": float(confidence) if confidence else 1.0,
+                    "auto_tagged": bool(auto_tagged),
+                    "tagged_by": tagged_by or "auto",
+                    "match_type": "exact_name"
+                })
+                
+                photos_dict[media_id]["face_count"] += 1
             
-            # STEP 3: Search UNTAGGED photos (DISABLED for performance - will be implemented as background job)
-            # TODO: Implement async background job for untagged photo face detection
-            untagged_count = 0
-            if False:  # Disabled for now - too slow for real-time search
-                try:
-                    logger.info(f"🔍 Checking untagged photos for similar faces...")
-                    
-                    # Get media IDs that already have face tags
-                    cursor.execute("""
-                        SELECT DISTINCT media_id FROM face_tags
-                    """)
-                    tagged_media_ids = {row[0] for row in cursor.fetchall()}
-                    
-                    # Get recent untagged photos (limit to 50 for performance)
-                    all_matched_ids = {r['media_id'] for r in results}
-                    exclude_all = tagged_media_ids.union(all_matched_ids)
-                    exclude_str = ','.join(str(id) for id in exclude_all) if exclude_all else '0'
-                    
-                    cursor.execute(f"""
-                        SELECT id, file_name, album_name, file_type, file_path, created_at, file_size
-                        FROM album_media
-                        WHERE user_id = :user_id
-                        AND file_type = 'photo'
-                        AND id NOT IN ({exclude_str})
-                        ORDER BY created_at DESC
-                        FETCH FIRST 10 ROWS ONLY
-                    """, {"user_id": current_user.id})
-                    
-                    untagged_photos = cursor.fetchall()
-                    logger.info(f"📸 Processing {len(untagged_photos)} untagged photos...")
-                    
-                    from utils.face_detection_helper import detect_faces_deepface, embedding_to_oracle_vector
-                    from utils.imagebind_helper import ImageBindEmbedder
-                    import tempfile
-                    import os
-                    
-                    untagged_matches = []
-                    photos_processed = 0
-                    
-                    for photo_row in untagged_photos:
-                        photo_id, file_name, album_name, file_type, file_path, created_at, file_size = photo_row
-                        photos_processed += 1
-                        
-                        if photos_processed % 10 == 0:
-                            logger.info(f"Progress: {photos_processed}/{len(untagged_photos)} untagged photos...")
-                        
-                        try:
-                            # Get PAR URL for photo
-                            par_url = _get_par_url_for_oci(file_path)
-                            if not par_url:
-                                continue
-                            
-                            # Download photo to temp file
-                            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-                            temp_path = temp_file.name
-                            temp_file.close()
-                            
-                            response = requests.get(par_url, timeout=30)
-                            response.raise_for_status()
-                            
-                            with open(temp_path, 'wb') as f:
-                                f.write(response.content)
-                            
-                            # Detect faces using DeepFace (falls back to OpenCV)
-                            detected_faces = detect_faces_deepface(temp_path)
-                            
-                            if detected_faces:
-                                # Check each detected face against reference embeddings
-                                for face in detected_faces:
-                                    try:
-                                        # Generate REAL embedding using DeepFace for this face
-                                        embedder = ImageBindEmbedder()
-                                        face_embedding = embedder.generate_face_embedding(temp_path, face)
-                                        if face_embedding is None:
-                                            continue
-                                        
-                                        embedding_str = embedding_to_oracle_vector(face_embedding)
-                                        
-                                        # Compare with each reference tag using VECTOR_DISTANCE
-                                        for ref_tag_id in reference_tag_ids:
-                                            cursor.execute("""
-                                                SELECT VECTOR_DISTANCE(
-                                                    (SELECT face_embedding FROM face_tags WHERE id = :ref_id),
-                                                    TO_VECTOR(:face_embedding),
-                                                    COSINE
-                                                ) as distance
-                                                FROM dual
-                                            """, {
-                                                "ref_id": ref_tag_id,
-                                                "face_embedding": embedding_str
-                                            })
-                                            
-                                            dist_row = cursor.fetchone()
-                                            if dist_row:
-                                                distance = float(dist_row[0])
-                                                
-                                                if distance < similarity_threshold:
-                                                    logger.info(f"✅ Similar face found in untagged photo {photo_id} (distance: {distance:.3f})")
-                                                    
-                                                    # Store this face tag for future searches
-                                                    bbox = face.get('facial_area', {})
-                                                    confidence = face.get('confidence', 0.8)
-                                                    
-                                                    cursor.execute("""
-                                                        INSERT INTO face_tags 
-                                                        (media_id, face_name, face_embedding, bounding_box, confidence, auto_tagged, created_by)
-                                                        VALUES (:media_id, :face_name, TO_VECTOR(:embedding), :bbox, :confidence, 1, :user_id)
-                                                    """, {
-                                                        "media_id": photo_id,
-                                                        "face_name": f"Similar to {face_name}",
-                                                        "embedding": embedding_str,
-                                                        "bbox": json.dumps(bbox),
-                                                        "confidence": confidence,
-                                                        "user_id": current_user.id
-                                                    })
-                                                    conn.commit()
-                                                    
-                                                    # Add to results
-                                                    upload_date_str = None
-                                                    if created_at:
-                                                        try:
-                                                            upload_date_str = created_at.isoformat() if hasattr(created_at, 'isoformat') else str(created_at)
-                                                        except:
-                                                            pass
-                                                    
-                                                    face_info = {
-                                                        "face_name": f"Similar to {face_name}",
-                                                        "bounding_box": json.dumps(bbox),
-                                                        "confidence": confidence,
-                                                        "tagged_by": "auto_detected",
-                                                        "match_type": "auto_detected",
-                                                        "similarity_score": 1.0 - distance
-                                                    }
-                                                    
-                                                    # Check if photo already in results
-                                                    existing = next((m for m in untagged_matches if m['media_id'] == photo_id), None)
-                                                    if existing:
-                                                        existing['faces'].append(face_info)
-                                                    else:
-                                                        untagged_matches.append({
-                                                            "media_id": photo_id,
-                                                            "file_name": file_name,
-                                                            "album_name": album_name,
-                                                            "file_type": file_type,
-                                                            "file_path": file_path,
-                                                            "upload_date": upload_date_str,
-                                                            "file_size": file_size,
-                                                            "faces": [face_info]
-                                                        })
-                                                    break  # Found match, skip other reference tags
-                                    except Exception as face_err:
-                                        logger.debug(f"Error processing face in photo {photo_id}: {face_err}")
-                                        continue
-                            
-                            # Cleanup temp file
-                            os.unlink(temp_path)
-                            
-                        except Exception as photo_err:
-                            logger.debug(f"Error processing untagged photo {photo_id}: {photo_err}")
-                            continue
-                    
-                    results.extend(untagged_matches)
-                    logger.info(f"🎯 Found {len(untagged_matches)} matches in untagged photos")
-                    
-                except Exception as untagged_err:
-                    logger.error(f"⚠️  Untagged photo search failed: {untagged_err}")
-                    import traceback
-                    logger.error(traceback.format_exc())
+            # Convert to list and sort by date
+            results_list = sorted(
+                photos_dict.values(),
+                key=lambda x: x.get("upload_date") or "",
+                reverse=True
+            )
+            
+            # Apply pagination
+            total_results = len(results_list)
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            paginated_results = results_list[start_idx:end_idx]
+            
+            total_pages = (total_results + per_page - 1) // per_page
         
-        logger.info(f"✅ Total: {len(results)} photos with {face_name} (tagged + similar + auto-detected)")
-        
-        # Calculate breakdown counts
-        manually_tagged_count = len([r for r in results if any(f.get('match_type') == 'manual_tag' for f in r.get('faces', []))])
-        similar_count = len([r for r in results if any(f.get('match_type') == 'similarity' for f in r.get('faces', []))])
-        auto_detected_count = len([r for r in results if any(f.get('match_type') == 'auto_detected' for f in r.get('faces', []))])
+        logger.info(f"✅ Found {total_results} photos with '{face_name}'")
         
         return jsonify({
             "success": True,
             "face_name": face_name,
-            "results": results,
-            "total": len(results),
-            "breakdown": {
-                "manually_tagged": manually_tagged_count,
-                "similar_faces": similar_count,
-                "auto_detected": auto_detected_count
-            }
+            "results": paginated_results,
+            "total": total_results,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total_results,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1
+            },
+            "message": f"Found {total_results} photos containing {face_name}"
         })
         
     except Exception as e:
@@ -4963,12 +4947,13 @@ def auto_tag_similar_faces():
 def search_camera_face():
     """Search for photos using a camera-captured face image
     
-    Workflow:
-    1. User captures face with camera
-    2. Detect face region and crop
-    3. Upload to OCI and generate TwelveLabs embedding
-    4. Search face_tags table for similar faces
-    5. Return matching photos with names
+    Multi-face support with intelligent prioritization:
+    1. Detect ALL faces in selfie and identify each person
+    2. Return photos with priority:
+       - Priority 1: Photos with ALL identified people (group photos)
+       - Priority 2: Photos with multiple identified people
+       - Priority 3: Photos with individual identified people
+    3. Pagination support for large result sets
     """
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
@@ -4977,17 +4962,19 @@ def search_camera_face():
         import tempfile
         import base64
         import os
+        import json
         
         # Get base64 image from request
         data = request.get_json()
         image_data = data.get('image')  # base64 encoded image
-        similarity_threshold = data.get('similarity_threshold', 0.25)  # Stricter: 0.25 cosine distance = 75% similarity
-        limit = data.get('limit', 50)  # Fetch more to filter best matches
+        similarity_threshold = data.get('similarity_threshold', 0.30)  # Default: 30% distance = 70% similarity
+        page = data.get('page', 1)  # Pagination support
+        per_page = data.get('per_page', 50)  # Results per page
         
         if not image_data:
             return jsonify({"error": "image data is required"}), 400
         
-        logger.info(f"📸 Camera face search (threshold={similarity_threshold}, limit={limit})")
+        logger.info(f"📸 Camera face search (threshold={similarity_threshold}, page={page})")
         
         # Decode base64 image
         if ',' in image_data:
@@ -5000,108 +4987,300 @@ def search_camera_face():
         temp_file.write(image_bytes)
         temp_file.close()
         
-        # Detect faces in captured image
+        # Detect ALL faces in captured image
         faces = detect_faces_deepface(temp_file.name)
         
         if not faces or len(faces) == 0:
             os.unlink(temp_file.name)
             return jsonify({"error": "No face detected in captured image"}), 400
         
-        # Use first detected face
-        face_bbox = faces[0].get('facial_area')
-        if not face_bbox:
-            os.unlink(temp_file.name)
-            return jsonify({"error": "Failed to extract face region"}), 500
+        logger.info(f"👥 Detected {len(faces)} face(s) in selfie")
         
-        # Crop face region with padding
-        img = Image.open(temp_file.name)
-        x, y, w, h = face_bbox.get('x', 0), face_bbox.get('y', 0), face_bbox.get('w', 0), face_bbox.get('h', 0)
-        
-        padding = 0.2
-        x_pad = int(w * padding)
-        y_pad = int(h * padding)
-        
-        left = max(0, x - x_pad)
-        top = max(0, y - y_pad)
-        right = min(img.width, x + w + x_pad)
-        bottom = min(img.height, y + h + y_pad)
-        
-        face_crop = img.crop((left, top, right, bottom))
-        
-        # Save cropped face
-        face_crop_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-        face_crop.save(face_crop_file.name, 'JPEG', quality=95)
-        face_crop_file.close()
-        
-        # Generate ImageBind embedding (free, no API costs!)
+        # Generate embeddings for ALL detected faces
         from utils.imagebind_helper import get_imagebind_embedder
+        from utils.face_detection_helper import embedding_to_oracle_vector
         import numpy as np
         
         embedder = get_imagebind_embedder()
-        camera_embedding = embedder.generate_image_embedding(face_crop_file.name)
+        img = Image.open(temp_file.name)
         
-        # Cleanup temp files
+        selfie_face_embeddings = []
+        for idx, face in enumerate(faces):
+            face_bbox = face.get('facial_area')
+            if not face_bbox:
+                continue
+            
+            # Crop face region with padding
+            x, y, w, h = face_bbox.get('x', 0), face_bbox.get('y', 0), face_bbox.get('w', 0), face_bbox.get('h', 0)
+            
+            padding = 0.2
+            x_pad = int(w * padding)
+            y_pad = int(h * padding)
+            
+            left = max(0, x - x_pad)
+            top = max(0, y - y_pad)
+            right = min(img.width, x + w + x_pad)
+            bottom = min(img.height, y + h + y_pad)
+            
+            face_crop = img.crop((left, top, right, bottom))
+            
+            # Save cropped face
+            face_crop_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            face_crop.save(face_crop_file.name, 'JPEG', quality=95)
+            face_crop_file.close()
+            
+            # Generate embedding
+            camera_embedding = embedder.generate_image_embedding(face_crop_file.name)
+            os.unlink(face_crop_file.name)
+            
+            if camera_embedding is not None:
+                selfie_face_embeddings.append({
+                    'face_index': idx,
+                    'embedding': camera_embedding,
+                    'vector': embedding_to_oracle_vector(camera_embedding)
+                })
+        
+        # Cleanup temp file
         os.unlink(temp_file.name)
-        os.unlink(face_crop_file.name)
         
-        if camera_embedding is None:
-            return jsonify({"error": "Failed to generate face embedding"}), 500
+        if not selfie_face_embeddings:
+            return jsonify({"error": "Failed to generate face embeddings"}), 500
         
-        # Convert to Oracle VECTOR format
-        from utils.face_detection_helper import embedding_to_oracle_vector
-        camera_vector = embedding_to_oracle_vector(camera_embedding)
+        logger.info(f"✅ Generated {len(selfie_face_embeddings)} face embedding(s)")
         
-        # Search for similar faces in database
+        # STAGE 1: Identify each person in the selfie
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             
-            cursor.execute("""
-                SELECT ft.id, ft.face_name, ft.media_id, 
-                       VECTOR_DISTANCE(ft.face_embedding, TO_VECTOR(:query_embedding), COSINE) as distance,
-                       am.original_filename, am.file_path, am.created_at
+            identified_people = []
+            
+            for face_data in selfie_face_embeddings:
+                camera_vector = face_data['vector']
+                
+                # Find top matching face tags (must have names, not "Unknown")
+                cursor.execute("""
+                    SELECT ft.face_name, 
+                           VECTOR_DISTANCE(ft.face_embedding, TO_VECTOR(:query_embedding), COSINE) as distance,
+                           COUNT(*) as count
+                    FROM face_tags ft
+                    INNER JOIN album_media am ON ft.media_id = am.id
+                    WHERE ft.face_embedding IS NOT NULL
+                      AND am.user_id = :user_id
+                      AND ft.face_name IS NOT NULL
+                      AND ft.face_name != 'Unknown'
+                      AND VECTOR_DISTANCE(ft.face_embedding, TO_VECTOR(:query_embedding), COSINE) <= :threshold
+                    GROUP BY ft.face_name, VECTOR_DISTANCE(ft.face_embedding, TO_VECTOR(:query_embedding), COSINE)
+                    ORDER BY distance
+                    FETCH FIRST 10 ROWS ONLY
+                """, {
+                    "query_embedding": camera_vector,
+                    "user_id": current_user.id,
+                    "threshold": similarity_threshold
+                })
+                
+                identity_matches = cursor.fetchall()
+                
+                if identity_matches:
+                    # Count votes for each person
+                    person_votes = {}
+                    for face_name, distance, count in identity_matches:
+                        if face_name not in person_votes:
+                            person_votes[face_name] = {"votes": 0, "best_distance": distance}
+                        person_votes[face_name]["votes"] += count
+                        if distance < person_votes[face_name]["best_distance"]:
+                            person_votes[face_name]["best_distance"] = distance
+                    
+                    # Identify the person (most votes + best distance)
+                    identified_person = max(
+                        person_votes.items(), 
+                        key=lambda x: (x[1]["votes"], -x[1]["best_distance"])
+                    )[0]
+                    
+                    identified_people.append({
+                        'name': identified_person,
+                        'distance': person_votes[identified_person]["best_distance"],
+                        'vector': camera_vector
+                    })
+                    
+                    logger.info(f"✅ Face {face_data['face_index']+1}: Identified as '{identified_person}' (distance: {person_votes[identified_person]['best_distance']:.4f})")
+            
+            if not identified_people:
+                logger.info(f"⚠️ No named faces identified within threshold {similarity_threshold}")
+                return jsonify({
+                    "success": True,
+                    "results": [],
+                    "total": 0,
+                    "faces_detected": len(faces),
+                    "people_identified": 0,
+                    "message": f"Could not identify any people. Try increasing sensitivity or tagging faces.",
+                    "api_calls_used": 0
+                })
+            
+            logger.info(f"🎯 Identified {len(identified_people)} people: {[p['name'] for p in identified_people]}")
+            
+            # STAGE 2: Get ALL photos containing ANY of the identified people
+            identified_names = [p['name'] for p in identified_people]
+            
+            # Build query to find photos with any of these people
+            placeholders = ', '.join([f":name{i}" for i in range(len(identified_names))])
+            params = {f"name{i}": name for i, name in enumerate(identified_names)}
+            params['user_id'] = current_user.id
+            
+            logger.info(f"🔍 Searching for photos containing: {identified_names}")
+            
+            # Get ALL faces from photos that contain identified people
+            # First, find media_ids with identified people, then get all faces from those photos
+            query = f"""
+                WITH identified_media AS (
+                    SELECT DISTINCT ft.media_id
+                    FROM face_tags ft
+                    INNER JOIN album_media am ON ft.media_id = am.id
+                    WHERE ft.face_embedding IS NOT NULL
+                      AND am.user_id = :user_id
+                      AND ft.face_name IN ({placeholders})
+                )
+                SELECT DISTINCT
+                    ft.media_id,
+                    ft.id as face_tag_id,
+                    ft.face_name,
+                    ft.bounding_box,
+                    am.file_name,
+                    am.file_path,
+                    am.oci_object_path,
+                    am.created_at,
+                    am.file_type
                 FROM face_tags ft
                 INNER JOIN album_media am ON ft.media_id = am.id
-                WHERE ft.face_embedding IS NOT NULL
-                  AND am.user_id = :user_id
-                  AND VECTOR_DISTANCE(ft.face_embedding, TO_VECTOR(:query_embedding), COSINE) <= :threshold
-                ORDER BY distance
-                FETCH FIRST :limit ROWS ONLY
-            """, {
-                "query_embedding": camera_vector,
-                "user_id": current_user.id,
-                "threshold": similarity_threshold,
-                "limit": limit
-            })
+                INNER JOIN identified_media im ON ft.media_id = im.media_id
+                WHERE am.user_id = :user_id
+                  AND ft.face_name IN ({placeholders})
+                ORDER BY ft.media_id
+            """
             
-            # Group results by person and keep only best match per person
-            person_best_matches = {}
-            for row in cursor.fetchall():
-                distance = float(row[3])
-                similarity = 1.0 - distance
-                face_name = row[1] or "Unknown"
+            cursor.execute(query, params)
+            matches = cursor.fetchall()
+            
+            if not matches:
+                logger.info(f"⚠️ No photos found for {identified_names}")
+                return jsonify({
+                    "success": True,
+                    "results": [],
+                    "total": 0,
+                    "faces_detected": len(faces),
+                    "people_identified": len(identified_people),
+                    "identified_people": identified_names,
+                    "message": f"No photos found containing {', '.join(identified_names)}",
+                    "api_calls_used": 0
+                })
+            
+            logger.info(f"📊 Found {len(matches)} face tag matches across photos")
+            
+            # Group by photo and count which people appear
+            photos_dict = {}
+            
+            for row in matches:
+                media_id, face_tag_id, face_name, bbox_json, filename, file_path, oci_path, created_at, file_type = row
                 
-                # Only keep best match per person
-                if face_name not in person_best_matches or distance < person_best_matches[face_name]['distance']:
-                    person_best_matches[face_name] = {
-                        "face_tag_id": row[0],
-                        "face_name": face_name,
-                        "media_id": row[2],
-                        "similarity": round(similarity * 100, 1),
-                        "distance": round(distance, 3),
-                        "filename": row[4],
-                        "file_path": row[5],
-                        "created_at": row[6].isoformat() if row[6] else None
+                # Parse bounding box
+                try:
+                    bbox = json.loads(bbox_json.read()) if hasattr(bbox_json, 'read') else json.loads(bbox_json)
+                except:
+                    bbox = None
+                
+                # Add to photo if not exists
+                if media_id not in photos_dict:
+                    object_path = oci_path if oci_path else file_path
+                    photos_dict[media_id] = {
+                        "media_id": media_id,
+                        "filename": filename,
+                        "file_path": file_path,
+                        "stream_url": f"/media_stream/{media_id}" if object_path else None,
+                        "thumbnail_url": f"/media_thumbnail/{media_id}" if object_path else None,
+                        "created_at": created_at.isoformat() if created_at else None,
+                        "file_type": file_type,
+                        "people_in_photo": set(),
+                        "matched_faces": []
                     }
+                
+                # Track which identified people are in this photo
+                if face_name in identified_names:
+                    photos_dict[media_id]["people_in_photo"].add(face_name)
+                
+                # Add face match
+                photos_dict[media_id]["matched_faces"].append({
+                    "face_tag_id": face_tag_id,
+                    "face_name": face_name,
+                    "bounding_box": bbox
+                })
             
-            # Convert to list and sort by similarity
-            results = sorted(person_best_matches.values(), key=lambda x: x['distance'])
+            # Convert to list and add metadata
+            results_list = []
+            for media_id, photo in photos_dict.items():
+                people_count = len(photo["people_in_photo"])
+                photo["people_count"] = people_count
+                photo["people_names"] = sorted(list(photo["people_in_photo"]))
+                photo["is_group_photo"] = people_count == len(identified_people)
+                
+                # Remove set (not JSON serializable)
+                del photo["people_in_photo"]
+                
+                results_list.append(photo)
+            
+            # Sort by priority:
+            # 1. Photos with ALL people (group photos) first
+            # 2. Photos with more people
+            # 3. Alphabetically by filename
+            results_list.sort(
+                key=lambda x: (-x["people_count"], x["filename"])
+            )
+            
+            # Add ranking and priority labels
+            for idx, result in enumerate(results_list, 1):
+                result["rank"] = idx
+                if result["is_group_photo"]:
+                    result["priority"] = "Group Photo (All people)"
+                elif result["people_count"] > 1:
+                    result["priority"] = f"Group Photo ({result['people_count']} people)"
+                else:
+                    result["priority"] = f"Individual ({result['people_names'][0]})"
+            
+            # Apply pagination
+            total_results = len(results_list)
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            paginated_results = results_list[start_idx:end_idx]
+            
+            total_pages = (total_results + per_page - 1) // per_page
+            
+            # Count by priority
+            all_people_count = sum(1 for r in results_list if r["is_group_photo"])
+            multi_people_count = sum(1 for r in results_list if r["people_count"] > 1 and not r["is_group_photo"])
+            individual_count = sum(1 for r in results_list if r["people_count"] == 1)
         
-        logger.info(f"✅ Camera face search found {len(results)} unique persons (threshold={similarity_threshold})")
+        logger.info(f"✅ Camera face search: {total_results} photos total (Group: {all_people_count}, Multi: {multi_people_count}, Individual: {individual_count})")
         
         return jsonify({
             "success": True,
-            "results": results,
-            "total": len(results),
+            "results": paginated_results,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total_results,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1
+            },
+            "summary": {
+                "faces_detected": len(faces),
+                "people_identified": len(identified_people),
+                "identified_people": identified_names,
+                "group_photos": all_people_count,
+                "multi_person_photos": multi_people_count,
+                "individual_photos": individual_count,
+                "total_photos": total_results
+            },
+            "threshold": similarity_threshold,
+            "message": f"Found {total_results} photos containing {', '.join(identified_names)}",
             "api_calls_used": 0  # ImageBind is free!
         })
         
@@ -5419,36 +5598,105 @@ def config_debug():
         'active_tasks': len(_upload_tasks)
     })
 
+@app.route('/admin/init_backfill_tracking', methods=['POST'])
+@login_required
+def init_backfill_tracking():
+    """Initialize backfill tracking column"""
+    try:
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if column already exists
+            try:
+                cursor.execute("SELECT imagebind_processed FROM face_tags WHERE ROWNUM = 1")
+                return jsonify({
+                    'success': True,
+                    'message': 'Tracking column already exists'
+                })
+            except:
+                pass
+            
+            # Add column
+            logger.info("Adding imagebind_processed column...")
+            cursor.execute("ALTER TABLE face_tags ADD (imagebind_processed NUMBER(1) DEFAULT 0)")
+            
+            # Create index
+            logger.info("Creating index...")
+            cursor.execute("CREATE INDEX idx_imagebind_processed ON face_tags(imagebind_processed)")
+            
+            # Mark existing faces as unprocessed
+            logger.info("Marking faces as unprocessed...")
+            cursor.execute("UPDATE face_tags SET imagebind_processed = 0")
+            
+            conn.commit()
+            cursor.close()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Tracking column initialized successfully'
+            })
+            
+    except Exception as e:
+        logger.exception(f"❌ Failed to initialize tracking: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/admin/backfill_face_embeddings', methods=['POST'])
 @login_required
 def backfill_face_embeddings():
     """Admin endpoint: Backfill face embeddings for existing face tags using ImageBind"""
     try:
+        logger.info("🔄 Starting face embedding backfill import phase")
         from utils.db_utils_flask_safe import get_flask_safe_connection
+        logger.info("  ✅ Imported get_flask_safe_connection")
         from utils.face_detection_helper import embedding_to_oracle_vector
+        logger.info("  ✅ Imported embedding_to_oracle_vector")
         from utils.imagebind_helper import ImageBindEmbedder
+        logger.info("  ✅ Imported ImageBindEmbedder")
         import json
         import tempfile
         
-        limit = request.json.get('limit', 50) if request.json else 50
+        limit = request.json.get('limit', 20) if request.json else 20  # Reduced to 20 to avoid timeout
         
         logger.info(f"🔄 Starting face embedding backfill with ImageBind (limit: {limit})")
         
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             
-            # Get face tags without embeddings
-            cursor.execute(f"""
-                SELECT ft.id, ft.media_id, ft.face_name, ft.bounding_box,
-                       am.oci_namespace, am.oci_bucket, am.oci_object_path
-                FROM face_tags ft
-                JOIN album_media am ON ft.media_id = am.id
-                WHERE ft.face_embedding IS NULL
-                AND ft.bounding_box IS NOT NULL
-                AND am.file_type = 'photo'
-                ORDER BY ft.id
-                FETCH FIRST {limit} ROWS ONLY
-            """)
+            # Check if imagebind_processed column exists
+            try:
+                cursor.execute("SELECT imagebind_processed FROM face_tags WHERE ROWNUM = 1")
+                has_flag = True
+                logger.info("  ✅ Using imagebind_processed flag for tracking")
+            except:
+                has_flag = False
+                logger.info("  ⚠️ No tracking flag - will process all faces")
+            
+            # Get face tags that need ImageBind embeddings
+            if has_flag:
+                cursor.execute(f"""
+                    SELECT ft.id, ft.media_id, ft.face_name, ft.bounding_box,
+                           am.oci_namespace, am.oci_bucket, am.oci_object_path
+                    FROM face_tags ft
+                    JOIN album_media am ON ft.media_id = am.id
+                    WHERE ft.bounding_box IS NOT NULL
+                    AND am.file_type = 'photo'
+                    AND (ft.imagebind_processed = 0 OR ft.imagebind_processed IS NULL)
+                    ORDER BY ft.id
+                    FETCH FIRST {limit} ROWS ONLY
+                """)
+            else:
+                cursor.execute(f"""
+                    SELECT ft.id, ft.media_id, ft.face_name, ft.bounding_box,
+                           am.oci_namespace, am.oci_bucket, am.oci_object_path
+                    FROM face_tags ft
+                    JOIN album_media am ON ft.media_id = am.id
+                    WHERE ft.bounding_box IS NOT NULL
+                    AND am.file_type = 'photo'
+                    ORDER BY ft.id
+                    FETCH FIRST {limit} ROWS ONLY
+                """)
             
             tags = cursor.fetchall()
             
@@ -5471,7 +5719,16 @@ def backfill_face_embeddings():
             obj_client = oci.object_storage.ObjectStorageClient(config)
             
             # Initialize ImageBind embedder
-            embedder = ImageBindEmbedder()
+            logger.info("🔄 Initializing ImageBind embedder (this may take 30-60 seconds)...")
+            try:
+                embedder = ImageBindEmbedder()
+                logger.info("  ✅ ImageBind embedder initialized successfully")
+            except Exception as init_error:
+                logger.error(f"  ❌ Failed to initialize ImageBind: {init_error}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Failed to initialize ImageBind: {str(init_error)}'
+                }), 500
             
             success_count = 0
             failed_count = 0
@@ -5496,12 +5753,20 @@ def backfill_face_embeddings():
                     embedding = embedder.generate_face_embedding(temp_file.name, bbox)
                     
                     if embedding is not None:
-                        # Store embedding
+                        # Store embedding and mark as processed
                         vector_bytes = embedding_to_oracle_vector(embedding)
-                        cursor.execute(
-                            "UPDATE face_tags SET face_embedding = :emb WHERE id = :id",
-                            {'emb': vector_bytes, 'id': tag_id}
-                        )
+                        
+                        # Try to update with flag, fall back if column doesn't exist
+                        try:
+                            cursor.execute(
+                                "UPDATE face_tags SET face_embedding = :emb, imagebind_processed = 1 WHERE id = :id",
+                                {'emb': vector_bytes, 'id': tag_id}
+                            )
+                        except:
+                            cursor.execute(
+                                "UPDATE face_tags SET face_embedding = :emb WHERE id = :id",
+                                {'emb': vector_bytes, 'id': tag_id}
+                            )
                         conn.commit()
                         
                         success_count += 1
@@ -5547,6 +5812,125 @@ def backfill_face_embeddings():
             
     except Exception as e:
         logger.exception(f"❌ Backfill failed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/redetect_faces', methods=['POST'])
+@login_required
+def redetect_faces():
+    """Admin endpoint: Re-detect faces in photos"""
+    try:
+        from utils.db_utils_flask_safe import get_flask_safe_connection
+        from utils.auto_face_recognition import auto_recognize_faces
+        import tempfile
+        import requests
+        
+        # Only admins can bulk re-detect
+        if current_user.role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        data = request.json or {}
+        filter_type = data.get('filter', 'no_faces')
+        media_id = data.get('media_id')
+        
+        logger.info(f"🔄 Starting face re-detection (filter: {filter_type}, media_id: {media_id})")
+        
+        with get_flask_safe_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get photos to process
+            if media_id:
+                # Specific photo
+                cursor.execute("""
+                    SELECT id, file_path, file_type, user_id
+                    FROM album_media
+                    WHERE id = :media_id AND file_type = 'photo'
+                """, {'media_id': media_id})
+            else:
+                # Photos without any face tags
+                cursor.execute("""
+                    SELECT am.id, am.file_path, am.file_type, am.user_id
+                    FROM album_media am
+                    LEFT JOIN face_tags ft ON am.id = ft.media_id
+                    WHERE am.file_type = 'photo'
+                    AND ft.id IS NULL
+                    ORDER BY am.created_at DESC
+                    FETCH FIRST 50 ROWS ONLY
+                """)
+            
+            photos = cursor.fetchall()
+            
+            if not photos:
+                return jsonify({
+                    'success': True,
+                    'message': 'No photos found matching criteria',
+                    'photos_processed': 0,
+                    'total_faces_detected': 0,
+                    'faces_auto_tagged': 0,
+                    'unknown_faces_saved': 0
+                })
+            
+            logger.info(f"📚 Found {len(photos)} photo(s) to process")
+            
+            total_faces = 0
+            total_auto_tagged = 0
+            total_unknown = 0
+            photos_processed = 0
+            
+            for photo_id, file_path, file_type, user_id in photos:
+                try:
+                    logger.info(f"Processing photo {photo_id}...")
+                    
+                    # Get PAR URL
+                    par_url = _get_par_url_for_oci(file_path)
+                    if not par_url:
+                        logger.warning(f"Could not get PAR URL for {photo_id}")
+                        continue
+                    
+                    # Download to temp file
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                    response = requests.get(par_url, timeout=30)
+                    response.raise_for_status()
+                    
+                    with open(temp_file.name, 'wb') as f:
+                        f.write(response.content)
+                    temp_file.close()
+                    
+                    # Run auto face recognition
+                    result = auto_recognize_faces(
+                        media_id=photo_id,
+                        image_path=temp_file.name,
+                        user_id=user_id,
+                        connection=conn
+                    )
+                    
+                    # Clean up temp file
+                    try:
+                        os.unlink(temp_file.name)
+                    except:
+                        pass
+                    
+                    if result.get('faces_detected', 0) > 0:
+                        total_faces += result['faces_detected']
+                        total_auto_tagged += result.get('faces_recognized', 0)
+                        total_unknown += result['faces_detected'] - result.get('faces_recognized', 0)
+                        photos_processed += 1
+                        logger.info(f"  ✅ {result['faces_detected']} faces detected")
+                    
+                except Exception as photo_error:
+                    logger.error(f"Failed to process photo {photo_id}: {photo_error}")
+                    continue
+            
+            return jsonify({
+                'success': True,
+                'message': f'Processed {photos_processed} photo(s)',
+                'photos_processed': photos_processed,
+                'total_faces_detected': total_faces,
+                'faces_auto_tagged': total_auto_tagged,
+                'unknown_faces_saved': total_unknown
+            })
+            
+    except Exception as e:
+        logger.exception(f"❌ Face re-detection failed: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/search/selfie', methods=['POST'])
