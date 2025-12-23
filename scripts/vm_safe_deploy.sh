@@ -202,36 +202,53 @@ echo ""
 # Step 8: Restart services
 echo -e "${YELLOW}🔄 Step 8: Restarting services...${NC}"
 
-# Test Nginx config
-if command -v nginx &> /dev/null; then
-    echo "Testing Nginx configuration..."
-    if sudo nginx -t 2>&1 | grep -q "successful"; then
-        echo -e "${GREEN}✓ Nginx configuration valid${NC}"
-        echo "Reloading Nginx..."
-        sudo systemctl reload nginx
-    else
-        echo -e "${RED}✗ Nginx configuration invalid${NC}"
-        sudo nginx -t
-        exit 1
+# Check if we have sudo access and systemctl
+if command -v systemctl &> /dev/null && sudo -n true 2>/dev/null; then
+    # Test Nginx config
+    if command -v nginx &> /dev/null; then
+        echo "Testing Nginx configuration..."
+        if sudo nginx -t 2>&1 | grep -q "successful"; then
+            echo -e "${GREEN}✓ Nginx configuration valid${NC}"
+            echo "Reloading Nginx..."
+            sudo systemctl reload nginx
+        else
+            echo -e "${RED}✗ Nginx configuration invalid${NC}"
+            sudo nginx -t
+            exit 1
+        fi
     fi
-fi
 
-# Restart application
-if systemctl is-active --quiet dataguardian; then
-    echo "Restarting Data Guardian service..."
-    sudo systemctl restart dataguardian
-    sleep 3
-    
-    if systemctl is-active --quiet dataguardian; then
-        echo -e "${GREEN}✓ Data Guardian service restarted${NC}"
+    # Restart application
+    if systemctl is-active --quiet dataguardian 2>/dev/null; then
+        echo "Restarting Data Guardian service..."
+        sudo systemctl restart dataguardian
+        sleep 3
+
+        if systemctl is-active --quiet dataguardian 2>/dev/null; then
+            echo -e "${GREEN}✓ Data Guardian service restarted${NC}"
+        else
+            echo -e "${RED}✗ Data Guardian service failed to start${NC}"
+            echo "Check logs: sudo journalctl -u dataguardian -n 50"
+            exit 1
+        fi
     else
-        echo -e "${RED}✗ Data Guardian service failed to start${NC}"
-        echo "Check logs: sudo journalctl -u dataguardian -n 50"
-        exit 1
+        echo "Starting Data Guardian service..."
+        sudo systemctl start dataguardian
+        sleep 3
+
+        if systemctl is-active --quiet dataguardian 2>/dev/null; then
+            echo -e "${GREEN}✓ Data Guardian service started${NC}"
+        else
+            echo -e "${RED}✗ Data Guardian service failed to start${NC}"
+            echo "Check logs: sudo journalctl -u dataguardian -n 50"
+            exit 1
+        fi
     fi
 else
-    echo -e "${YELLOW}⚠️  Data Guardian service not running${NC}"
-    echo "Start it with: sudo systemctl start dataguardian"
+    echo -e "${YELLOW}⚠️  Cannot restart services (no sudo/systemctl access)${NC}"
+    echo "Manual restart required:"
+    echo "  sudo systemctl restart dataguardian"
+    echo "  sudo systemctl reload nginx  # if using nginx"
 fi
 echo ""
 
