@@ -494,20 +494,23 @@ EXECUTOR = ThreadPoolExecutor(max_workers=3, thread_name_prefix='embedding-')
 MULTIPART_THRESHOLD = 100 * 1024 * 1024
 
 # =============================================================================
-# PRELOAD HEAVY MODELS (ImageBind) - With 4 OCPU + 64GB RAM, we can afford this
+# PRELOAD HEAVY MODELS (ImageBind) - TEMPORARILY DISABLED FOR DEBUGGING
 # =============================================================================
-logger.info("🚀 Preloading ImageBind model for better performance...")
-try:
-    from utils.imagebind_helper import get_imagebind_embedder
-    # Force model loading at startup
-    embedder = get_imagebind_embedder()
-    # Test the model with a dummy operation to ensure it's ready
-    logger.info("✅ ImageBind model preloaded successfully - ready for embeddings!")
-    IMAGEBIND_PRELOADED = True
-except Exception as e:
-    logger.warning(f"⚠️  ImageBind preloading failed: {e}")
-    logger.warning("📝 ImageBind will load on first use instead")
-    IMAGEBIND_PRELOADED = False
+logger.info("🚀 ImageBind preloading temporarily disabled for debugging...")
+IMAGEBIND_PRELOADED = False
+
+# TODO: Re-enable after debugging startup issues
+# try:
+#     from utils.imagebind_helper import get_imagebind_embedder
+#     # Force model loading at startup
+#     embedder = get_imagebind_embedder()
+#     # Test the model with a dummy operation to ensure it's ready
+#     logger.info("✅ ImageBind model preloaded successfully - ready for embeddings!")
+#     IMAGEBIND_PRELOADED = True
+# except Exception as e:
+#     logger.warning(f"⚠️  ImageBind preloading failed: {e}")
+#     logger.warning("📝 ImageBind will load on first use instead")
+#     IMAGEBIND_PRELOADED = False
 
 def _load_oci_config():
     """Load OCI configuration"""
