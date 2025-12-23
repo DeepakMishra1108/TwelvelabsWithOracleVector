@@ -1469,21 +1469,22 @@
             
             const html = `
                 <div class="album-grid">
-                    ${albums.map(album => `
-                        <div class="album-card">
+                    ${albums.map(album => {
+                        const escapedName = album.album_name.replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+                        return `
+                        <div class="album-card" data-album-name="${escapedName}">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div class="d-flex align-items-center" onclick="searchAlbum('${album.album_name}')" style="cursor: pointer; flex: 1;">
+                                <div class="d-flex align-items-center album-open-btn" style="cursor: pointer; flex: 1;">
                                     <i class="bi bi-folder2-open text-primary" style="font-size: 2rem;"></i>
                                 </div>
                                 ${userPermissions.canDelete ? `
-                                <button class="btn btn-sm btn-outline-danger" 
-                                        onclick="event.stopPropagation(); deleteAlbum('${album.album_name}')"
+                                <button class="btn btn-sm btn-outline-danger album-delete-btn" 
                                         title="Delete Album">
                                     <i class="bi bi-trash"></i>
                                 </button>
                                 ` : ''}
                             </div>
-                            <div class="album-name" onclick="searchAlbum('${album.album_name}')" style="cursor: pointer;">${album.album_name}</div>
+                            <div class="album-name album-open-btn" style="cursor: pointer;">${album.album_name}</div>
                             <div class="album-stats">
                                 <i class="bi bi-image me-1"></i>${album.photo_count || 0} photos
                                 <span class="mx-1">•</span>
@@ -1495,11 +1496,31 @@
                                 </small>
                             </div>
                         </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 </div>
             `;
             
             container.innerHTML = html;
+            
+            // Add event delegation for album clicks
+            container.querySelectorAll('.album-open-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const albumCard = this.closest('.album-card');
+                    const albumName = albumCard.dataset.albumName.replace(/&apos;/g, "'").replace(/&quot;/g, '"');
+                    searchAlbum(albumName);
+                });
+            });
+            
+            // Add event delegation for delete buttons
+            container.querySelectorAll('.album-delete-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const albumCard = this.closest('.album-card');
+                    const albumName = albumCard.dataset.albumName.replace(/&apos;/g, "'").replace(/&quot;/g, '"');
+                    deleteAlbum(albumName);
+                });
+            });
         }
 
         // Search album - view album contents
@@ -1741,8 +1762,7 @@
                                         </span>
                                     ` : ''}
                                     ${userPermissions.canDelete ? `
-                                    <button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-2" 
-                                            onclick="deleteMedia(${mediaId}, '${result.file_name}', '${result.album_name}')"
+                                    <button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-2 delete-media-btn" 
                                             title="Delete this media"
                                             style="opacity: 0.9; padding: 0.25rem 0.5rem;">
                                         <i class="bi bi-trash"></i>
@@ -1794,47 +1814,39 @@
                                         `;
                                     })() : ''}
                                     <div class="mt-2 d-flex gap-1 flex-wrap">
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                onclick="findSimilar(${mediaId}, '${result.file_name}')"
+                                        <button class="btn btn-sm btn-outline-primary find-similar-btn" 
                                                 title="Find similar ${isVideo ? 'videos' : 'photos'}">
                                             <i class="bi bi-collection"></i> Similar
                                         </button>
-                                        <button class="btn btn-sm btn-outline-info" 
-                                                onclick="autoTag(${mediaId}, '${result.file_name}')"
+                                        <button class="btn btn-sm btn-outline-info auto-tag-btn" 
                                                 title="Generate AI tags">
                                             <i class="bi bi-tags"></i> Tags
                                         </button>
                                         ${!isVideo ? `
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                onclick="showFaceTagging(${mediaId}, '${result.file_name}')"
+                                        <button class="btn btn-sm btn-outline-primary face-tagging-btn" 
                                                 title="Tag people in this photo">
                                             <i class="bi bi-person-badge"></i> Faces
                                         </button>
                                         ` : ''}
                                         ${isVideo ? `
-                                        <button class="btn btn-sm btn-outline-success" 
-                                                onclick="showClipExtractor(${mediaId}, '${result.file_name}')"
+                                        <button class="btn btn-sm btn-outline-success clip-extractor-btn" 
                                                 title="Extract video clip">
                                             <i class="bi bi-scissors"></i> Clip
                                         </button>
-                                        <button class="btn btn-sm btn-outline-warning" 
-                                                onclick="analyzeVideo(${mediaId}, '${result.file_name}')"
+                                        <button class="btn btn-sm btn-outline-warning analyze-video-btn" 
                                                 title="Video analysis: titles, topics, summary, chapters">
                                             <i class="bi bi-bar-chart"></i> Analyze
                                         </button>
-                                        <button class="btn btn-sm btn-outline-info" 
-                                                onclick="getVideoHighlights(${mediaId}, '${result.file_name}')"
+                                        <button class="btn btn-sm btn-outline-info video-highlights-btn" 
                                                 title="Extract key moments">
                                             <i class="bi bi-stars"></i> Highlights
                                         </button>
-                                        <button class="btn btn-sm btn-outline-secondary" 
-                                                onclick="suggestThumbnails(${mediaId}, '${result.file_name}')"
+                                        <button class="btn btn-sm btn-outline-secondary suggest-thumbnails-btn" 
                                                 title="AI thumbnail suggestions">
                                             <i class="bi bi-image"></i> Thumbs
                                         </button>
                                         ` : ''}
-                                        <button class="btn btn-sm btn-outline-danger" 
-                                                onclick="moderateContent(${mediaId}, '${result.file_name}')"
+                                        <button class="btn btn-sm btn-outline-danger moderate-content-btn" 
                                                 title="Content moderation check">
                                             <i class="bi bi-shield-check"></i> Moderate
                                         </button>
@@ -1847,6 +1859,68 @@
             `;
             
             container.innerHTML = html;
+            
+            // Add event delegation for all action buttons
+            container.querySelectorAll('.result-card').forEach(card => {
+                const mediaId = parseInt(card.dataset.mediaId);
+                const fileType = card.dataset.fileType;
+                const fileName = results.find(r => r.media_id === mediaId)?.file_name || '';
+                const albumName = results.find(r => r.media_id === mediaId)?.album_name || '';
+                
+                // Delete button
+                const deleteBtn = card.querySelector('.delete-media-btn');
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', () => deleteMedia(mediaId, fileName, albumName));
+                }
+                
+                // Find similar button
+                const similarBtn = card.querySelector('.find-similar-btn');
+                if (similarBtn) {
+                    similarBtn.addEventListener('click', () => findSimilar(mediaId, fileName));
+                }
+                
+                // Auto tag button
+                const tagBtn = card.querySelector('.auto-tag-btn');
+                if (tagBtn) {
+                    tagBtn.addEventListener('click', () => autoTag(mediaId, fileName));
+                }
+                
+                // Face tagging button
+                const faceBtn = card.querySelector('.face-tagging-btn');
+                if (faceBtn) {
+                    faceBtn.addEventListener('click', () => showFaceTagging(mediaId, fileName));
+                }
+                
+                // Clip extractor button
+                const clipBtn = card.querySelector('.clip-extractor-btn');
+                if (clipBtn) {
+                    clipBtn.addEventListener('click', () => showClipExtractor(mediaId, fileName));
+                }
+                
+                // Analyze video button
+                const analyzeBtn = card.querySelector('.analyze-video-btn');
+                if (analyzeBtn) {
+                    analyzeBtn.addEventListener('click', () => analyzeVideo(mediaId, fileName));
+                }
+                
+                // Video highlights button
+                const highlightsBtn = card.querySelector('.video-highlights-btn');
+                if (highlightsBtn) {
+                    highlightsBtn.addEventListener('click', () => getVideoHighlights(mediaId, fileName));
+                }
+                
+                // Suggest thumbnails button
+                const thumbsBtn = card.querySelector('.suggest-thumbnails-btn');
+                if (thumbsBtn) {
+                    thumbsBtn.addEventListener('click', () => suggestThumbnails(mediaId, fileName));
+                }
+                
+                // Moderate content button
+                const moderateBtn = card.querySelector('.moderate-content-btn');
+                if (moderateBtn) {
+                    moderateBtn.addEventListener('click', () => moderateContent(mediaId, fileName));
+                }
+            });
             
             // Load thumbnails asynchronously
             results.forEach(result => {
@@ -2297,7 +2371,7 @@
                                                 <i class="bi bi-download me-1"></i>Download
                                             </a>
                                             ${userPermissions.canDelete ? `
-                                            <button class="btn btn-danger btn-sm" onclick="deleteSlideshow(${slideshow.media_id})" title="Delete">
+                                            <button class="btn btn-danger btn-sm delete-slideshow-btn" data-media-id="${slideshow.media_id}" title="Delete">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                             ` : ''}
@@ -2308,6 +2382,14 @@
                         `).join('')}
                     </div>
                 `;
+                
+                // Add event delegation for delete slideshow buttons
+                container.querySelectorAll('.delete-slideshow-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const mediaId = parseInt(this.dataset.mediaId);
+                        deleteSlideshow(mediaId);
+                    });
+                });
             } catch (error) {
                 console.error('Error loading slideshows:', error);
                 document.getElementById('slideshowsContainer').innerHTML = `
@@ -2557,7 +2639,7 @@
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="button" class="btn btn-warning" onclick="confirmOverwriteTags(${mediaId}, '${fileName}')">
+                                    <button type="button" class="btn btn-warning confirm-overwrite-btn" data-media-id="${mediaId}" data-file-name="${fileName}">
                                         <i class="bi bi-arrow-repeat me-1"></i>Overwrite Tags
                                     </button>
                                 </div>
@@ -2567,6 +2649,16 @@
                     
                     document.body.appendChild(confirmModal);
                     const bsConfirmModal = new bootstrap.Modal(confirmModal);
+                    
+                    // Add event listener for the overwrite button
+                    const overwriteBtn = confirmModal.querySelector('.confirm-overwrite-btn');
+                    overwriteBtn.addEventListener('click', function() {
+                        const mediaId = parseInt(this.dataset.mediaId);
+                        const fileName = this.dataset.fileName;
+                        bsConfirmModal.hide();
+                        confirmOverwriteTags(mediaId, fileName);
+                    });
+                    
                     bsConfirmModal.show();
                     confirmModal.addEventListener('hidden.bs.modal', () => confirmModal.remove());
                     return;
@@ -2675,7 +2767,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-primary" onclick="extractClip(${mediaId})">
+                            <button type="button" class="btn btn-primary extract-clip-confirm-btn" data-media-id="${mediaId}">
                                 <i class="bi bi-scissors"></i> Extract Clip
                             </button>
                         </div>
@@ -2684,6 +2776,14 @@
             `;
             document.body.appendChild(modal);
             const bsModal = new bootstrap.Modal(modal);
+            
+            // Add event listener for extract button
+            const extractBtn = modal.querySelector('.extract-clip-confirm-btn');
+            extractBtn.addEventListener('click', function() {
+                const mediaId = parseInt(this.dataset.mediaId);
+                extractClip(mediaId);
+            });
+            
             bsModal.show();
             modal.addEventListener('hidden.bs.modal', () => modal.remove());
         }
@@ -4643,7 +4743,7 @@
                 const streamUrl = photo.stream_url || '#';
                 
                 col.innerHTML = `
-                    <div class="card h-100 shadow-sm hover-lift" style="cursor: pointer;" onclick="window.open('${streamUrl}', '_blank')">
+                    <div class="card h-100 shadow-sm hover-lift camera-search-card" style="cursor: pointer;" data-stream-url="${streamUrl}">
                         <div class="position-relative">
                             <img src="/static/placeholder.jpg" class="card-img-top placeholder-image" alt="Loading..." style="height: 200px; object-fit: cover; filter: blur(2px);">
                             <img src="${imageUrl}" class="card-img-top main-image" alt="${photo.file_name || 'Photo'}" style="height: 200px; object-fit: cover; position: absolute; top: 0; left: 0;" loading="lazy" onerror="this.parentElement.innerHTML='<i class=\\'bi bi-image-fill text-danger\\' style=\\'font-size: 3rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);\\' title=\\'Image failed to load\\'></i>';">
@@ -4662,6 +4762,15 @@
                         </div>
                     </div>
                 `;
+                
+                // Add click handler
+                const card = col.querySelector('.camera-search-card');
+                card.addEventListener('click', function() {
+                    const url = this.dataset.streamUrl;
+                    if (url && url !== '#') {
+                        window.open(url, '_blank');
+                    }
+                });
                 
                 grid.appendChild(col);
             });
