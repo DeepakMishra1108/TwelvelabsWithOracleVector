@@ -1825,9 +1825,10 @@
                                        class="form-control form-control-sm" 
                                        id="faceName${index}" 
                                        list="faceNameSuggestions"
-                                       placeholder="Enter or select name">
-                                 <button class="btn btn-sm btn-success" 
-                                        onclick="tagFace(${index})">
+                                       placeholder="Enter or select name"
+                                       data-face-index="${index}">
+                                 <button class="btn btn-sm btn-success tag-face-btn" 
+                                        data-face-index="${index}">
                                     <i class="bi bi-tag"></i> Tag
                                  </button>`
                             }
@@ -1835,6 +1836,24 @@
                     </div>
                 </div>
             `}).join('');
+            
+            // Add event listeners for tag buttons
+            list.querySelectorAll('.tag-face-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const faceIndex = parseInt(this.getAttribute('data-face-index'));
+                    tagFace(faceIndex);
+                });
+            });
+            
+            // Add Enter key support for face name inputs
+            list.querySelectorAll('input[data-face-index]').forEach(input => {
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        const faceIndex = parseInt(this.getAttribute('data-face-index'));
+                        tagFace(faceIndex);
+                    }
+                });
+            });
             
             panel.style.display = 'block';
             
