@@ -34,14 +34,20 @@ class MetadataBackfiller:
     def __init__(self):
         """Initialize backfiller with database and GPT connections"""
         # Load DB configuration from environment
-        db_user = os.getenv('DB_USER')
-        db_password = os.getenv('DB_PASSWORD')
-        db_dsn = os.getenv('DB_DSN')
-        wallet_location = os.getenv('TNS_ADMIN')
-        wallet_password = os.getenv('WALLET_PASSWORD')
+        db_user = os.getenv('ORACLE_DB_USERNAME') or os.getenv('DB_USER')
+        db_password = os.getenv('ORACLE_DB_PASSWORD') or os.getenv('DB_PASSWORD')
+        db_dsn = os.getenv('ORACLE_DB_CONNECT_STRING') or os.getenv('DB_DSN')
+        wallet_location = os.getenv('TNS_ADMIN') or os.getenv('ORACLE_DB_WALLET_PATH')
+        wallet_password = os.getenv('ORACLE_DB_WALLET_PASSWORD') or os.getenv('WALLET_PASSWORD')
         
         if not all([db_user, db_password, db_dsn, wallet_location, wallet_password]):
-            raise ValueError("Missing required database configuration in environment variables")
+            missing = []
+            if not db_user: missing.append('ORACLE_DB_USERNAME/DB_USER')
+            if not db_password: missing.append('ORACLE_DB_PASSWORD/DB_PASSWORD')
+            if not db_dsn: missing.append('ORACLE_DB_CONNECT_STRING/DB_DSN')
+            if not wallet_location: missing.append('TNS_ADMIN/ORACLE_DB_WALLET_PATH')
+            if not wallet_password: missing.append('ORACLE_DB_WALLET_PASSWORD/WALLET_PASSWORD')
+            raise ValueError(f"Missing required database configuration: {', '.join(missing)}")
         
         logger.info(f"🔐 Connecting to database with wallet from: {wallet_location}")
         
