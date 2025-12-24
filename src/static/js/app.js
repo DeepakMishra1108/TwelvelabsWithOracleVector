@@ -604,12 +604,21 @@
                 }
                 
                 if (fileType === 'photo') {
-                    // Use optimized thumbnail endpoint instead of full image
-                    const thumbnailUrl = `/media_thumbnail/${mediaId}`;
-                    console.log(`Loading photo thumbnail from: ${thumbnailUrl}`);
+                    // Fetch the actual image URL from the endpoint
+                    const response = await fetch(`/media_thumbnail/${mediaId}`);
+                    const data = await response.json();
+                    
+                    if (data.error || !data.url) {
+                        console.error(`Failed to get thumbnail URL for ${mediaId}:`, data.error);
+                        thumbElement.innerHTML = '<i class="bi bi-image-fill text-danger" style="font-size: 3rem;" title="Image failed to load"></i>';
+                        return;
+                    }
+                    
+                    const imageUrl = data.url;
+                    console.log(`Loading photo thumbnail from: ${imageUrl}`);
                     
                     thumbElement.innerHTML = `
-                        <img src="${thumbnailUrl}" 
+                        <img src="${imageUrl}" 
                              alt="Photo thumbnail" 
                              style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer;"
                              loading="lazy"
@@ -619,7 +628,7 @@
                     // Add error handler
                     const img = thumbElement.querySelector('img');
                     img.addEventListener('error', function() {
-                        console.error(`Failed to load thumbnail: ${thumbnailUrl}`);
+                        console.error(`Failed to load image from: ${imageUrl}`);
                         this.parentElement.innerHTML = '<i class="bi bi-image-fill text-danger" style="font-size: 3rem;" title="Image failed to load"></i>';
                     });
                     
@@ -630,12 +639,21 @@
                         showImageModal(mediaId, data.file_name);
                     });
                 } else if (fileType === 'video') {
-                    // For video segments, use thumbnail endpoint
+                    // For video segments, fetch thumbnail URL
                     const timestamp = segmentStart || 0;
-                    const thumbnailUrl = `/video_thumbnail/${mediaId}?timestamp=${timestamp}`;
+                    const response = await fetch(`/video_thumbnail/${mediaId}?timestamp=${timestamp}`);
+                    const data = await response.json();
+                    
+                    if (data.error || !data.url) {
+                        console.error(`Failed to get video thumbnail URL for ${mediaId}:`, data.error);
+                        thumbElement.innerHTML = '<i class="bi bi-camera-video-fill text-warning" style="font-size: 3rem; opacity: 0.5;" title="Thumbnail generation failed"></i>';
+                        return;
+                    }
+                    
+                    const imageUrl = data.url;
                     
                     thumbElement.innerHTML = `
-                        <img src="${thumbnailUrl}" 
+                        <img src="${imageUrl}" 
                              alt="Video thumbnail at ${formatTime(timestamp)}" 
                              style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer;"
                              loading="lazy"
@@ -3385,6 +3403,27 @@
                             })
                         });
 
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            console.error('Camera search failed:', response.status, errorText);
+                            
+                            if (response.status === 404) {
+                                showCameraStatus('❌ Camera search feature is not yet available. The backend endpoint /api/search/selfie needs to be implemented.', 'danger');
+                            } else {
+                                showCameraStatus(`❌ Server error: ${response.status}`, 'danger');
+                            }
+                            return;
+                        }
+                        
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            console.error('Invalid response type:', contentType);
+                            const text = await response.text();
+                            console.error('Response body:', text.substring(0, 200));
+                            showCameraStatus('❌ Server returned invalid response (not JSON)', 'danger');
+                            return;
+                        }
+
                         const result = await response.json();
                         
                         console.log('Camera search response:', result);
@@ -3407,6 +3446,7 @@
                             showCameraStatus('❌ ' + (result.error || 'Search failed'), 'danger');
                         }
                     } catch (error) {
+                        console.error('Camera search error:', error);
                         showCameraStatus('❌ Error: ' + error.message, 'danger');
                     } finally {
                         searchBtn.disabled = false;
