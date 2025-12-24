@@ -3496,16 +3496,29 @@
             if (!resultsContainer) return;
 
             resultsContainer.innerHTML = '';
+            
+            console.log('📊 Raw backend response:', result.photos?.length, 'photos');
+            console.log('Sample photos:', result.photos?.slice(0, 3));
 
             // Filter out photos with only "unknown" or no named faces
+            // BUT: Keep photos where the person might be tagged as unknown if confidence is high
             const filteredPhotos = result.photos.filter(photo => {
-                const namedFaces = photo.matched_faces.filter(face => 
+                // Keep all photos that have at least one named face OR very high confidence unknown faces
+                const hasNamedFaces = photo.matched_faces.some(face => 
                     face.face_name && 
                     face.face_name.toLowerCase() !== 'unknown' &&
                     face.face_name.trim() !== ''
                 );
-                return namedFaces.length > 0;
+                
+                const hasHighConfidenceUnknown = photo.matched_faces.some(face =>
+                    (!face.face_name || face.face_name.toLowerCase() === 'unknown') &&
+                    photo.best_match_distance < 0.40  // Very close match even if unknown
+                );
+                
+                return hasNamedFaces || hasHighConfidenceUnknown;
             });
+            
+            console.log(`🔍 After unknown filtering: ${result.photos?.length} → ${filteredPhotos.length} photos`);
 
             // Find the most common face name (the person we're searching for)
             const faceNameCounts = {};
@@ -3527,17 +3540,23 @@
             console.log('Face name counts (weighted):', faceNameCounts);
             console.log('Primary person detected:', primaryPerson);
 
-            // CRITICAL: Only keep photos that contain the primary person
-            // This prevents showing photos of wrong people
+            // MODIFIED: More lenient - show photos of primary person OR high-confidence untagged matches
             const strictFilteredPhotos = primaryPerson 
                 ? filteredPhotos.filter(photo => {
-                    return photo.matched_faces.some(face => 
+                    const hasPrimaryPerson = photo.matched_faces.some(face => 
                         face.face_name === primaryPerson
                     );
+                    
+                    // Also include very close matches even if unknown (might be same person not tagged)
+                    const isVeryCloseMatch = photo.best_match_distance < 0.35 && 
+                        photo.matched_faces.some(face => !face.face_name || face.face_name.toLowerCase() === 'unknown');
+                    
+                    return hasPrimaryPerson || isVeryCloseMatch;
                 })
                 : filteredPhotos;
 
-            console.log(`🔍 Strict filtering: ${filteredPhotos.length} → ${strictFilteredPhotos.length} photos (showing only ${primaryPerson || 'all'})`);
+            console.log(`🔍 Strict filtering: ${filteredPhotos.length} → ${strictFilteredPhotos.length} photos`);
+            console.log(`   Primary person filter: showing ${primaryPerson || 'all'} + high-confidence unknowns`);
 
             // Update to use strictly filtered photos
             const finalPhotos = strictFilteredPhotos;
