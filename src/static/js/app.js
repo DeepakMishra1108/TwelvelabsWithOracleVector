@@ -1805,7 +1805,18 @@
             const list = document.getElementById('detectedFacesList');
             const countEl = document.getElementById('detectedFaceCount');
             
-            countEl.textContent = faces.length;
+            // Count only untagged faces
+            const untaggedFaces = faces.filter(face => !face.matched_tag);
+            const taggedFacesCount = faces.filter(face => face.matched_tag).length;
+            
+            // Update count to show untagged faces
+            countEl.textContent = untaggedFaces.length;
+            
+            // Update panel title to show both counts
+            const panelHeader = document.querySelector('#detectedFacesPanel .card-header h6');
+            if (panelHeader) {
+                panelHeader.innerHTML = `Detected Faces (<span id="detectedFaceCount">${untaggedFaces.length}</span> untagged${taggedFacesCount > 0 ? `, ${taggedFacesCount} already tagged` : ''})`;
+            }
             
             list.innerHTML = faces.map((face, index) => {
                 const isMatched = face.matched_tag;
