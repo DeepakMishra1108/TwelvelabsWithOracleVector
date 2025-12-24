@@ -3565,25 +3565,24 @@
             console.log('📊 Raw backend response:', result.photos?.length, 'photos');
             console.log('Sample photos:', result.photos?.slice(0, 3));
 
-            // Filter out photos with only "unknown" or no named faces
-            // BUT: Keep photos where the person might be tagged as unknown if confidence is high
+            // Keep photos with named faces OR high-confidence unknown faces
             const filteredPhotos = result.photos.filter(photo => {
-                // Keep all photos that have at least one named face OR very high confidence unknown faces
                 const hasNamedFaces = photo.matched_faces.some(face => 
                     face.face_name && 
                     face.face_name.toLowerCase() !== 'unknown' &&
                     face.face_name.trim() !== ''
                 );
                 
+                // Include very close unknown matches (might be untagged people from selfie)
                 const hasHighConfidenceUnknown = photo.matched_faces.some(face =>
                     (!face.face_name || face.face_name.toLowerCase() === 'unknown') &&
-                    photo.best_match_distance < 0.40  // Very close match even if unknown
+                    photo.best_match_distance < 0.40
                 );
                 
                 return hasNamedFaces || hasHighConfidenceUnknown;
             });
             
-            console.log(`🔍 After unknown filtering: ${result.photos?.length} → ${filteredPhotos.length} photos`);
+            console.log(`🔍 Filtered: ${result.photos?.length} → ${filteredPhotos.length} photos (including unknown matches)`);
 
             // Find the most common face name (the person we're searching for)
             const faceNameCounts = {};
@@ -3673,50 +3672,88 @@
                 return;
             }
 
-            // Create gallery grid with 3-level smart filtering
+            // Create gallery grid
             const grid = document.createElement('div');
             grid.className = 'row g-3';
 
-            // Categorize photos by match quality
-            const excellentMatches = [];
-            const goodMatches = [];
-            const possibleMatches = [];
-
+            // Categorize by number of selfie faces matched
+            const totalSelfieFaces = result.faces_detected || 1;
+            const faceCountCategories = {};
+            
             finalPhotos.forEach(photo => {
-                const bestDistance = photo.best_match_distance;
-                if (bestDistance < 0.35) {
-                    excellentMatches.push(photo);
-                } else if (bestDistance < 0.55) {
-                    goodMatches.push(photo);
-                } else {
-                    possibleMatches.push(photo);
+                const faceCount = photo.selfie_faces_matched_count || 1;
+                if (!faceCountCategories[faceCount]) {
+                    faceCountCategories[faceCount] = [];
                 }
+                faceCountCategories[faceCount].push(photo);
             });
 
-            console.log('📊 Match quality breakdown:');
-            console.log(`  ⭐ Excellent: ${excellentMatches.length} (distance < 0.35)`);
-            console.log(`  ✅ Good: ${goodMatches.length} (distance 0.35-0.55)`);
-            console.log(`  ⚠️ Possible: ${possibleMatches.length} (distance 0.55-0.8)`);
+            console.log('📊 Face count breakdown:');
+            for (let i = totalSelfieFaces; i >= 1; i--) {
+                if (faceCountCategories[i]) {
+                    console.log(`  ${i}/${totalSelfieFaces} faces: ${faceCountCategories[i].length} photos`);
+                }
+            }
 
-            // Function to render a category section
-            const renderCategory = (photos, title, badgeClass, icon) => {
+            // Function to render a category section with pagination
+            const renderCategory = (photos, title, badgeClass, icon, maxShow = 20) => {
                 if (photos.length === 0) return;
                 
                 const categoryHeader = document.createElement('div');
                 categoryHeader.className = 'col-12';
+                const showingText = photos.length > maxShow ? ` - Showing first ${maxShow}` : '';
                 categoryHeader.innerHTML = `
                     <h6 class="mt-3 mb-2">
                         <span class="badge ${badgeClass}">
-                            <i class="bi ${icon} me-1"></i>${title} (${photos.length})
+                            <i class="bi ${icon} me-1"></i>${title} (${photos.length}${showingText})
                         </span>
                     </h6>
                 `;
                 grid.appendChild(categoryHeader);
 
-                photos.forEach(photo => {
+                // Show first maxShow photos
+                const photosToShow = photos.slice(0, maxShow);
+                photosToShow.forEach(photo => {
                     renderPhotoCard(photo);
                 });
+                
+                // Add "Load More" hint if there are more photos
+                if (photos.length > maxShow) {
+                    const loadMoreCol = document.createElement('div');
+                    loadMoreCol.className = 'col-12 text-center my-3';
+                    loadMoreCol.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            ${photos.length - maxShow} more photo(s) in this category. Scroll down for more results.
+                        </div>
+                    `;
+                    grid.appendChild(loadMoreCol);
+                }
             };
+            
+            // Render categories in priority order: all faces, then combinations, then individuals
+            for (let faceCount = totalSelfieFaces; faceCount >= 1; faceCount--) {
+                const photos = faceCountCategories[faceCount];
+                if (photos && photos.length > 0) {
+                    let title, badgeClass, icon;
+                    
+                    if (faceCount === totalSelfieFaces && totalSelfieFaces > 1) {
+                        title = `All ${totalSelfieFaces} Faces Together`;
+                        badgeClass = 'bg-success';
+                        icon = 'bi-people-fill';
+                    } else if (faceCount > 1) {
+                        title = `${faceCount} of ${totalSelfieFaces} Faces`;
+                        badgeClass = 'bg-primary';
+                        icon = 'bi-person-plus-fill';
+                    } else {
+                        title = totalSelfieFaces > 1 ? 'Individual Faces' : 'Matching Photos';
+                        badgeClass = 'bg-info';
+                        icon = 'bi-person-fill';
+                    }
+                    
+                    renderCategory(photos, title, badgeClass, icon, 20);
+                }
+            }
 
             // Function to render a single photo card
             const renderPhotoCard = (photo) => {
@@ -3784,11 +3821,6 @@
                 
                 grid.appendChild(col);
             };
-
-            // Render categories in order of match quality
-            renderCategory(excellentMatches, 'Excellent Match', 'bg-success', 'bi-star-fill');
-            renderCategory(goodMatches, 'Good Match', 'bg-primary', 'bi-check-circle-fill');
-            renderCategory(possibleMatches, 'Possible Match', 'bg-warning', 'bi-question-circle-fill');
 
             resultsContainer.appendChild(grid);
         }

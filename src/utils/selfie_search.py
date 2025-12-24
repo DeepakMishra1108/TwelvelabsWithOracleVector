@@ -157,7 +157,8 @@ def search_photos_by_selfie(
                         'file_type': file_type,
                         'matched_faces': [],
                         'best_match_distance': distance,
-                        'match_count': 0
+                        'match_count': 0,
+                        'selfie_faces_matched': set()  # Track which selfie faces matched this photo
                     }
                 
                 # Parse bounding box
@@ -178,24 +179,35 @@ def search_photos_by_selfie(
                         'face_name': face_name,
                         'distance': float(distance),
                         'confidence': 1.0 - float(distance),
-                        'bounding_box': bbox
+                        'bounding_box': bbox,
+                        'selfie_face_index': face_idx  # Track which selfie face this matched
                     })
                     photos_dict[media_id]['match_count'] += 1
+                    photos_dict[media_id]['selfie_faces_matched'].add(face_idx)  # Track unique selfie faces
                     
                     # Update best match distance (lowest)
                     if distance < photos_dict[media_id]['best_match_distance']:
                         photos_dict[media_id]['best_match_distance'] = distance
         
-        # Convert to list and sort by best match
+        # Convert set to count and sort by: 1) number of selfie faces matched (descending), 2) best distance (ascending)
+        for photo in photos_dict.values():
+            photo['selfie_faces_matched_count'] = len(photo['selfie_faces_matched'])
+            del photo['selfie_faces_matched']  # Remove set (not JSON serializable)
+        
         photos_list = sorted(
             photos_dict.values(),
-            key=lambda x: x['best_match_distance']
+            key=lambda x: (-x['selfie_faces_matched_count'], x['best_match_distance'])
         )
         
         total_matches = sum(p['match_count'] for p in photos_list)
         
+        # Calculate statistics for better UI organization
+        all_faces_photos = [p for p in photos_list if p['selfie_faces_matched_count'] == len(face_embeddings)]
+        partial_match_photos = [p for p in photos_list if 0 < p['selfie_faces_matched_count'] < len(face_embeddings)]
+        
         logger.info(f"✅ Selfie search complete: {len(face_embeddings)} faces searched")
         logger.info(f"   Found {len(photos_list)} unique photos with {total_matches} total face matches")
+        logger.info(f"   All faces: {len(all_faces_photos)}, Partial matches: {len(partial_match_photos)}")
         
         if len(photos_list) == 0:
             return {
@@ -212,6 +224,8 @@ def search_photos_by_selfie(
             'faces_detected': len(faces),
             'matches_found': total_matches,
             'unique_photos': len(photos_list),
+            'all_faces_photos': len(all_faces_photos),
+            'partial_match_photos': len(partial_match_photos),
             'similarity_threshold': similarity_threshold,
             'photos': photos_list
         }
