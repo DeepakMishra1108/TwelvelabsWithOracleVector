@@ -16,6 +16,17 @@
         let selectedPhotos = new Set(); // Track selected photo media IDs
         let selectedVideos = new Set(); // Track selected video media IDs
         
+        // Helper function to fix Bootstrap modal aria-hidden focus warning
+        function fixModalAccessibility(modalElement) {
+            modalElement.addEventListener('hide.bs.modal', function() {
+                // Remove focus from any focused element before modal hides
+                const focusedElement = modalElement.querySelector(':focus');
+                if (focusedElement) {
+                    focusedElement.blur();
+                }
+            });
+        }
+        
         // User permissions (loaded from page data)
         let userPermissions = {
             canUpload: false,
@@ -719,9 +730,12 @@
         
         // Show video in modal with optional start time
         function showVideoModal(videoUrl, fileName, startTime, endTime) {
-            const modal = new bootstrap.Modal(document.getElementById('videoModal') || createVideoModal());
+            const modalElement = document.getElementById('videoModal') || createVideoModal();
+            const modal = new bootstrap.Modal(modalElement);
             const modalVideo = document.getElementById('modalVideo');
             const modalLabel = document.getElementById('videoModalLabel');
+            
+            fixModalAccessibility(modalElement);
             
             modalVideo.src = videoUrl;
             modalLabel.textContent = fileName + (startTime ? ` (${formatTime(startTime)})` : '');
@@ -759,9 +773,12 @@
         
         // Show full image in modal
         function showImageModal(mediaId, fileName) {
-            const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+            const modalElement = document.getElementById('imageModal');
+            const modal = new bootstrap.Modal(modalElement);
             const modalImage = document.getElementById('modalImage');
             const modalLabel = document.getElementById('imageModalLabel');
+            
+            fixModalAccessibility(modalElement);
 
             // Use cached modal-sized image for faster loading
             const modalImageUrl = `/media_modal/${mediaId}`;
@@ -1764,15 +1781,8 @@
             const modalElement = document.getElementById('faceTaggingModal');
             const modal = new bootstrap.Modal(modalElement);
             
-            // Fix aria-hidden focus warning by removing aria-hidden when modal is shown
-            modalElement.addEventListener('shown.bs.modal', function() {
-                modalElement.removeAttribute('aria-hidden');
-            }, { once: true });
-            
-            // Re-add aria-hidden when modal is closed
-            modalElement.addEventListener('hidden.bs.modal', function() {
-                modalElement.setAttribute('aria-hidden', 'true');
-            }, { once: true });
+            // Fix aria-hidden accessibility warning
+            fixModalAccessibility(modalElement);
             
             modal.show();
         }
