@@ -3596,8 +3596,6 @@
 
             // Function to render a single photo card
             const renderPhotoCard = (photo) => {
-            // Function to render a single photo card
-            const renderPhotoCard = (photo) => {
                 console.log('Rendering photo:', photo);
                 const col = document.createElement('div');
                 col.className = 'col-6 col-md-4 col-lg-3';
