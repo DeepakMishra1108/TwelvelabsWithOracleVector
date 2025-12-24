@@ -47,6 +47,7 @@
             loadMapData();
             setupUploadZone();
             setupEnterKeySearch();
+            setupSearchButton();
         });
 
         // Initialize Leaflet map
@@ -794,6 +795,17 @@
                     performSearch();
                 }
             });
+        }
+
+        // Setup search button click
+        function setupSearchButton() {
+            const searchBtn = document.querySelector('[data-action="search"]');
+            if (searchBtn) {
+                searchBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    performSearch();
+                });
+            }
         }
 
         // Setup upload zone
@@ -1752,10 +1764,14 @@
             const modalElement = document.getElementById('faceTaggingModal');
             const modal = new bootstrap.Modal(modalElement);
             
-            // Fix aria-hidden focus warning by removing aria-hidden after modal is shown
-            modalElement.addEventListener('shown.bs.modal', function handleShown() {
+            // Fix aria-hidden focus warning by removing aria-hidden when modal is shown
+            modalElement.addEventListener('shown.bs.modal', function() {
                 modalElement.removeAttribute('aria-hidden');
-                modalElement.removeEventListener('shown.bs.modal', handleShown);
+            }, { once: true });
+            
+            // Re-add aria-hidden when modal is closed
+            modalElement.addEventListener('hidden.bs.modal', function() {
+                modalElement.setAttribute('aria-hidden', 'true');
             }, { once: true });
             
             modal.show();
