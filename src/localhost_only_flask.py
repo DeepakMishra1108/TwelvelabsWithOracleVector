@@ -4004,8 +4004,16 @@ def auto_tag_media(media_id):
             file_type = row[1]
             file_path = row[2]
             oci_object_path = row[3] if len(row) > 3 else None
-            # AI_TAGS CLOB is already converted to string by flask_safe_execute_query
-            existing_tags = row[4] if len(row) > 4 else None
+            # AI_TAGS - handle both CLOB and JSON types
+            existing_tags_raw = row[4] if len(row) > 4 else None
+            if existing_tags_raw:
+                if hasattr(existing_tags_raw, 'read'):
+                    # It's a LOB object, read it
+                    existing_tags = existing_tags_raw.read()
+                else:
+                    existing_tags = str(existing_tags_raw)
+            else:
+                existing_tags = None
         
         # If tags exist and user hasn't confirmed overwrite, ask for confirmation
         if existing_tags and not force_overwrite:
@@ -4073,12 +4081,19 @@ def auto_tag_media(media_id):
             hashtags = [f"#{cat.replace(' and ', '_').replace(' ', '_')}" 
                        for cat, _ in top_categories[:8]]
             
-            # Format generated tags
-            generated_text = f"CATEGORIES: {', '.join([cat for cat, score in top_categories])}\n"
-            generated_text += f"HASHTAGS: {' '.join(hashtags)}\n"
-            generated_text += f"CONFIDENCE: {top_categories[0][1]:.2%} match to '{top_categories[0][0]}'"
+            # Format generated tags as JSON
+            import json
+            tags_json = {
+                "categories": [cat for cat, score in top_categories],
+                "hashtags": hashtags,
+                "confidence": f"{top_categories[0][1]:.2%}",
+                "top_match": top_categories[0][0],
+                "generated_by": "imagebind",
+                "version": "2.0",
+                "raw_text": f"CATEGORIES: {', '.join([cat for cat, score in top_categories])}\nHASHTAGS: {' '.join(hashtags)}\nCONFIDENCE: {top_categories[0][1]:.2%} match to '{top_categories[0][0]}'"
+            }
             
-            # Save tags to database
+            # Save tags to database as JSON
             try:
                 with get_flask_safe_connection() as conn:
                     cursor = conn.cursor()
@@ -4086,9 +4101,9 @@ def auto_tag_media(media_id):
                         UPDATE album_media 
                         SET AI_TAGS = :tags 
                         WHERE id = :id
-                    """, {"tags": generated_text, "id": media_id})
+                    """, {"tags": json.dumps(tags_json), "id": media_id})
                     conn.commit()
-                    logger.info(f"✅ Saved ImageBind-based tags for media {media_id}")
+                    logger.info(f"✅ Saved ImageBind-based tags for media {media_id} as JSON")
             except Exception as db_error:
                 logger.warning(f"Failed to save tags to database: {db_error}")
             
@@ -4097,7 +4112,8 @@ def auto_tag_media(media_id):
                 "media_id": media_id,
                 "file_name": file_name,
                 "file_type": "video",
-                "generated_tags": generated_text,
+                "generated_tags": tags_json.get('raw_text', ''),
+                "tags_json": tags_json,
                 "top_categories": [{"category": cat, "confidence": f"{score:.2%}"} 
                                   for cat, score in top_categories],
                 "existing_tags": existing_tags
@@ -4153,7 +4169,27 @@ def auto_tag_media(media_id):
                 
                 generated_text = response.choices[0].message.content
                 
-                # Save tags to database
+                # Parse the response into JSON format
+                import json
+                tags_json = {
+                    "raw_text": generated_text,
+                    "generated_by": "openai_vision",
+                    "version": "2.0"
+                }
+                
+                # Parse structured format
+                lines = generated_text.split('\n')
+                for line in lines:
+                    if line.startswith('TITLE:'):
+                        tags_json['title'] = line.replace('TITLE:', '').strip()
+                    elif line.startswith('SUBJECTS:'):
+                        subs = line.replace('SUBJECTS:', '').strip()
+                        tags_json['subjects'] = [s.strip() for s in subs.split(',')]
+                    elif line.startswith('HASHTAGS:'):
+                        tags = line.replace('HASHTAGS:', '').strip()
+                        tags_json['hashtags'] = [h.strip() for h in tags.split() if h.startswith('#')]
+                
+                # Save tags to database as JSON
                 try:
                     with get_flask_safe_connection() as conn:
                         cursor = conn.cursor()
@@ -4161,9 +4197,9 @@ def auto_tag_media(media_id):
                             UPDATE album_media 
                             SET AI_TAGS = :tags 
                             WHERE id = :id
-                        """, {"tags": generated_text, "id": media_id})
+                        """, {"tags": json.dumps(tags_json), "id": media_id})
                         conn.commit()
-                        logger.info(f"✅ Saved tags for media {media_id}")
+                        logger.info(f"✅ Saved tags for media {media_id} as JSON")
                 except Exception as db_error:
                     logger.warning(f"Failed to save tags to database: {db_error}")
                 
@@ -4173,6 +4209,7 @@ def auto_tag_media(media_id):
                     "file_name": file_name,
                     "file_type": "photo",
                     "generated_tags": generated_text,
+                    "tags_json": tags_json,
                     "existing_tags": existing_tags
                 })
                 
