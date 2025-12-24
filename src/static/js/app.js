@@ -3699,7 +3699,16 @@
                 const col = document.createElement('div');
                 col.className = 'col-6 col-md-4 col-lg-3';
                 
-                const bestMatch = photo.matched_faces && photo.matched_faces[0] ? photo.matched_faces[0] : {confidence: 0};
+                // Filter to only show faces that were detected in the selfie
+                const selfieFacesOnly = photo.matched_faces
+                    .filter(face => 
+                        face.face_name && 
+                        face.face_name.toLowerCase() !== 'unknown' && 
+                        face.face_name.trim() !== '' &&
+                        selfieFaceNames.includes(face.face_name)  // Only show if this face was in selfie
+                    );
+                
+                const bestMatch = selfieFacesOnly[0] || photo.matched_faces[0] || {confidence: 0};
                 const confidence = Math.round(bestMatch.confidence * 100);
                 
                 // Use thumbnail URL from backend response, fallback to constructing it
@@ -3720,16 +3729,15 @@
                         <div class="card-body">
                             <h6 class="card-title text-truncate">${photo.file_name}</h6>
                             <div class="mb-2">
-                                ${photo.matched_faces
-                                    .filter(face => face.face_name && face.face_name.toLowerCase() !== 'unknown' && face.face_name.trim() !== '')
+                                ${selfieFacesOnly
                                     .slice(0, 3)
                                     .map(face => {
                                         const conf = Math.round(face.confidence * 100);
                                         const badgeClass = conf >= 70 ? 'bg-success' : conf >= 50 ? 'bg-primary' : 'bg-secondary';
                                         return `<span class="badge ${badgeClass} me-1">${face.face_name} ${conf}%</span>`;
                                     }).join('')}
-                                ${photo.matched_faces.filter(f => f.face_name && f.face_name.toLowerCase() !== 'unknown' && f.face_name.trim() !== '').length > 3 ? 
-                                    `<span class="badge bg-light text-dark">+${photo.matched_faces.filter(f => f.face_name && f.face_name.toLowerCase() !== 'unknown' && f.face_name.trim() !== '').length - 3} more</span>` : ''}
+                                ${selfieFacesOnly.length > 3 ? 
+                                    `<span class="badge bg-light text-dark">+${selfieFacesOnly.length - 3} more</span>` : ''}
                             </div>
                             <div class="progress" style="height: 6px;">
                                 <div class="progress-bar bg-success" role="progressbar" style="width: ${confidence}%"></div>
