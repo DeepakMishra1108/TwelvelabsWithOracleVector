@@ -3533,11 +3533,11 @@
                 
                 col.innerHTML = `
                     <div class="card h-100 shadow-sm hover-lift camera-search-card" style="cursor: pointer;" data-stream-url="${streamUrl}">
-                        <div class="position-relative" style="height: 200px; background: #f0f0f0;">
+                        <div class="position-relative" style="height: 200px; background: #f0f0f0; overflow: hidden;">
                             <img src="${imageUrl}" 
                                  class="card-img-top main-image" 
                                  alt="${photo.file_name || 'Photo'}" 
-                                 style="width: 100%; height: 200px; object-fit: cover;" 
+                                 style="width: 100%; height: 200px; object-fit: cover; display: block; position: relative; z-index: 1;" 
                                  loading="lazy">
                         </div>
                         <div class="card-body">
@@ -3561,6 +3561,7 @@
                 
                 img.addEventListener('load', function() {
                     console.log('✅ Camera search image loaded:', imageUrl);
+                    this.classList.add('loaded'); // Add loaded class to make image visible
                 });
                 
                 img.addEventListener('error', function(e) {
