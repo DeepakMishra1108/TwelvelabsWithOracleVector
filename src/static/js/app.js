@@ -604,17 +604,8 @@
                 }
                 
                 if (fileType === 'photo') {
-                    // Fetch the actual image URL from the endpoint
-                    const response = await fetch(`/media_thumbnail/${mediaId}`);
-                    const data = await response.json();
-                    
-                    if (data.error || !data.url) {
-                        console.error(`Failed to get thumbnail URL for ${mediaId}:`, data.error);
-                        thumbElement.innerHTML = '<i class="bi bi-image-fill text-danger" style="font-size: 3rem;" title="Image failed to load"></i>';
-                        return;
-                    }
-                    
-                    const imageUrl = data.url;
+                    // The endpoint returns the image directly, not JSON
+                    const imageUrl = `/media_thumbnail/${mediaId}`;
                     console.log(`Loading photo thumbnail from: ${imageUrl}`);
                     
                     thumbElement.innerHTML = `
@@ -639,18 +630,10 @@
                         showImageModal(mediaId, data.file_name);
                     });
                 } else if (fileType === 'video') {
-                    // For video segments, fetch thumbnail URL
+                    // For video segments, the endpoint returns the image directly
                     const timestamp = segmentStart || 0;
-                    const response = await fetch(`/video_thumbnail/${mediaId}?timestamp=${timestamp}`);
-                    const data = await response.json();
-                    
-                    if (data.error || !data.url) {
-                        console.error(`Failed to get video thumbnail URL for ${mediaId}:`, data.error);
-                        thumbElement.innerHTML = '<i class="bi bi-camera-video-fill text-warning" style="font-size: 3rem; opacity: 0.5;" title="Thumbnail generation failed"></i>';
-                        return;
-                    }
-                    
-                    const imageUrl = data.url;
+                    const imageUrl = `/video_thumbnail/${mediaId}?timestamp=${timestamp}`;
+                    console.log(`Loading video thumbnail from: ${imageUrl}`);
                     
                     thumbElement.innerHTML = `
                         <img src="${imageUrl}" 
