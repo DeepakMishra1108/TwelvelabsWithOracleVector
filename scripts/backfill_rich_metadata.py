@@ -9,7 +9,6 @@ import os
 import json
 import logging
 import time
-import tempfile
 from datetime import datetime
 
 # Add parent directory to path
@@ -18,7 +17,6 @@ sys.path.insert(0, src_path)
 
 import oracledb
 from dotenv import load_dotenv
-import oci
 
 # Load environment variables
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
@@ -71,16 +69,6 @@ class MetadataBackfiller:
         except ImportError:
             logger.error("❌ Failed to import GPTVisionMetadataExtractor")
             logger.info("💡 Make sure OPENAI_API_KEY is set in .env")
-        # Initialize OCI Object Storage client
-        try:
-            from utils.oci_config_loader import get_oci_config
-            oci_config = get_oci_config()
-            self.obj_client = oci.object_storage.ObjectStorageClient(oci_config)
-            logger.info("✅ OCI Object Storage client initialized")
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize OCI client: {e}")
-            raise
-        
             raise
         
         logger.info("✅ Backfiller initialized")
@@ -90,35 +78,23 @@ class MetadataBackfiller:
         cursor = self.conn.cursor()
         
         cursor.execute("""
-            SELECT id, file_name, file_path, album_name, namespace, bucket, object_path
+            SELECT id, file_name, file_path, album_name
             FROM album_media
             WHERE file_type = 'photo'
-            AND (rich_metadata IS NULL OR rich_metadata = '{}' OR rich, namespace, bucket, object_path):
+            AND (rich_metadata IS NULL OR rich_metadata = '{}' OR rich_metadata = 'null')
+            ORDER BY id
+        """)
+        
+        photos = cursor.fetchall()
+        cursor.close()
+        
+        logger.info(f"📊 Found {len(photos)} photos without metadata")
+        return photos
+    
+    def process_photo(self, photo_id, file_name, file_path, album_name):
         """Process a single photo and store metadata"""
-        temp_file = None
         try:
             logger.info(f"\n{'='*60}")
-            logger.info(f"📸 Processing: {file_name} (ID: {photo_id})")
-            logger.info(f"{'='*60}")
-            
-            # Download image from OCI
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-            
-            try:
-                # Get object from OCI
-                logger.debug(f"Downloading from OCI: {namespace}/{bucket}/{object_path}")
-                get_response = self.obj_client.get_object(namespace, bucket, object_path)
-                with open(temp_file.name, 'wb') as f:
-                    for chunk in get_response.data.raw.stream(1024 * 1024, decode_content=False):
-                        f.write(chunk)
-                temp_file.close()
-                logger.debug(f"✅ Downloaded to: {temp_file.name}")
-            except Exception as e:
-                logger.error(f"❌ Failed to download from OCI: {e}")
-                return False
-            
-            # Extract metadata using GPT-4o-mini
-            metadata = self.extractor.extract_metadata(temp_file.name
             logger.info(f"📸 Processing: {file_name} (ID: {photo_id})")
             logger.info(f"{'='*60}")
             
@@ -150,15 +126,7 @@ class MetadataBackfiller:
             self.conn.commit()
             cursor.close()
             
-            # Log summar
-        finally:
-            # Clean up temporary file
-            if temp_file and os.path.exists(temp_file.name):
-                try:
-                    os.unlink(temp_file.name)
-                    logger.debug(f"🧹 Cleaned up temp file: {temp_file.name}")
-                except:
-                    passy
+            # Log summary
             logger.info(f"✅ Metadata stored successfully")
             logger.info(f"   Scene: {metadata.get('scene_type')}")
             logger.info(f"   Setting: {metadata.get('setting')}")
@@ -180,10 +148,10 @@ class MetadataBackfiller:
             limit: Maximum number of photos to process (None = all)
             delay: Delay between API calls in seconds (to respect rate limits)
         """
-        try:, namespace, bucket, object_path) in enumerate(photos, 1):
-                logger.info(f"\n[{idx}/{total}] Processing {file_name}...")
-                
-                if self.process_photo(photo_id, file_name, file_path, album_name, namespace, bucket, object_path
+        try:
+            photos = self.get_photos_without_metadata()
+            
+            if not photos:
                 logger.info("✅ All photos already have metadata!")
                 return
             

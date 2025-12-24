@@ -3695,6 +3695,78 @@
                 }
             }
 
+            // Function to render a single photo card (must be defined before renderCategory)
+            const renderPhotoCard = (photo) => {
+                console.log('Rendering photo:', photo);
+                const col = document.createElement('div');
+                col.className = 'col-6 col-md-4 col-lg-3';
+                
+                const bestMatch = photo.matched_faces && photo.matched_faces[0] ? photo.matched_faces[0] : {confidence: 0};
+                const confidence = Math.round(bestMatch.confidence * 100);
+                
+                // Use thumbnail URL from backend response, fallback to constructing it
+                const imageUrl = photo.thumbnail_url || `/media_thumbnail/${photo.media_id}`;
+                const streamUrl = photo.stream_url || '#';
+                
+                console.log(`📸 Using thumbnail URL: ${imageUrl} for media_id: ${photo.media_id}`);
+                
+                col.innerHTML = `
+                    <div class="card h-100 shadow-sm hover-lift camera-search-card" style="cursor: pointer;" data-stream-url="${streamUrl}">
+                        <div class="position-relative" style="height: 200px; background: #f0f0f0; overflow: hidden;">
+                            <img src="${imageUrl}" 
+                                 class="card-img-top main-image" 
+                                 alt="${photo.file_name || 'Photo'}" 
+                                 style="width: 100%; height: 200px; object-fit: cover; display: block; position: relative; z-index: 1;" 
+                                 loading="lazy">
+                        </div>
+                        <div class="card-body">
+                            <h6 class="card-title text-truncate">${photo.file_name}</h6>
+                            <div class="mb-2">
+                                ${photo.matched_faces
+                                    .filter(face => face.face_name && face.face_name.toLowerCase() !== 'unknown' && face.face_name.trim() !== '')
+                                    .map(face => 
+                                        `<span class="badge bg-primary me-1">${face.face_name} (${Math.round(face.confidence * 100)}%)</span>`
+                                    ).join('')}
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: ${confidence}%"></div>
+                            </div>
+                            <small class="text-muted">${photo.match_count} match(es)</small>
+                        </div>
+                    </div>
+                `;
+                
+                // Add error handler for image
+                const img = col.querySelector('.main-image');
+                console.log('Setting up image handlers for:', imageUrl);
+                
+                img.addEventListener('load', function() {
+                    console.log('✅ Camera search image loaded:', imageUrl);
+                    this.classList.add('loaded'); // Add loaded class to make image visible
+                });
+                
+                img.addEventListener('error', function(e) {
+                    console.error('❌ Camera search image failed to load:', imageUrl, e);
+                    this.parentElement.innerHTML = '<i class="bi bi-image-fill text-danger" style="font-size: 3rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" title="Image failed to load"></i>';
+                });
+                
+                // Add click handler to open image
+                const card = col.querySelector('.camera-search-card');
+                card.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const url = this.getAttribute('data-stream-url');
+                    if (url && url !== '#') {
+                        openImageInModal({
+                            url: url,
+                            file_name: photo.file_name,
+                            media_id: photo.media_id
+                        });
+                    }
+                });
+                
+                grid.appendChild(col);
+            };
+
             // Function to render a category section with pagination
             const renderCategory = (photos, title, badgeClass, icon, maxShow = 20) => {
                 if (photos.length === 0) return;
@@ -3754,73 +3826,6 @@
                     renderCategory(photos, title, badgeClass, icon, 20);
                 }
             }
-
-            // Function to render a single photo card
-            const renderPhotoCard = (photo) => {
-                console.log('Rendering photo:', photo);
-                const col = document.createElement('div');
-                col.className = 'col-6 col-md-4 col-lg-3';
-                
-                const bestMatch = photo.matched_faces && photo.matched_faces[0] ? photo.matched_faces[0] : {confidence: 0};
-                const confidence = Math.round(bestMatch.confidence * 100);
-                
-                // Use thumbnail URL from backend response, fallback to constructing it
-                const imageUrl = photo.thumbnail_url || `/media_thumbnail/${photo.media_id}`;
-                const streamUrl = photo.stream_url || '#';
-                
-                console.log(`📸 Using thumbnail URL: ${imageUrl} for media_id: ${photo.media_id}`);
-                
-                col.innerHTML = `
-                    <div class="card h-100 shadow-sm hover-lift camera-search-card" style="cursor: pointer;" data-stream-url="${streamUrl}">
-                        <div class="position-relative" style="height: 200px; background: #f0f0f0; overflow: hidden;">
-                            <img src="${imageUrl}" 
-                                 class="card-img-top main-image" 
-                                 alt="${photo.file_name || 'Photo'}" 
-                                 style="width: 100%; height: 200px; object-fit: cover; display: block; position: relative; z-index: 1;" 
-                                 loading="lazy">
-                        </div>
-                        <div class="card-body">
-                            <h6 class="card-title text-truncate">${photo.file_name}</h6>
-                            <div class="mb-2">
-                                ${photo.matched_faces
-                                    .filter(face => face.face_name && face.face_name.toLowerCase() !== 'unknown' && face.face_name.trim() !== '')
-                                    .map(face => 
-                                        `<span class="badge bg-primary me-1">${face.face_name} (${Math.round(face.confidence * 100)}%)</span>`
-                                    ).join('')}
-                            </div>
-                            <div class="progress" style="height: 6px;">
-                                <div class="progress-bar bg-success" role="progressbar" style="width: ${confidence}%"></div>
-                            </div>
-                            <small class="text-muted">${photo.match_count} match(es)</small>
-                        </div>
-                    </div>
-                `;
-                
-                // Add error handler for image
-                const img = col.querySelector('.main-image');
-                console.log('Setting up image handlers for:', imageUrl);
-                
-                img.addEventListener('load', function() {
-                    console.log('✅ Camera search image loaded:', imageUrl);
-                    this.classList.add('loaded'); // Add loaded class to make image visible
-                });
-                
-                img.addEventListener('error', function(e) {
-                    console.error('❌ Camera search image failed to load:', imageUrl, e);
-                    this.parentElement.innerHTML = '<i class="bi bi-image-fill text-danger" style="font-size: 3rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" title="Image failed to load"></i>';
-                });
-                
-                // Add click handler
-                const card = col.querySelector('.camera-search-card');
-                card.addEventListener('click', function() {
-                    const url = this.dataset.streamUrl;
-                    if (url && url !== '#') {
-                        window.open(url, '_blank');
-                    }
-                });
-                
-                grid.appendChild(col);
-            };
 
             resultsContainer.appendChild(grid);
         }
