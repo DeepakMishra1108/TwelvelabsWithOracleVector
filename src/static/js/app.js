@@ -3740,10 +3740,7 @@
                                 ${selfieFacesOnly.length > 3 ? 
                                     `<span class="badge bg-light text-dark">+${selfieFacesOnly.length - 3} more</span>` : ''}
                             </div>
-                            <div class="progress" style="height: 6px;">
-                                <div class="progress-bar bg-success" role="progressbar" style="width: ${confidence}%"></div>
-                            </div>
-                            <small class="text-muted">${photo.match_count} match(es)</small>
+                            <small class="text-muted">${photo.match_count} face match(es) in this photo</small>
                         </div>
                     </div>
                 `;
