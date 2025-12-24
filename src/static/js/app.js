@@ -3631,31 +3631,16 @@
             const photoCount = finalPhotos.length;
             const matchCount = finalPhotos.reduce((sum, p) => sum + p.match_count, 0);
             
-            // Get all unique named faces (not just primary)
-            const allNamedFaces = new Set();
-            filteredPhotos.forEach(photo => {
-                photo.matched_faces.forEach(face => {
-                    if (face.face_name && face.face_name.toLowerCase() !== 'unknown' && face.face_name.trim() !== '') {
-                        allNamedFaces.add(face.face_name);
-                    }
-                });
-            });
-            
-            const faceNames = Array.from(allNamedFaces);
+            // Use faces_detected from the selfie, not from search results
+            const facesInSelfie = result.faces_detected || 1;
             let greeting;
             
-            if (faceNames.length === 0) {
-                greeting = `<h5><i class="bi bi-camera-fill me-2"></i>Camera Search Results</h5>
-                           <p class="mb-0">Found ${photoCount} photos with ${matchCount} face matches</p>`;
-            } else if (faceNames.length === 1) {
-                greeting = `<h5><i class="bi bi-person-check-fill me-2"></i>Hello ${faceNames[0]}! 👋</h5>
-                           <p class="mb-0">Found ${photoCount} photos of you with ${matchCount} face matches</p>`;
+            if (facesInSelfie === 1) {
+                greeting = `<h5><i class="bi bi-person-check-fill me-2"></i>Camera Search Results 👋</h5>
+                           <p class="mb-0">Found ${photoCount} photos matching your face with ${matchCount} total matches</p>`;
             } else {
-                const namesList = faceNames.length === 2 
-                    ? `${faceNames[0]} and ${faceNames[1]}`
-                    : `${faceNames.slice(0, -1).join(', ')}, and ${faceNames[faceNames.length - 1]}`;
-                greeting = `<h5><i class="bi bi-people-fill me-2"></i>Hello ${namesList}! 👋</h5>
-                           <p class="mb-0">Found ${photoCount} photos of you with ${matchCount} face matches</p>`;
+                greeting = `<h5><i class="bi bi-people-fill me-2"></i>Camera Search Results 👋</h5>
+                           <p class="mb-0">Found ${photoCount} photos matching ${facesInSelfie} faces from your selfie with ${matchCount} total matches</p>`;
             }
             
             header.innerHTML = greeting;
