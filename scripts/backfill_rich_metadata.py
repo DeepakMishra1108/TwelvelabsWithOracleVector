@@ -79,9 +79,9 @@ class MetadataBackfiller:
         
         cursor.execute("""
             SELECT id, file_name, file_path, album_name
-            FROM media_metadata
+            FROM album_media
             WHERE file_type = 'photo'
-            AND (rich_metadata IS NULL OR rich_metadata = '{}')
+            AND (rich_metadata IS NULL OR rich_metadata = '{}' OR rich_metadata = 'null')
             ORDER BY id
         """)
         
@@ -115,7 +115,7 @@ class MetadataBackfiller:
             metadata_json = json.dumps(metadata)
             
             cursor.execute("""
-                UPDATE media_metadata
+                UPDATE album_media
                 SET rich_metadata = :metadata
                 WHERE id = :photo_id
             """, {
