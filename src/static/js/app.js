@@ -3513,7 +3513,9 @@
                 photo.matched_faces.forEach(face => {
                     const name = face.face_name;
                     if (name && name.toLowerCase() !== 'unknown' && name.trim() !== '') {
-                        faceNameCounts[name] = (faceNameCounts[name] || 0) + 1;
+                        // Weight by confidence (inverse of distance) - closer matches count more
+                        const weight = face.confidence || (1 - photo.best_match_distance);
+                        faceNameCounts[name] = (faceNameCounts[name] || 0) + weight;
                     }
                 });
             });
@@ -3522,14 +3524,29 @@
                 ? Object.keys(faceNameCounts).reduce((a, b) => faceNameCounts[a] > faceNameCounts[b] ? a : b)
                 : null;
 
-            console.log('Face name counts:', faceNameCounts);
+            console.log('Face name counts (weighted):', faceNameCounts);
             console.log('Primary person detected:', primaryPerson);
+
+            // CRITICAL: Only keep photos that contain the primary person
+            // This prevents showing photos of wrong people
+            const strictFilteredPhotos = primaryPerson 
+                ? filteredPhotos.filter(photo => {
+                    return photo.matched_faces.some(face => 
+                        face.face_name === primaryPerson
+                    );
+                })
+                : filteredPhotos;
+
+            console.log(`🔍 Strict filtering: ${filteredPhotos.length} → ${strictFilteredPhotos.length} photos (showing only ${primaryPerson || 'all'})`);
+
+            // Update to use strictly filtered photos
+            const finalPhotos = strictFilteredPhotos;
 
             // Add header with greeting
             const header = document.createElement('div');
-            header.className = filteredPhotos.length > 0 ? 'alert alert-success mb-4' : 'alert alert-info mb-4';
-            const photoCount = filteredPhotos.length;
-            const matchCount = filteredPhotos.reduce((sum, p) => sum + p.match_count, 0);
+            header.className = finalPhotos.length > 0 ? 'alert alert-success mb-4' : 'alert alert-info mb-4';
+            const photoCount = finalPhotos.length;
+            const matchCount = finalPhotos.reduce((sum, p) => sum + p.match_count, 0);
             
             const greeting = primaryPerson 
                 ? `<h5><i class="bi bi-person-check-fill me-2"></i>Hello ${primaryPerson}! 👋</h5>
@@ -3540,11 +3557,13 @@
             header.innerHTML = greeting;
             resultsContainer.appendChild(header);
 
-            if (filteredPhotos.length === 0) {
+            if (finalPhotos.length === 0) {
                 const originalCount = result.photos?.length || 0;
-                const message = originalCount > 0 
-                    ? `No photos found with named faces. ${originalCount} photos were excluded because they only contained "unknown" faces. Try tagging faces first or adjusting the match sensitivity.`
-                    : 'No matching photos found. Try adjusting the match sensitivity.';
+                const message = primaryPerson
+                    ? `No photos of ${primaryPerson} found that match your face. Try adjusting the match sensitivity slider to be less strict.`
+                    : originalCount > 0 
+                        ? `No photos found with named faces. ${originalCount} photos were excluded because they only contained "unknown" faces. Try tagging faces first or adjusting the match sensitivity.`
+                        : 'No matching photos found. Try adjusting the match sensitivity.';
                 resultsContainer.innerHTML += `<div class="alert alert-info">${message}</div>`;
                 return;
             }
@@ -3558,7 +3577,7 @@
             const goodMatches = [];
             const possibleMatches = [];
 
-            filteredPhotos.forEach(photo => {
+            finalPhotos.forEach(photo => {
                 const bestDistance = photo.best_match_distance;
                 if (bestDistance < 0.35) {
                     excellentMatches.push(photo);
