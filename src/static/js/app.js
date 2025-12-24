@@ -3699,16 +3699,17 @@
                 const col = document.createElement('div');
                 col.className = 'col-6 col-md-4 col-lg-3';
                 
-                // Filter to only show faces that were detected in the selfie
+                // ONLY show faces that actually matched the selfie (have selfie_face_index)
+                // This is the key - backend adds selfie_face_index to faces that matched the selfie embedding
                 const selfieFacesOnly = photo.matched_faces
                     .filter(face => 
+                        face.hasOwnProperty('selfie_face_index') &&  // MUST have matched a selfie face
                         face.face_name && 
                         face.face_name.toLowerCase() !== 'unknown' && 
-                        face.face_name.trim() !== '' &&
-                        selfieFaceNames.includes(face.face_name)  // Only show if this face was in selfie
+                        face.face_name.trim() !== ''
                     );
                 
-                const bestMatch = selfieFacesOnly[0] || photo.matched_faces[0] || {confidence: 0};
+                const bestMatch = selfieFacesOnly[0] || {confidence: 0};
                 const confidence = Math.round(bestMatch.confidence * 100);
                 
                 // Use thumbnail URL from backend response, fallback to constructing it
