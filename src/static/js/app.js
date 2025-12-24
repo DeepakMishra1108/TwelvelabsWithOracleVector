@@ -3695,9 +3695,9 @@
         });
 
         // Observe changes to the results container
-        const resultsContainer = document.getElementById('searchResults');
-        if (resultsContainer) {
-            observer.observe(resultsContainer, { childList: true, subtree: true });
+        const searchResultsContainer = document.getElementById('searchResults');
+        if (searchResultsContainer) {
+            observer.observe(searchResultsContainer, { childList: true, subtree: true });
         }
 
         // Initial setup
