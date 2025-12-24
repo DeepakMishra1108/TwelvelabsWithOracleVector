@@ -25,6 +25,9 @@ def get_cached_embedding(query_text: str, user_id: int = None) -> Optional[str]:
         user_id: Optional user ID for user-specific cache lookup
     """
     try:
+        # Use 0 as default user_id for global/guest cache entries
+        effective_user_id = user_id if user_id is not None else 0
+        
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
             
@@ -34,8 +37,8 @@ def get_cached_embedding(query_text: str, user_id: int = None) -> Optional[str]:
                     SELECT embedding_vector 
                     FROM query_embedding_cache 
                     WHERE query_text = :query
-                    AND (user_id = :user_id OR user_id IS NULL)
-                    ORDER BY user_id DESC NULLS LAST
+                    AND (user_id = :user_id OR user_id = 0)
+                    ORDER BY user_id DESC
                     FETCH FIRST 1 ROW ONLY
                 """, {"query": query_text, "user_id": user_id})
             else:
@@ -43,31 +46,22 @@ def get_cached_embedding(query_text: str, user_id: int = None) -> Optional[str]:
                     SELECT embedding_vector 
                     FROM query_embedding_cache 
                     WHERE query_text = :query
-                    AND user_id IS NULL
+                    AND user_id = 0
                 """, {"query": query_text})
             
             result = cursor.fetchone()
             if result and result[0]:
                 # Update usage stats
-                if user_id:
-                    cursor.execute("""
-                        UPDATE query_embedding_cache 
-                        SET last_used_at = CURRENT_TIMESTAMP, 
-                            usage_count = usage_count + 1
-                        WHERE query_text = :query
-                        AND (user_id = :user_id OR user_id IS NULL)
-                    """, {"query": query_text, "user_id": user_id})
-                else:
-                    cursor.execute("""
-                        UPDATE query_embedding_cache 
-                        SET last_used_at = CURRENT_TIMESTAMP, 
-                            usage_count = usage_count + 1
-                        WHERE query_text = :query
-                        AND user_id IS NULL
-                    """, {"query": query_text})
+                cursor.execute("""
+                    UPDATE query_embedding_cache 
+                    SET last_used_at = CURRENT_TIMESTAMP, 
+                        usage_count = usage_count + 1
+                    WHERE query_text = :query
+                    AND user_id = :user_id
+                """, {"query": query_text, "user_id": effective_user_id})
                 conn.commit()
                 
-                logger.info(f"💾 Using cached embedding for query: '{query_text}'" + (f" (user {user_id})" if user_id else ""))
+                logger.info(f"💾 Using cached embedding for query: '{query_text}'" + (f" (user {user_id})" if user_id else " (global)"))
                 # Convert VECTOR to JSON
                 return json.dumps(list(result[0]))
             return None
@@ -89,23 +83,23 @@ def save_embedding_to_cache(query_text: str, embedding_list: List[float], user_i
     Args:
         query_text: The search query
         embedding_list: The embedding vector
-        user_id: Optional user ID for user-specific caching
+        user_id: Optional user ID for user-specific caching (defaults to 0 for global/guest)
     """
     try:
+        # Use 0 as default user_id for global/guest cache entries
+        effective_user_id = user_id if user_id is not None else 0
         vector_json = json.dumps(embedding_list)
+        
         with get_flask_safe_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO query_embedding_cache (query_text, embedding_vector, user_id)
+                VALUES (:query, TO_VECTOR(:vector), :user_id)
+            """, {"query": query_text, "vector": vector_json, "user_id": effective_user_id})
+            
             if user_id:
-                cursor.execute("""
-                    INSERT INTO query_embedding_cache (query_text, embedding_vector, user_id)
-                    VALUES (:query, TO_VECTOR(:vector), :user_id)
-                """, {"query": query_text, "vector": vector_json, "user_id": user_id})
                 logger.info(f"💾 Saved embedding to cache for: '{query_text}' (user {user_id})")
             else:
-                cursor.execute("""
-                    INSERT INTO query_embedding_cache (query_text, embedding_vector)
-                    VALUES (:query, TO_VECTOR(:vector))
-                """, {"query": query_text, "vector": vector_json})
                 logger.info(f"💾 Saved embedding to cache for: '{query_text}' (global)")
             conn.commit()
     except Exception as e:
