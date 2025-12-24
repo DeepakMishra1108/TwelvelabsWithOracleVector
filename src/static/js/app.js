@@ -1930,18 +1930,22 @@
                 // Create label with face number or matched name
                 const label = document.createElement('div');
                 label.style.position = 'absolute';
-                label.style.top = '-28px';
+                label.style.top = '-22px';
                 label.style.left = '0';
                 label.style.background = borderColor;
                 label.style.color = 'white';
-                label.style.padding = '4px 10px';
-                label.style.borderRadius = '4px';
+                label.style.padding = '2px 6px';
+                label.style.borderRadius = '3px';
                 label.style.fontWeight = 'bold';
-                label.style.fontSize = '14px';
-                label.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+                label.style.fontSize = '11px';
+                label.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
+                label.style.whiteSpace = 'nowrap';
+                label.style.maxWidth = '150px';
+                label.style.overflow = 'hidden';
+                label.style.textOverflow = 'ellipsis';
                 
                 if (isMatched) {
-                    label.innerHTML = `<i class="bi bi-check-circle me-1"></i>${face.matched_tag.face_name}`;
+                    label.innerHTML = `<i class="bi bi-check-circle me-1" style="font-size: 10px;"></i>${face.matched_tag.face_name}`;
                 } else {
                     label.textContent = `Face ${index + 1}`;
                 }
