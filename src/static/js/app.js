@@ -3631,16 +3631,29 @@
             const photoCount = finalPhotos.length;
             const matchCount = finalPhotos.reduce((sum, p) => sum + p.match_count, 0);
             
-            // Use faces_detected from the selfie, not from search results
+            // Use identified face names from the selfie
+            const selfieFaceNames = result.selfie_face_names || [];
             const facesInSelfie = result.faces_detected || 1;
             let greeting;
             
-            if (facesInSelfie === 1) {
-                greeting = `<h5><i class="bi bi-person-check-fill me-2"></i>Camera Search Results 👋</h5>
-                           <p class="mb-0">Found ${photoCount} photos matching your face with ${matchCount} total matches</p>`;
+            if (selfieFaceNames.length === 0) {
+                // No faces identified - use generic greeting
+                if (facesInSelfie === 1) {
+                    greeting = `<h5><i class="bi bi-person-check-fill me-2"></i>Camera Search Results 👋</h5>
+                               <p class="mb-0">Found ${photoCount} photos matching your face with ${matchCount} total matches</p>`;
+                } else {
+                    greeting = `<h5><i class="bi bi-people-fill me-2"></i>Camera Search Results 👋</h5>
+                               <p class="mb-0">Found ${photoCount} photos matching ${facesInSelfie} faces from your selfie with ${matchCount} total matches</p>`;
+                }
+            } else if (selfieFaceNames.length === 1) {
+                greeting = `<h5><i class="bi bi-person-check-fill me-2"></i>Hello ${selfieFaceNames[0]}! 👋</h5>
+                           <p class="mb-0">Found ${photoCount} photos of you with ${matchCount} face matches</p>`;
             } else {
-                greeting = `<h5><i class="bi bi-people-fill me-2"></i>Camera Search Results 👋</h5>
-                           <p class="mb-0">Found ${photoCount} photos matching ${facesInSelfie} faces from your selfie with ${matchCount} total matches</p>`;
+                const namesList = selfieFaceNames.length === 2 
+                    ? `${selfieFaceNames[0]} and ${selfieFaceNames[1]}`
+                    : `${selfieFaceNames.slice(0, -1).join(', ')}, and ${selfieFaceNames[selfieFaceNames.length - 1]}`;
+                greeting = `<h5><i class="bi bi-people-fill me-2"></i>Hello ${namesList}! 👋</h5>
+                           <p class="mb-0">Found ${photoCount} photos of you with ${matchCount} face matches</p>`;
             }
             
             header.innerHTML = greeting;

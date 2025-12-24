@@ -87,6 +87,7 @@ def search_photos_by_selfie(
         cursor = connection.cursor()
         all_matches = []
         photos_dict = {}
+        selfie_face_names = []  # Track identified names from selfie
         
         for face_idx, selfie_embedding in enumerate(face_embeddings):
             logger.info(f"🔍 Searching for matches for face {face_idx + 1}/{len(face_embeddings)}...")
@@ -94,21 +95,25 @@ def search_photos_by_selfie(
             # Convert embedding to Oracle VECTOR format
             vector_bytes = embedding_to_oracle_vector(selfie_embedding)
             
-            # Check sample distances for this face
+            # Check sample distances for this face to identify who is in the selfie
             cursor.execute("""
                 SELECT 
                     ft.face_name,
                     VECTOR_DISTANCE(ft.face_embedding, :query_embedding, COSINE) as distance
                 FROM face_tags ft
                 WHERE ft.face_embedding IS NOT NULL
+                AND ft.face_name IS NOT NULL
+                AND LOWER(ft.face_name) != 'unknown'
                 ORDER BY distance ASC
-                FETCH FIRST 5 ROWS ONLY
+                FETCH FIRST 1 ROW ONLY
             """, {'query_embedding': vector_bytes})
             
-            sample_distances = cursor.fetchall()
-            logger.info(f"📏 Top 5 closest matches for face {face_idx + 1}:")
-            for name, dist in sample_distances:
-                logger.info(f"   {name}: distance={dist:.4f}")
+            top_match = cursor.fetchone()
+            if top_match and top_match[1] < similarity_threshold:
+                selfie_face_names.append(top_match[0])
+                logger.info(f"✅ Identified face {face_idx + 1} as: {top_match[0]} (distance={top_match[1]:.4f})")
+            else:
+                logger.info(f"⚠️  Face {face_idx + 1} not identified (no close match)")
             
             # Execute search for this face
             cursor.execute("""
@@ -222,6 +227,7 @@ def search_photos_by_selfie(
             'success': True,
             'message': f'Found {len(photos_list)} photos containing similar faces',
             'faces_detected': len(faces),
+            'selfie_face_names': selfie_face_names,  # Names identified in the selfie
             'matches_found': total_matches,
             'unique_photos': len(photos_list),
             'all_faces_photos': len(all_faces_photos),
