@@ -1749,7 +1749,15 @@
             await loadTaggedFaces(mediaId);
             
             // Show modal
-            const modal = new bootstrap.Modal(document.getElementById('faceTaggingModal'));
+            const modalElement = document.getElementById('faceTaggingModal');
+            const modal = new bootstrap.Modal(modalElement);
+            
+            // Fix aria-hidden focus warning by removing aria-hidden after modal is shown
+            modalElement.addEventListener('shown.bs.modal', function handleShown() {
+                modalElement.removeAttribute('aria-hidden');
+                modalElement.removeEventListener('shown.bs.modal', handleShown);
+            }, { once: true });
+            
             modal.show();
         }
 
