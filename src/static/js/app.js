@@ -616,20 +616,18 @@
                              class="thumbnail-img">
                     `;
                     
-                    // Add load handler
+                    // Add all event handlers to the img element
                     const img = thumbElement.querySelector('img');
+                    
                     img.addEventListener('load', function() {
                         console.log(`✅ Image loaded successfully: ${imageUrl}`);
                     });
                     
-                    // Add error handler
-                    const img = thumbElement.querySelector('img');
                     img.addEventListener('error', function() {
                         console.error(`Failed to load image from: ${imageUrl}`);
                         this.parentElement.innerHTML = '<i class="bi bi-image-fill text-danger" style="font-size: 3rem;" title="Image failed to load"></i>';
                     });
                     
-                    // Add click handler to show full image
                     img.addEventListener('click', async function() {
                         const response = await fetch(`/get_media_url/${mediaId}`);
                         const data = await response.json();
