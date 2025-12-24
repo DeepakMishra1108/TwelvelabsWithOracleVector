@@ -5396,7 +5396,7 @@ def capture_user_face():
     try:
         from utils.db_utils_flask_safe import get_flask_safe_connection
         from utils.face_detection_helper import (
-            detect_faces_opencv,
+            detect_faces_deepface,
             generate_placeholder_embedding,
             embedding_to_oracle_vector
         )
@@ -5427,7 +5427,7 @@ def capture_user_face():
         
         try:
             # Detect faces in the image
-            faces = detect_faces_opencv(temp_file.name)
+            faces = detect_faces_deepface(temp_file.name)
             
             if not faces or len(faces) == 0:
                 os.unlink(temp_file.name)

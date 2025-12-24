@@ -17,7 +17,7 @@ if str(current_dir.parent.parent) not in sys.path:
 logger = logging.getLogger(__name__)
 
 from utils.face_detection_helper import (
-    detect_faces_opencv,
+    detect_faces_deepface,
     generate_placeholder_embedding,
     find_matching_faces,
     embedding_to_oracle_vector,
@@ -42,8 +42,8 @@ def auto_recognize_faces(media_id: int, image_path: str, user_id: int, connectio
     try:
         logger.info(f"🔍 Auto-recognizing faces in media {media_id}")
         
-        # Step 1: Detect all faces in the image
-        faces = detect_faces_opencv(image_path)
+        # Step 1: Detect all faces in the image using DeepFace
+        faces = detect_faces_deepface(image_path)
         
         if not faces or len(faces) == 0:
             logger.info(f"ℹ️  No faces detected in media {media_id}")

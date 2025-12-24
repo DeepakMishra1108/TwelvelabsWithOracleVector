@@ -72,8 +72,8 @@ def detect_faces_deepface(image_path: str) -> List[Dict]:
         List of face dictionaries with bounding box and confidence
     """
     if not DEEPFACE_AVAILABLE:
-        logger.warning("⚠️  DeepFace not available, falling back to OpenCV")
-        return detect_faces_opencv(image_path)
+        logger.error("❌ DeepFace not available - cannot detect faces")
+        return []
     
     try:
         logger.debug(f"🔍 Detecting faces with DeepFace: {image_path}")
@@ -108,8 +108,8 @@ def detect_faces_deepface(image_path: str) -> List[Dict]:
         return validated_faces
         
     except Exception as e:
-        logger.warning(f"⚠️  DeepFace detection failed: {e}, falling back to OpenCV")
-        return detect_faces_opencv(image_path)
+        logger.error(f"❌ DeepFace detection failed: {e}")
+        return []
 
 
 def detect_faces_opencv(image_path: str) -> List[Dict]:
