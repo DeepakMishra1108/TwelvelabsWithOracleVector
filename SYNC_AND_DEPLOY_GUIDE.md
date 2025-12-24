@@ -26,51 +26,45 @@
 
 ---
 
-## 🚀 Proper Workflow (3-Step Sync)
+## 🚀 Proper Workflow (Test-First Approach)
 
-### Step 1: Local → GitHub (From Your Mac)
+### Step 1: Make Changes Locally (Your Mac)
 
 ```bash
 cd /Users/deepamis/Documents/GitHub/TwelvelabsVideoAI
 
-# Check what's changed
+# Edit your files
+# Make your changes in src/, scripts/, etc.
+
+# Check what changed
 git status
-
-# Stage and commit changes
-git add .
-git commit -m "Your descriptive commit message"
-
-# Push to GitHub
-git push origin main
+git diff
 ```
 
-### Step 2: GitHub → VM Server
+### Step 2: Deploy to VM for Testing (DON'T commit yet!)
 
-#### Option A: Using Safe Deployment Script (RECOMMENDED)
+#### Option A: Direct File Copy (RECOMMENDED for testing)
 
 ```bash
-# SSH to VM
-ssh ubuntu@150.136.235.189
+# From your Mac, copy changed files directly to VM
+# Example: Deploy updated index.html
+scp src/templates/index.html ubuntu@150.136.235.189:/tmp/
+ssh ubuntu@150.136.235.189 "sudo cp /tmp/index.html /home/dataguardian/TwelvelabsWithOracleVector/src/templates/ && sudo chown dataguardian:dataguardian /home/dataguardian/TwelvelabsWithOracleVector/src/templates/index.html"
 
-# Switch to dataguardian user
-sudo su - dataguardian
+# Restart service to apply changes
+ssh ubuntu@150.136.235.189 "sudo systemctl restart dataguardian.service"
 
-# Navigate to project
-cd /home/dataguardian/TwelvelabsWithOracleVector
-
-# Run safe deployment
-./scripts/vm_safe_deploy.sh
+# Or use the quick deploy script (see below)
+./deploy_to_vm_test.sh
 ```
 
-**What it does:**
-- ✅ Backs up VM-specific files (.env, SSL certs, gunicorn config)
-- ✅ Stashes any local changes on VM
-- ✅ Pulls latest code from GitHub
-- ✅ Restores VM-specific configurations
-- ✅ Restarts the service automatically
-- ✅ Validates deployment
+**Benefits:**
+- ✅ Fast - only copies changed files
+- ✅ No git operations on VM
+- ✅ Easy to rollback if test fails
+- ✅ GitHub stays clean until verified
 
-#### Option B: Manual Deployment (For specific files only)
+#### Option B: Full Git Deployment (After testing succeeds)
 
 ```bash
 # SSH to VM
@@ -89,20 +83,42 @@ sudo systemctl status dataguardian.service
 sudo journalctl -u dataguardian.service -f
 ```
 
-### Step 3: Verify Deployment
+### Step 3: Test on VM
 
 ```bash
 # Check service status
-sudo systemctl status dataguardian.service
+ssh ubuntu@150.136.235.189 "sudo systemctl status dataguardian.service"
 
 # Check logs for errors
-sudo journalctl -u dataguardian.service -n 50
+ssh ubuntu@150.136.235.189 "sudo journalctl -u dataguardian.service -n 50"
 
-# Test the application
-curl -k https://150.136.235.189:8443/health || curl http://150.136.235.189:8080/health
+# Test the application in browser
+# Open: https://150.136.235.189:8443
+# - Test the feature you changed
+# - Check browser console for errors
+# - Verify everything works
+```
 
-# Check web interface
-# Open browser: https://150.136.235.189:8443
+### Step 4: Commit to GitHub (Only After Successful Testing!)
+
+```bash
+# Back on your Mac
+cd /Users/deepamis/Documents/GitHub/TwelvelabsVideoAI
+
+# If tests passed, commit your changes
+git add .
+git commit -m "Descriptive message about what was fixed/added"
+git push origin main
+```
+
+### Step 5: Sync VM with GitHub (Optional but recommended)
+
+```bash
+# Now sync VM with GitHub for consistency
+ssh ubuntu@150.136.235.189
+sudo su - dataguardian
+cd /home/dataguardian/TwelvelabsWithOracleVector
+git pull origin main  # This will be a fast-forward since files already match
 ```
 
 ---
@@ -233,12 +249,19 @@ git stash pop
 
 ## 📝 Quick Commands Reference
 
-### Local (Mac)
+### Local (Mac) - Test-First Workflow
 ```bash
-# Check status
-git status
+# 1. Make changes to files
 
-# Commit and push
+# 2. Deploy to VM for testing (NO commit yet!)
+./deploy_to_vm_test.sh
+
+# 3. Test in browser: https://150.136.235.189:8443
+
+# 4. If test FAILS - rollback
+./rollback_test.sh
+
+# 5. If test PASSES - commit to git
 git add .
 git commit -m "Description"
 git push origin main
@@ -272,18 +295,21 @@ git diff origin/main
 ## 🎯 Best Practices
 
 ### DO ✅
-- Always commit and push from local Mac first
-- Use `vm_safe_deploy.sh` for VM deployments
-- Test locally before pushing to GitHub
+- **TEST ON VM FIRST** before committing to GitHub
+- Use `deploy_to_vm_test.sh` for test deployments
+- Verify changes work on VM before `git commit`
+- Only commit to GitHub after successful VM testing
 - Write descriptive commit messages
-- Review changes before committing (`git diff`)
+- Review changes before deploying (`git diff`)
 - Keep VM-specific files out of git
+- Use rollback script if tests fail
 
 ### DON'T ❌
+- **Don't commit untested changes to GitHub**
 - Don't manually edit files on VM (except emergencies)
 - Don't commit sensitive data (.env, SSL keys)
-- Don't use `git pull` directly on VM (use safe deploy script)
-- Don't delete vm_backup folders until deployment verified
+- Don't skip testing on VM
+- Don't delete test_backup folders until verified
 - Don't push uncommitted changes from VM to GitHub
 
 ---
