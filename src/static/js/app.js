@@ -3205,14 +3205,41 @@
         }
 
         // Initialize camera search when tab is shown
+        let cameraSearchInitialized = false;
+        
         document.addEventListener('DOMContentLoaded', () => {
             const cameraTab = document.querySelector('a[href="#camera-search-tab"]');
             if (cameraTab) {
-                cameraTab.addEventListener('shown.bs.tab', initCameraSearch);
+                // Bootstrap 5 tab event
+                cameraTab.addEventListener('shown.bs.tab', (e) => {
+                    if (!cameraSearchInitialized) {
+                        initCameraSearch();
+                        cameraSearchInitialized = true;
+                    }
+                });
+                
+                // Also try to initialize on click as fallback
+                cameraTab.addEventListener('click', () => {
+                    setTimeout(() => {
+                        if (!cameraSearchInitialized) {
+                            initCameraSearch();
+                            cameraSearchInitialized = true;
+                        }
+                    }, 100);
+                });
+            }
+            
+            // Also initialize if we're already on the camera tab
+            const cameraTabPane = document.getElementById('camera-search-tab');
+            if (cameraTabPane && cameraTabPane.classList.contains('active')) {
+                initCameraSearch();
+                cameraSearchInitialized = true;
             }
         });
 
         function initCameraSearch() {
+            console.log('🎥 Initializing camera search...');
+            
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
             const overlay = document.getElementById('faceOverlay');
@@ -3226,6 +3253,12 @@
             const thresholdInput = document.getElementById('threshold');
             const thresholdValue = document.getElementById('thresholdValue');
 
+            console.log('Camera elements:', { 
+                video: !!video, 
+                startCameraBtn: !!startCameraBtn, 
+                captureBtn: !!captureBtn 
+            });
+
             // Update threshold display
             if (thresholdInput) {
                 thresholdInput.addEventListener('input', (e) => {
@@ -3236,7 +3269,9 @@
 
             // Start camera
             if (startCameraBtn) {
+                console.log('✅ Attaching click handler to Start Camera button');
                 startCameraBtn.onclick = async () => {
+                    console.log('📹 Start Camera button clicked');
                     try {
                         // Load face detection models first
                         showCameraStatus('📦 Loading face detection models...', 'info');
