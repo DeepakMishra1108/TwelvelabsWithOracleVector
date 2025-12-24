@@ -611,10 +611,16 @@
                     thumbElement.innerHTML = `
                         <img src="${imageUrl}" 
                              alt="Photo thumbnail" 
-                             style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer;"
+                             style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px; cursor: pointer; display: block;"
                              loading="lazy"
                              class="thumbnail-img">
                     `;
+                    
+                    // Add load handler
+                    const img = thumbElement.querySelector('img');
+                    img.addEventListener('load', function() {
+                        console.log(`✅ Image loaded successfully: ${imageUrl}`);
+                    });
                     
                     // Add error handler
                     const img = thumbElement.querySelector('img');
