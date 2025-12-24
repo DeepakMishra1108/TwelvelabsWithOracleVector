@@ -3549,11 +3549,55 @@
                 return;
             }
 
-            // Create gallery grid
+            // Create gallery grid with 3-level smart filtering
             const grid = document.createElement('div');
             grid.className = 'row g-3';
 
+            // Categorize photos by match quality
+            const excellentMatches = [];
+            const goodMatches = [];
+            const possibleMatches = [];
+
             filteredPhotos.forEach(photo => {
+                const bestDistance = photo.best_match_distance;
+                if (bestDistance < 0.35) {
+                    excellentMatches.push(photo);
+                } else if (bestDistance < 0.55) {
+                    goodMatches.push(photo);
+                } else {
+                    possibleMatches.push(photo);
+                }
+            });
+
+            console.log('📊 Match quality breakdown:');
+            console.log(`  ⭐ Excellent: ${excellentMatches.length} (distance < 0.35)`);
+            console.log(`  ✅ Good: ${goodMatches.length} (distance 0.35-0.55)`);
+            console.log(`  ⚠️ Possible: ${possibleMatches.length} (distance 0.55-0.8)`);
+
+            // Function to render a category section
+            const renderCategory = (photos, title, badgeClass, icon) => {
+                if (photos.length === 0) return;
+                
+                const categoryHeader = document.createElement('div');
+                categoryHeader.className = 'col-12';
+                categoryHeader.innerHTML = `
+                    <h6 class="mt-3 mb-2">
+                        <span class="badge ${badgeClass}">
+                            <i class="bi ${icon} me-1"></i>${title} (${photos.length})
+                        </span>
+                    </h6>
+                `;
+                grid.appendChild(categoryHeader);
+
+                photos.forEach(photo => {
+                    renderPhotoCard(photo);
+                });
+            };
+
+            // Function to render a single photo card
+            const renderPhotoCard = (photo) => {
+            // Function to render a single photo card
+            const renderPhotoCard = (photo) => {
                 console.log('Rendering photo:', photo);
                 const col = document.createElement('div');
                 col.className = 'col-6 col-md-4 col-lg-3';
@@ -3617,7 +3661,12 @@
                 });
                 
                 grid.appendChild(col);
-            });
+            };
+
+            // Render categories in order of match quality
+            renderCategory(excellentMatches, 'Excellent Match', 'bg-success', 'bi-star-fill');
+            renderCategory(goodMatches, 'Good Match', 'bg-primary', 'bi-check-circle-fill');
+            renderCategory(possibleMatches, 'Possible Match', 'bg-warning', 'bi-question-circle-fill');
 
             resultsContainer.appendChild(grid);
         }
