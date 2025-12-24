@@ -12,7 +12,8 @@ import time
 from datetime import datetime
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'twelvelabvideoai', 'src'))
+src_path = os.path.join(os.path.dirname(__file__), '..', 'src')
+sys.path.insert(0, src_path)
 
 import oracledb
 from dotenv import load_dotenv
