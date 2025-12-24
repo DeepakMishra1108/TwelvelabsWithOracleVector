@@ -1363,8 +1363,8 @@ def upload_unified():
         # Send initial progress
         send_progress(task_id, 'init', 0, 'Starting upload...')
         
-        # Get all files from the request
-        all_files = request.files.getlist('mediaFile')
+        # Get all files from the request - filter out any None or empty files
+        all_files = [f for f in request.files.getlist('mediaFile') if f and f.filename]
         logger.info(f"🔍 Processing {len(all_files)} file(s)")
         
         # Validate preconditions
