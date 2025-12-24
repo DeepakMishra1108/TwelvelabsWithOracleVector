@@ -1788,8 +1788,11 @@
                     statusEl.innerHTML = '<span class="text-muted"><i class="bi bi-info-circle me-1"></i>No faces detected</span>';
                     document.getElementById('detectedFacesPanel').style.display = 'none';
                 } else {
-                    const taggedCount = existingTags.length;
-                    statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Found ${detectedFaces.length} face(s) (${taggedCount} already tagged)</span>`;
+                    // Count matched (already tagged) faces from detected faces
+                    const matchedCount = detectedFaces.filter(face => face.matched_tag).length;
+                    const untaggedCount = detectedFaces.length - matchedCount;
+                    
+                    statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Found ${detectedFaces.length} face(s) - ${untaggedCount} new, ${matchedCount} already tagged</span>`;
                     displayDetectedFaces(detectedFaces, existingTags);
                 }
             } catch (error) {
