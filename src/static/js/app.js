@@ -3497,19 +3497,55 @@
 
             resultsContainer.innerHTML = '';
 
-            // Add header
+            // Filter out photos with only "unknown" or no named faces
+            const filteredPhotos = result.photos.filter(photo => {
+                const namedFaces = photo.matched_faces.filter(face => 
+                    face.face_name && 
+                    face.face_name.toLowerCase() !== 'unknown' &&
+                    face.face_name.trim() !== ''
+                );
+                return namedFaces.length > 0;
+            });
+
+            // Find the most common face name (the person we're searching for)
+            const faceNameCounts = {};
+            filteredPhotos.forEach(photo => {
+                photo.matched_faces.forEach(face => {
+                    const name = face.face_name;
+                    if (name && name.toLowerCase() !== 'unknown' && name.trim() !== '') {
+                        faceNameCounts[name] = (faceNameCounts[name] || 0) + 1;
+                    }
+                });
+            });
+
+            const primaryPerson = Object.keys(faceNameCounts).length > 0 
+                ? Object.keys(faceNameCounts).reduce((a, b) => faceNameCounts[a] > faceNameCounts[b] ? a : b)
+                : null;
+
+            console.log('Face name counts:', faceNameCounts);
+            console.log('Primary person detected:', primaryPerson);
+
+            // Add header with greeting
             const header = document.createElement('div');
-            header.className = result.photos && result.photos.length > 0 ? 'alert alert-success mb-4' : 'alert alert-info mb-4';
-            const photoCount = result.unique_photos || result.photos?.length || 0;
-            const matchCount = result.matches_found || 0;
-            header.innerHTML = `
-                <h5><i class="bi bi-camera-fill me-2"></i>Camera Search Results</h5>
-                <p class="mb-0">Found ${photoCount} photos with ${matchCount} face matches</p>
-            `;
+            header.className = filteredPhotos.length > 0 ? 'alert alert-success mb-4' : 'alert alert-info mb-4';
+            const photoCount = filteredPhotos.length;
+            const matchCount = filteredPhotos.reduce((sum, p) => sum + p.match_count, 0);
+            
+            const greeting = primaryPerson 
+                ? `<h5><i class="bi bi-person-check-fill me-2"></i>Hello ${primaryPerson}! 👋</h5>
+                   <p class="mb-0">Found ${photoCount} photos of you with ${matchCount} face matches</p>`
+                : `<h5><i class="bi bi-camera-fill me-2"></i>Camera Search Results</h5>
+                   <p class="mb-0">Found ${photoCount} photos with ${matchCount} face matches</p>`;
+            
+            header.innerHTML = greeting;
             resultsContainer.appendChild(header);
 
-            if (!result.photos || result.photos.length === 0) {
-                resultsContainer.innerHTML += '<div class="alert alert-info">No matching photos found. Try adjusting the match sensitivity.</div>';
+            if (filteredPhotos.length === 0) {
+                const originalCount = result.photos?.length || 0;
+                const message = originalCount > 0 
+                    ? `No photos found with named faces. ${originalCount} photos were excluded because they only contained "unknown" faces. Try tagging faces first or adjusting the match sensitivity.`
+                    : 'No matching photos found. Try adjusting the match sensitivity.';
+                resultsContainer.innerHTML += `<div class="alert alert-info">${message}</div>`;
                 return;
             }
 
@@ -3517,7 +3553,7 @@
             const grid = document.createElement('div');
             grid.className = 'row g-3';
 
-            result.photos.forEach(photo => {
+            filteredPhotos.forEach(photo => {
                 console.log('Rendering photo:', photo);
                 const col = document.createElement('div');
                 col.className = 'col-6 col-md-4 col-lg-3';
@@ -3543,9 +3579,11 @@
                         <div class="card-body">
                             <h6 class="card-title text-truncate">${photo.file_name}</h6>
                             <div class="mb-2">
-                                ${photo.matched_faces.map(face => 
-                                    `<span class="badge bg-primary me-1">${face.face_name} (${Math.round(face.confidence * 100)}%)</span>`
-                                ).join('')}
+                                ${photo.matched_faces
+                                    .filter(face => face.face_name && face.face_name.toLowerCase() !== 'unknown' && face.face_name.trim() !== '')
+                                    .map(face => 
+                                        `<span class="badge bg-primary me-1">${face.face_name} (${Math.round(face.confidence * 100)}%)</span>`
+                                    ).join('')}
                             </div>
                             <div class="progress" style="height: 6px;">
                                 <div class="progress-bar bg-success" role="progressbar" style="width: ${confidence}%"></div>
