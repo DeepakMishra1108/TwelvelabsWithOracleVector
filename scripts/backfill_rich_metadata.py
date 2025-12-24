@@ -12,10 +12,14 @@ import time
 from datetime import datetime
 
 # Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'twelvelabvideoai', 'src'))
 
 import oracledb
-from utils.gpt_vision_metadata import GPTVisionMetadataExtractor
+from dotenv import load_dotenv
+
+# Load environment variables
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(env_path)
 
 # Setup logging
 logging.basicConfig(
@@ -29,20 +33,36 @@ class MetadataBackfiller:
     
     def __init__(self):
         """Initialize backfiller with database and GPT connections"""
-        # Connect to database using Oracle Cloud wallet
-        wallet_path = '/home/dataguardian/TwelvelabsWithOracleVector/twelvelabvideoai/wallet'
+        # Load DB configuration from environment
+        db_user = os.getenv('DB_USER')
+        db_password = os.getenv('DB_PASSWORD')
+        db_dsn = os.getenv('DB_DSN')
+        wallet_location = os.getenv('TNS_ADMIN')
+        wallet_password = os.getenv('WALLET_PASSWORD')
         
+        if not all([db_user, db_password, db_dsn, wallet_location, wallet_password]):
+            raise ValueError("Missing required database configuration in environment variables")
+        
+        logger.info(f"🔐 Connecting to database with wallet from: {wallet_location}")
+        
+        # Connect to database using Oracle Cloud wallet
         self.conn = oracledb.connect(
-            user='TELCOVIDEOENCODE',
-            password='!Q2w3e4r5t6y',
-            dsn='ocdmrealtime_high',
-            config_dir=wallet_path,
-            wallet_location=wallet_path,
-            wallet_password='!Q2w3e4r5t'
+            user=db_user,
+            password=db_password,
+            dsn=db_dsn,
+            config_dir=wallet_location,
+            wallet_location=wallet_location,
+            wallet_password=wallet_password
         )
         
-        # Initialize GPT metadata extractor
-        self.extractor = GPTVisionMetadataExtractor()
+        # Import GPT metadata extractor
+        try:
+            from utils.gpt_vision_metadata import GPTVisionMetadataExtractor
+            self.extractor = GPTVisionMetadataExtractor()
+        except ImportError:
+            logger.error("❌ Failed to import GPTVisionMetadataExtractor")
+            logger.info("💡 Make sure OPENAI_API_KEY is set in .env")
+            raise
         
         logger.info("✅ Backfiller initialized")
     
@@ -52,9 +72,9 @@ class MetadataBackfiller:
         
         cursor.execute("""
             SELECT id, file_name, file_path, album_name
-            FROM album_media
+            FROM media_metadata
             WHERE file_type = 'photo'
-            AND rich_metadata IS NULL
+            AND (rich_metadata IS NULL OR rich_metadata = '{}')
             ORDER BY id
         """)
         
@@ -88,7 +108,7 @@ class MetadataBackfiller:
             metadata_json = json.dumps(metadata)
             
             cursor.execute("""
-                UPDATE album_media
+                UPDATE media_metadata
                 SET rich_metadata = :metadata
                 WHERE id = :photo_id
             """, {
