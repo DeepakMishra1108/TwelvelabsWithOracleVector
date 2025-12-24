@@ -325,6 +325,8 @@
             const query = document.getElementById('searchQuery').value.trim();
             const albumFilter = document.getElementById('albumFilter').value;
             
+            console.log('🔍 Performing search:', { query, albumFilter });
+            
             if (!query && !albumFilter) {
                 showStatus('Please enter a search query or select an album', 'error');
                 return;
@@ -333,19 +335,34 @@
             showStatus('Searching...', 'info');
             
             try {
+                const requestBody = {
+                    query: query || '*',
+                    album_filter: albumFilter || null,
+                    limit: 50
+                };
+                
+                console.log('📤 Sending search request:', requestBody);
+                
                 const response = await fetch('/search_unified', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        query: query || '*',
-                        album_filter: albumFilter || null,
-                        limit: 50
-                    })
+                    body: JSON.stringify(requestBody)
                 });
                 
+                console.log('📥 Response status:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Server error:', errorText);
+                    showStatus(`Server error: ${response.status}`, 'error');
+                    return;
+                }
+                
                 const data = await response.json();
+                console.log('✅ Search response:', data);
                 
                 if (data.error) {
+                    console.error('❌ API error:', data.error);
                     showStatus(data.error, 'error');
                     return;
                 }
@@ -353,7 +370,7 @@
                 displayResults(data.results || []);
                 showStatus(`Found ${data.count || 0} results`, 'success');
             } catch (error) {
-                console.error('Search error:', error);
+                console.error('❌ Search error:', error);
                 showStatus(`Search failed: ${error.message}`, 'error');
             }
         }
