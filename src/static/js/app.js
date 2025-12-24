@@ -3491,7 +3491,7 @@
                             body: JSON.stringify({
                                 image: capturedImageData,
                                 similarity_threshold: parseFloat(thresholdInput.value),
-                                max_results: 100
+                                max_results: 200
                             })
                         });
 
@@ -3722,9 +3722,14 @@
                             <div class="mb-2">
                                 ${photo.matched_faces
                                     .filter(face => face.face_name && face.face_name.toLowerCase() !== 'unknown' && face.face_name.trim() !== '')
-                                    .map(face => 
-                                        `<span class="badge bg-primary me-1">${face.face_name} (${Math.round(face.confidence * 100)}%)</span>`
-                                    ).join('')}
+                                    .slice(0, 3)
+                                    .map(face => {
+                                        const conf = Math.round(face.confidence * 100);
+                                        const badgeClass = conf >= 70 ? 'bg-success' : conf >= 50 ? 'bg-primary' : 'bg-secondary';
+                                        return `<span class="badge ${badgeClass} me-1">${face.face_name} ${conf}%</span>`;
+                                    }).join('')}
+                                ${photo.matched_faces.filter(f => f.face_name && f.face_name.toLowerCase() !== 'unknown' && f.face_name.trim() !== '').length > 3 ? 
+                                    `<span class="badge bg-light text-dark">+${photo.matched_faces.filter(f => f.face_name && f.face_name.toLowerCase() !== 'unknown' && f.face_name.trim() !== '').length - 3} more</span>` : ''}
                             </div>
                             <div class="progress" style="height: 6px;">
                                 <div class="progress-bar bg-success" role="progressbar" style="width: ${confidence}%"></div>

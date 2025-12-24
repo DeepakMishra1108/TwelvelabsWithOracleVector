@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 def search_photos_by_selfie(
     selfie_image_path: str,
     connection,
-    similarity_threshold: float = 0.6,
-    max_results: int = 100
+    similarity_threshold: float = 0.45,
+    max_results: int = 200
 ) -> Dict:
     """
     Search for all photos containing the person in the selfie
@@ -109,11 +109,15 @@ def search_photos_by_selfie(
             """, {'query_embedding': vector_bytes})
             
             top_match = cursor.fetchone()
-            if top_match and top_match[1] < similarity_threshold:
+            # Use a more lenient threshold (0.5) for face identification
+            if top_match and top_match[1] < min(0.5, similarity_threshold):
                 selfie_face_names.append(top_match[0])
                 logger.info(f"✅ Identified face {face_idx + 1} as: {top_match[0]} (distance={top_match[1]:.4f})")
             else:
-                logger.info(f"⚠️  Face {face_idx + 1} not identified (no close match)")
+                if top_match:
+                    logger.info(f"⚠️  Face {face_idx + 1} not identified (closest={top_match[0]}, distance={top_match[1]:.4f})")
+                else:
+                    logger.info(f"⚠️  Face {face_idx + 1} not identified (no matches found)")
             
             # Execute search for this face
             cursor.execute("""
