@@ -3487,9 +3487,12 @@
                 
                 col.innerHTML = `
                     <div class="card h-100 shadow-sm hover-lift camera-search-card" style="cursor: pointer;" data-stream-url="${streamUrl}">
-                        <div class="position-relative">
-                            <img src="/static/placeholder.jpg" class="card-img-top placeholder-image" alt="Loading..." style="height: 200px; object-fit: cover; filter: blur(2px);">
-                            <img src="${imageUrl}" class="card-img-top main-image" alt="${photo.file_name || 'Photo'}" style="height: 200px; object-fit: cover; position: absolute; top: 0; left: 0;" loading="lazy" onerror="this.parentElement.innerHTML='<i class=\\'bi bi-image-fill text-danger\\' style=\\'font-size: 3rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);\\' title=\\'Image failed to load\\'></i>';">
+                        <div class="position-relative" style="height: 200px; background: #f0f0f0;">
+                            <img src="${imageUrl}" 
+                                 class="card-img-top main-image" 
+                                 alt="${photo.file_name || 'Photo'}" 
+                                 style="width: 100%; height: 200px; object-fit: cover;" 
+                                 loading="lazy">
                         </div>
                         <div class="card-body">
                             <h6 class="card-title text-truncate">${photo.file_name}</h6>
@@ -3505,6 +3508,12 @@
                         </div>
                     </div>
                 `;
+                
+                // Add error handler for image
+                const img = col.querySelector('.main-image');
+                img.addEventListener('error', function() {
+                    this.parentElement.innerHTML = '<i class="bi bi-image-fill text-danger" style="font-size: 3rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);" title="Image failed to load"></i>';
+                });
                 
                 // Add click handler
                 const card = col.querySelector('.camera-search-card');
