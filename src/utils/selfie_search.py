@@ -39,7 +39,7 @@ def search_photos_by_selfie(
         
         logger.info(f"🔍 Starting selfie-based search using ImageBind...")
         
-        # Step 1: Detect face in selfie
+        # Step 1: Detect ALL faces in selfie
         faces = detect_faces_deepface(selfie_image_path)
         
         if not faces or len(faces) == 0:
@@ -52,156 +52,139 @@ def search_photos_by_selfie(
                 'photos': []
             }
         
-        if len(faces) > 1:
-            logger.warning(f"⚠️  Multiple faces detected ({len(faces)}), using the largest one")
+        logger.info(f"✅ Detected {len(faces)} face(s) in selfie")
         
-        # Use the first/largest face
-        face = faces[0]
-        face_bbox = face.get('facial_area', {})
-        
-        logger.info(f"✅ Detected face in selfie: {face_bbox}")
-        
-        # Step 2: Generate embedding for the selfie face using ImageBind (1024D)
-        try:
-            embedder = ImageBindEmbedder()
-            selfie_embedding = embedder.generate_face_embedding(selfie_image_path, face_bbox)
+        # Store embeddings for ALL detected faces
+        face_embeddings = []
+        for i, face in enumerate(faces):
+            face_bbox = face.get('facial_area', {})
+            logger.info(f"   Face {i+1}: {face_bbox}")
             
-            if selfie_embedding is None:
-                raise Exception("ImageBind returned None embedding")
-            
-            logger.info(f"✅ Generated ImageBind embedding for selfie (dimension: {len(selfie_embedding)})")
-        except Exception as e:
-            logger.error(f"❌ ImageBind embedding failed: {e}")
+            try:
+                embedder = ImageBindEmbedder()
+                embedding = embedder.generate_face_embedding(selfie_image_path, face_bbox)
+                
+                if embedding is not None:
+                    face_embeddings.append(embedding)
+                    logger.info(f"✅ Generated ImageBind embedding for face {i+1} (dimension: {len(embedding)})")
+                else:
+                    logger.warning(f"⚠️  Failed to generate embedding for face {i+1}")
+            except Exception as e:
+                logger.error(f"❌ ImageBind embedding failed for face {i+1}: {e}")
+        
+        if len(face_embeddings) == 0:
             return {
                 'success': False,
-                'error': 'Failed to process the face in your selfie',
-                'faces_detected': 1,
+                'error': 'Failed to process faces in your selfie',
+                'faces_detected': len(faces),
                 'matches_found': 0,
                 'photos': []
             }
         
-        # Step 3: Convert embedding to Oracle VECTOR format
-        vector_bytes = embedding_to_oracle_vector(selfie_embedding)
+        logger.info(f"✅ Successfully generated {len(face_embeddings)} face embeddings")
         
-        # Step 4: Search for similar faces in the database using vector similarity
+        # Step 3: Search for each face embedding separately and combine results
         cursor = connection.cursor()
-        
-        # First, check how many face tags exist with embeddings
-        cursor.execute("SELECT COUNT(*) FROM face_tags WHERE face_embedding IS NOT NULL")
-        total_tags = cursor.fetchone()[0]
-        logger.info(f"📊 Total face tags with embeddings in database: {total_tags}")
-        
-        # Check a sample of distances to see what range we're getting
-        logger.info(f"🔍 Searching for faces with similarity threshold {similarity_threshold}...")
-        cursor.execute("""
-            SELECT 
-                ft.face_name,
-                VECTOR_DISTANCE(ft.face_embedding, :query_embedding, COSINE) as distance
-            FROM face_tags ft
-            WHERE ft.face_embedding IS NOT NULL
-            ORDER BY distance ASC
-            FETCH FIRST 10 ROWS ONLY
-        """, {'query_embedding': vector_bytes})
-        
-        sample_distances = cursor.fetchall()
-        logger.info(f"📏 Top 10 closest faces:")
-        for name, dist in sample_distances:
-            logger.info(f"   {name}: distance={dist:.4f} (threshold={similarity_threshold})")
-        
-        # Check if any face tags exist at all
-        cursor.execute("SELECT COUNT(*) FROM face_tags")
-        total_face_tags = cursor.fetchone()[0]
-        logger.info(f"📊 Total face tags in database: {total_face_tags}")
-        
-        # Now do the actual search
-        logger.info(f"🔍 Executing vector search query with threshold {similarity_threshold}...")
-        cursor.execute("""
-            SELECT 
-                ft.id as face_tag_id,
-                ft.media_id,
-                ft.face_name,
-                ft.bounding_box,
-                VECTOR_DISTANCE(ft.face_embedding, :query_embedding, COSINE) as distance,
-                am.file_name,
-                am.file_path,
-                am.oci_object_path,
-                am.created_at,
-                am.file_type
-            FROM face_tags ft
-            JOIN album_media am ON ft.media_id = am.id
-            WHERE ft.face_embedding IS NOT NULL
-            AND VECTOR_DISTANCE(ft.face_embedding, :query_embedding, COSINE) < :threshold
-            ORDER BY distance ASC
-            FETCH FIRST :max_results ROWS ONLY
-        """, {
-            'query_embedding': vector_bytes,
-            'threshold': similarity_threshold,
-            'max_results': max_results
-        })
-        
-        matches = cursor.fetchall()
-        
-        logger.info(f"📊 Query returned {len(matches)} matching faces")
-        
-        if len(matches) == 0:
-            logger.warning(f"⚠️ NO MATCHES FOUND with threshold {similarity_threshold}")
-            logger.warning(f"⚠️ Review the distances logged above - they should be < {similarity_threshold}")
-            logger.warning(f"⚠️ If all distances are ~0.97, embeddings need regeneration")
-        
-        logger.info(f"✅ Found {len(matches)} matching face tags (threshold < {similarity_threshold})")
-        
-        if len(matches) == 0:
-            return {
-                'success': True,
-                'message': f'No faces found within distance {similarity_threshold}. Closest match was {sample_distances[0][1]:.4f} for {sample_distances[0][0]}. Try increasing the Match Sensitivity slider.',
-                'faces_detected': 1,
-                'matches_found': 0,
-                'photos': []
-            }
-        
-        # Step 5: Group results by photo (media_id) and aggregate face matches
+        all_matches = []
         photos_dict = {}
         
-        for row in matches:
-            face_tag_id, media_id, face_name, bbox_json, distance, file_name, file_path, oci_object_path, created_at, file_type = row
+        for face_idx, selfie_embedding in enumerate(face_embeddings):
+            logger.info(f"🔍 Searching for matches for face {face_idx + 1}/{len(face_embeddings)}...")
             
-            if media_id not in photos_dict:
-                # Generate URLs from file paths
-                # Use OCI object path if available, otherwise file_path
-                object_path = oci_object_path if oci_object_path else file_path
-                stream_url = f"/media_stream/{media_id}" if object_path else None
-                thumbnail_url = f"/media_thumbnail/{media_id}" if object_path else None
-                
-                photos_dict[media_id] = {
-                    'media_id': media_id,
-                    'file_name': file_name,
-                    'thumbnail_url': thumbnail_url,
-                    'stream_url': stream_url,
-                    'created_at': created_at.isoformat() if created_at else None,
-                    'file_type': file_type,
-                    'matched_faces': [],
-                    'best_match_distance': distance,
-                    'match_count': 0
-                }
+            # Convert embedding to Oracle VECTOR format
+            vector_bytes = embedding_to_oracle_vector(selfie_embedding)
             
-            # Parse bounding box
-            try:
-                bbox = json.loads(bbox_json.read()) if hasattr(bbox_json, 'read') else json.loads(bbox_json)
-            except:
-                bbox = None
+            # Check sample distances for this face
+            cursor.execute("""
+                SELECT 
+                    ft.face_name,
+                    VECTOR_DISTANCE(ft.face_embedding, :query_embedding, COSINE) as distance
+                FROM face_tags ft
+                WHERE ft.face_embedding IS NOT NULL
+                ORDER BY distance ASC
+                FETCH FIRST 5 ROWS ONLY
+            """, {'query_embedding': vector_bytes})
             
-            photos_dict[media_id]['matched_faces'].append({
-                'face_tag_id': face_tag_id,
-                'face_name': face_name,
-                'distance': float(distance),
-                'confidence': 1.0 - float(distance),
-                'bounding_box': bbox
+            sample_distances = cursor.fetchall()
+            logger.info(f"📏 Top 5 closest matches for face {face_idx + 1}:")
+            for name, dist in sample_distances:
+                logger.info(f"   {name}: distance={dist:.4f}")
+            
+            # Execute search for this face
+            cursor.execute("""
+                SELECT 
+                    ft.id as face_tag_id,
+                    ft.media_id,
+                    ft.face_name,
+                    ft.bounding_box,
+                    VECTOR_DISTANCE(ft.face_embedding, :query_embedding, COSINE) as distance,
+                    am.file_name,
+                    am.file_path,
+                    am.oci_object_path,
+                    am.created_at,
+                    am.file_type
+                FROM face_tags ft
+                JOIN album_media am ON ft.media_id = am.id
+                WHERE ft.face_embedding IS NOT NULL
+                AND VECTOR_DISTANCE(ft.face_embedding, :query_embedding, COSINE) < :threshold
+                ORDER BY distance ASC
+                FETCH FIRST :max_results ROWS ONLY
+            """, {
+                'query_embedding': vector_bytes,
+                'threshold': similarity_threshold,
+                'max_results': max_results
             })
-            photos_dict[media_id]['match_count'] += 1
             
-            # Update best match distance (lowest)
-            if distance < photos_dict[media_id]['best_match_distance']:
-                photos_dict[media_id]['best_match_distance'] = distance
+            face_matches = cursor.fetchall()
+            logger.info(f"✅ Found {len(face_matches)} matches for face {face_idx + 1}")
+            
+            # Combine results from all faces
+            for row in face_matches:
+                face_tag_id, media_id, face_name, bbox_json, distance, file_name, file_path, oci_object_path, created_at, file_type = row
+                
+                if media_id not in photos_dict:
+                    # Generate URLs from file paths
+                    object_path = oci_object_path if oci_object_path else file_path
+                    stream_url = f"/media_stream/{media_id}" if object_path else None
+                    thumbnail_url = f"/media_thumbnail/{media_id}" if object_path else None
+                    
+                    photos_dict[media_id] = {
+                        'media_id': media_id,
+                        'file_name': file_name,
+                        'thumbnail_url': thumbnail_url,
+                        'stream_url': stream_url,
+                        'created_at': created_at.isoformat() if created_at else None,
+                        'file_type': file_type,
+                        'matched_faces': [],
+                        'best_match_distance': distance,
+                        'match_count': 0
+                    }
+                
+                # Parse bounding box
+                try:
+                    bbox = json.loads(bbox_json.read()) if hasattr(bbox_json, 'read') else json.loads(bbox_json)
+                except:
+                    bbox = None
+                
+                # Check if this exact face is already in matched_faces (avoid duplicates across multiple selfie faces)
+                face_already_matched = any(
+                    mf['face_tag_id'] == face_tag_id 
+                    for mf in photos_dict[media_id]['matched_faces']
+                )
+                
+                if not face_already_matched:
+                    photos_dict[media_id]['matched_faces'].append({
+                        'face_tag_id': face_tag_id,
+                        'face_name': face_name,
+                        'distance': float(distance),
+                        'confidence': 1.0 - float(distance),
+                        'bounding_box': bbox
+                    })
+                    photos_dict[media_id]['match_count'] += 1
+                    
+                    # Update best match distance (lowest)
+                    if distance < photos_dict[media_id]['best_match_distance']:
+                        photos_dict[media_id]['best_match_distance'] = distance
         
         # Convert to list and sort by best match
         photos_list = sorted(
@@ -209,13 +192,25 @@ def search_photos_by_selfie(
             key=lambda x: x['best_match_distance']
         )
         
-        logger.info(f"✅ Selfie search complete: {len(photos_list)} unique photos with {len(matches)} face matches")
+        total_matches = sum(p['match_count'] for p in photos_list)
+        
+        logger.info(f"✅ Selfie search complete: {len(face_embeddings)} faces searched")
+        logger.info(f"   Found {len(photos_list)} unique photos with {total_matches} total face matches")
+        
+        if len(photos_list) == 0:
+            return {
+                'success': True,
+                'message': f'No faces found within distance {similarity_threshold}. Try increasing the Match Sensitivity slider.',
+                'faces_detected': len(faces),
+                'matches_found': 0,
+                'photos': []
+            }
         
         return {
             'success': True,
             'message': f'Found {len(photos_list)} photos containing similar faces',
-            'faces_detected': 1,
-            'matches_found': len(matches),
+            'faces_detected': len(faces),
+            'matches_found': total_matches,
             'unique_photos': len(photos_list),
             'similarity_threshold': similarity_threshold,
             'photos': photos_list

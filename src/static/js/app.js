@@ -3427,33 +3427,17 @@
                         return;
                     }
                     
-                    // Use the largest detected face
-                    const detection = detections.reduce((prev, curr) => 
-                        curr.box.width * curr.box.height > prev.box.width * prev.box.height ? curr : prev
-                    );
+                    // Store count of detected faces for status message
+                    const faceCount = detections.length;
                     
-                    const box = detection.box;
-                    
-                    // Capture full frame
+                    // Capture FULL frame to preserve all faces
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(video, 0, 0);
                     
-                    // Crop to face region with some padding
-                    const padding = 50;
-                    const cropX = Math.max(0, box.x - padding);
-                    const cropY = Math.max(0, box.y - padding);
-                    const cropW = Math.min(canvas.width - cropX, box.width + padding * 2);
-                    const cropH = Math.min(canvas.height - cropY, box.height + padding * 2);
-                    
-                    const croppedCanvas = document.createElement('canvas');
-                    croppedCanvas.width = cropW;
-                    croppedCanvas.height = cropH;
-                    const croppedCtx = croppedCanvas.getContext('2d');
-                    croppedCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-                    
-                    capturedImageData = croppedCanvas.toDataURL('image/jpeg', 0.9);
+                    // Save the full frame (contains all faces)
+                    capturedImageData = canvas.toDataURL('image/jpeg', 0.9);
                     capturedImage.src = capturedImageData;
                     capturedImage.style.display = 'block';
                     video.style.display = 'none';
@@ -3469,7 +3453,10 @@
                         cameraStream.getTracks().forEach(track => track.stop());
                     }
                     
-                    showCameraStatus('✅ Face captured! Click "Search My Photos" to find matches', 'success');
+                    const faceMessage = faceCount === 1 
+                        ? '✅ 1 face captured!' 
+                        : `✅ ${faceCount} faces captured!`;
+                    showCameraStatus(`${faceMessage} Click "Search My Photos" to find matches`, 'success');
                 };
             }
 
@@ -3639,17 +3626,38 @@
             // Update to use strictly filtered photos
             const finalPhotos = strictFilteredPhotos;
 
-            // Add header with greeting
+            // Add header with greeting - show ALL identified faces
             const header = document.createElement('div');
             header.className = finalPhotos.length > 0 ? 'alert alert-success mb-4' : 'alert alert-info mb-4';
             const photoCount = finalPhotos.length;
             const matchCount = finalPhotos.reduce((sum, p) => sum + p.match_count, 0);
             
-            const greeting = primaryPerson 
-                ? `<h5><i class="bi bi-person-check-fill me-2"></i>Hello ${primaryPerson}! 👋</h5>
-                   <p class="mb-0">Found ${photoCount} photos of you with ${matchCount} face matches</p>`
-                : `<h5><i class="bi bi-camera-fill me-2"></i>Camera Search Results</h5>
-                   <p class="mb-0">Found ${photoCount} photos with ${matchCount} face matches</p>`;
+            // Get all unique named faces (not just primary)
+            const allNamedFaces = new Set();
+            filteredPhotos.forEach(photo => {
+                photo.matched_faces.forEach(face => {
+                    if (face.face_name && face.face_name.toLowerCase() !== 'unknown' && face.face_name.trim() !== '') {
+                        allNamedFaces.add(face.face_name);
+                    }
+                });
+            });
+            
+            const faceNames = Array.from(allNamedFaces);
+            let greeting;
+            
+            if (faceNames.length === 0) {
+                greeting = `<h5><i class="bi bi-camera-fill me-2"></i>Camera Search Results</h5>
+                           <p class="mb-0">Found ${photoCount} photos with ${matchCount} face matches</p>`;
+            } else if (faceNames.length === 1) {
+                greeting = `<h5><i class="bi bi-person-check-fill me-2"></i>Hello ${faceNames[0]}! 👋</h5>
+                           <p class="mb-0">Found ${photoCount} photos of you with ${matchCount} face matches</p>`;
+            } else {
+                const namesList = faceNames.length === 2 
+                    ? `${faceNames[0]} and ${faceNames[1]}`
+                    : `${faceNames.slice(0, -1).join(', ')}, and ${faceNames[faceNames.length - 1]}`;
+                greeting = `<h5><i class="bi bi-people-fill me-2"></i>Hello ${namesList}! 👋</h5>
+                           <p class="mb-0">Found ${photoCount} photos of you with ${matchCount} face matches</p>`;
+            }
             
             header.innerHTML = greeting;
             resultsContainer.appendChild(header);
