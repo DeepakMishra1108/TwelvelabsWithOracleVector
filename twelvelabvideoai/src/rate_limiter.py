@@ -156,9 +156,9 @@ def increment_counter(user_id, counter_name, increment_by=1, cursor=None, conn=N
     try:
         cursor.execute(f"""
             UPDATE user_rate_limits 
-            SET {counter_name} = NVL({counter_name}, 0) + :increment
+            SET {counter_name} = NVL({counter_name}, 0) + :increment_by
             WHERE user_id = :user_id
-        """, {'increment': increment_by, 'user_id': user_id})
+        """, {'increment_by': increment_by, 'user_id': user_id})
         
         conn.commit()
         logger.info(f"📊 Incremented {counter_name} for user {user_id} by {increment_by}")
