@@ -15,7 +15,7 @@ def search_photos_by_selfie(
     selfie_image_path: str,
     connection,
     similarity_threshold: float = 0.45,
-    max_results: int = 200
+    max_results: int = 500
 ) -> Dict:
     """
     Search for all photos containing the person in the selfie
@@ -155,6 +155,7 @@ def search_photos_by_selfie(
                     logger.info(f"   {i+1}. {face_name}: distance={distance:.4f}, confidence={1.0-distance:.2%}")
             
             # Combine results from all faces
+            filtered_count = 0
             for row in face_matches:
                 face_tag_id, media_id, face_name, bbox_json, distance, file_name, file_path, oci_object_path, created_at, file_type = row
                 
@@ -213,7 +214,11 @@ def search_photos_by_selfie(
                         if distance < photos_dict[media_id]['best_match_distance']:
                             photos_dict[media_id]['best_match_distance'] = distance
                     else:
+                        filtered_count += 1
                         logger.debug(f"⏭️  Skipping {face_name} - not in selfie faces: {selfie_face_names}")
+            
+            if filtered_count > 0:
+                logger.info(f"🔍 Filtered out {filtered_count} faces not matching selfie names")
         
         # Convert set to count and sort by: 1) number of selfie faces matched (descending), 2) best distance (ascending)
         for photo in photos_dict.values():

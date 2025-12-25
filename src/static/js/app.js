@@ -3501,7 +3501,7 @@
                             body: JSON.stringify({
                                 image: capturedImageData,
                                 similarity_threshold: parseFloat(thresholdInput.value),
-                                max_results: 200
+                                max_results: 500
                             })
                         });
 
@@ -3614,26 +3614,10 @@
             console.log('Face name counts (weighted):', faceNameCounts);
             console.log('Primary person detected:', primaryPerson);
 
-            // MODIFIED: More lenient - show photos of primary person OR high-confidence untagged matches
-            const strictFilteredPhotos = primaryPerson 
-                ? filteredPhotos.filter(photo => {
-                    const hasPrimaryPerson = photo.matched_faces.some(face => 
-                        face.face_name === primaryPerson
-                    );
-                    
-                    // Also include very close matches even if unknown (might be same person not tagged)
-                    const isVeryCloseMatch = photo.best_match_distance < 0.35 && 
-                        photo.matched_faces.some(face => !face.face_name || face.face_name.toLowerCase() === 'unknown');
-                    
-                    return hasPrimaryPerson || isVeryCloseMatch;
-                })
-                : filteredPhotos;
+            // Backend already filters by selfie_face_names, so use all filtered photos
+            const finalPhotos = filteredPhotos;
 
-            console.log(`🔍 Strict filtering: ${filteredPhotos.length} → ${strictFilteredPhotos.length} photos`);
-            console.log(`   Primary person filter: showing ${primaryPerson || 'all'} + high-confidence unknowns`);
-
-            // Update to use strictly filtered photos
-            const finalPhotos = strictFilteredPhotos;
+            console.log(`✅ Total photos to display: ${finalPhotos.length}`);
 
             // Add header with greeting - show ALL identified faces
             const header = document.createElement('div');
