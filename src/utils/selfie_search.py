@@ -147,6 +147,13 @@ def search_photos_by_selfie(
             face_matches = cursor.fetchall()
             logger.info(f"✅ Found {len(face_matches)} matches for face {face_idx + 1}")
             
+            # Log sample matches to understand what's being returned
+            if len(face_matches) > 0:
+                logger.info(f"📊 Top 5 matches for face {face_idx + 1}:")
+                for i, row in enumerate(face_matches[:5]):
+                    _, _, face_name, _, distance, _, _, _, _, _ = row
+                    logger.info(f"   {i+1}. {face_name}: distance={distance:.4f}, confidence={1.0-distance:.2%}")
+            
             # Combine results from all faces
             for row in face_matches:
                 face_tag_id, media_id, face_name, bbox_json, distance, file_name, file_path, oci_object_path, created_at, file_type = row
@@ -183,20 +190,30 @@ def search_photos_by_selfie(
                 )
                 
                 if not face_already_matched:
-                    photos_dict[media_id]['matched_faces'].append({
-                        'face_tag_id': face_tag_id,
-                        'face_name': face_name,
-                        'distance': float(distance),
-                        'confidence': 1.0 - float(distance),
-                        'bounding_box': bbox,
-                        'selfie_face_index': face_idx  # Track which selfie face this matched
-                    })
-                    photos_dict[media_id]['match_count'] += 1
-                    photos_dict[media_id]['selfie_faces_matched'].add(face_idx)  # Track unique selfie faces
+                    # Only add this face if it matches one of the identified selfie names
+                    # This ensures we don't show random people in photos
+                    is_selfie_match = (
+                        len(selfie_face_names) == 0 or  # No names identified yet, show all matches
+                        face_name in selfie_face_names  # Face name matches someone in selfie
+                    )
                     
-                    # Update best match distance (lowest)
-                    if distance < photos_dict[media_id]['best_match_distance']:
-                        photos_dict[media_id]['best_match_distance'] = distance
+                    if is_selfie_match:
+                        photos_dict[media_id]['matched_faces'].append({
+                            'face_tag_id': face_tag_id,
+                            'face_name': face_name,
+                            'distance': float(distance),
+                            'confidence': 1.0 - float(distance),
+                            'bounding_box': bbox,
+                            'selfie_face_index': face_idx  # Track which selfie face this matched
+                        })
+                        photos_dict[media_id]['match_count'] += 1
+                        photos_dict[media_id]['selfie_faces_matched'].add(face_idx)  # Track unique selfie faces
+                        
+                        # Update best match distance (lowest)
+                        if distance < photos_dict[media_id]['best_match_distance']:
+                            photos_dict[media_id]['best_match_distance'] = distance
+                    else:
+                        logger.debug(f"⏭️  Skipping {face_name} - not in selfie faces: {selfie_face_names}")
         
         # Convert set to count and sort by: 1) number of selfie faces matched (descending), 2) best distance (ascending)
         for photo in photos_dict.values():
